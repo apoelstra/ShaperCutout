@@ -139,7 +139,7 @@ class ShaperMiterTaskPanel:
 class createShaperMiterCmd:
     def GetResources(self):
         icon_path = os.path.join(os.path.dirname(__file__),
-                                 "../resources/icons/dados.svg")
+                                 "../resources/icons/miter.svg")
         return {
             "MenuText": "Create Miter",
             "ToolTip": "Create a miter cut on selected edges of a ShaperCutout outline sketch",

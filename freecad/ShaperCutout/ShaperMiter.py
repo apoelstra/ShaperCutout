@@ -163,7 +163,7 @@ class ViewProviderShaperMiter:
         return True
 
     def getIcon(self):
-        return os.path.join(os.path.dirname(__file__), "resources/icons/dados.svg")
+        return os.path.join(os.path.dirname(__file__), "resources/icons/miter.svg")
 
     def dumps(self):
         return None
