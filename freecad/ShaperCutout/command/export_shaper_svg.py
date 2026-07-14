@@ -214,21 +214,11 @@ def _build_svg(cutout, dado_groups, mirror=False):
                 f'  <path d="{d}" fill="red" stroke="none"/>')
 
     # Bounding box from outline wire vertices
-    all_pts = []
-    for w in outline_wires:
-        for v in w.Vertexes:
-            all_pts.append((v.X, v.Y))
-
-    if all_pts:
-        xs = [p[0] for p in all_pts]
-        ys = [p[1] for p in all_pts]
-        margin = 5.0
-        vb_x = min(xs) - margin
-        vb_y = min(ys) - margin
-        vb_w = (max(xs) - min(xs)) + 2 * margin
-        vb_h = (max(ys) - min(ys)) + 2 * margin
-    else:
-        vb_x, vb_y, vb_w, vb_h = -10, -10, 20, 20
+    bb = outline_shape.BoundBox
+    vb_x = bb.XMin - 10
+    vb_y = bb.YMin - 10
+    vb_w = bb.XLength + 20
+    vb_h = bb.YLength + 20
 
     paths_str = "\n".join(path_elements)
     svg = f'''<?xml version="1.0" encoding="UTF-8"?>
