@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import math
+
 import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtCore, QtGui, QtWidgets, QtSvg
@@ -26,12 +28,15 @@ class ShaperSvgPage:
                         'Page width')
         obj.addProperty('App::PropertyLength', 'Height', 'Base',
                         'Page height')
+        obj.addProperty('App::PropertyLength', 'GridSpacing', 'Base',
+                        'Grid spacing for the page view')
         obj.addProperty('App::PropertyString', 'Svg', 'Base',
                         'SVG code of the whole page')
 
         obj.Type = 'ShaperSvgPage'
         obj.Width = '8 ft'
         obj.Height = '4 ft'
+        obj.GridSpacing = '1 in'
         self._recompute_svg(obj)
 
     def onChanged(self, obj, prop):
@@ -102,25 +107,50 @@ class _PageWidget(QtWidgets.QWidget):
         self.setMinimumSize(200, 100)
 
     def paintEvent(self, event):
-        # Scale the SVG to fit into the window with 20px of padding on all four sides.
-        pad = 20
+        min_pad = 5
         page_w_mm = self._page_obj.Width.Value
         page_h_mm = self._page_obj.Height.Value
-        avail_w = self.width() - 2 * pad
-        avail_h = self.height() - 2 * pad
+        grid_mm = self._page_obj.GridSpacing.Value
 
+        avail_w = self.width() - 2 * min_pad
+        avail_h = self.height() - 2 * min_pad
         if page_w_mm <= 0 or page_h_mm <= 0 or avail_w <= 0 or avail_h <= 0:
             return
 
-        # Render the SVG
-        renderer = QtSvg.QSvgRenderer()
-        renderer.load(QtCore.QByteArray(self._page_obj.Svg.encode('utf-8')))
-        if not renderer.isValid():
-            return
+        grid_w = math.ceil(page_w_mm / grid_mm)
+        grid_h = math.ceil(page_h_mm / grid_mm)
+        grid_px = min(avail_w / grid_w, avail_h / grid_h)
+
+        pad_x = (self.width() - grid_w * grid_px) / 2.0
+        pad_y = (self.height() - grid_h * grid_px) / 2.0
+        avail_w = self.width() - 2 * pad_x
+        avail_h = self.height() - 2 * pad_y
 
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
-        renderer.render(painter, QtCore.QRectF(pad, pad, avail_w, avail_h))
+
+        # White page background
+        painter.fillRect(QtCore.QRectF(pad_x, pad_y, avail_w, avail_h),
+                         QtGui.QColor('white'))
+
+        # Light grey grid
+        if grid_px > 1:
+            painter.setPen(QtGui.QPen(QtGui.QColor(220, 220, 220), 0.5))
+            for x in range(grid_w):
+                px = pad_x + x * grid_px
+                painter.drawLine(QtCore.QPointF(px, pad_y),
+                                 QtCore.QPointF(px, pad_y + avail_h))
+            for y in range(grid_h):
+                py = pad_y + y * grid_px
+                painter.drawLine(QtCore.QPointF(pad_x, py),
+                                 QtCore.QPointF(pad_x + avail_w, py))
+
+        # SVG content
+        renderer = QtSvg.QSvgRenderer()
+        renderer.load(QtCore.QByteArray(self._page_obj.Svg.encode('utf-8')))
+        if renderer.isValid():
+            renderer.render(painter, QtCore.QRectF(pad_x, pad_y, avail_w, avail_h))
+
         painter.end()
 
 
@@ -188,7 +218,7 @@ class ViewProviderShaperSvgPage:
         self._subwindow = sub
 
     def updateData(self, fp, prop):
-        if prop in ('Width', 'Height', 'Group') and self._subwindow_alive():
+        if prop in ('Width', 'Height', 'Group', 'GridSpacing') and self._subwindow_alive():
             self._subwindow.widget().update()
 
     def getDisplayModes(self, obj):
