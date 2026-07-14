@@ -25,9 +25,15 @@ def create(obj_name, center_plane, outline_sketch, thickness, own_sketch=True, o
     # App::GroupExtensionPython gets us the .Group property
     outer.addExtension('App::GroupExtensionPython')
     ShaperCutout(outer)
-    ViewProviderShaperCutout(outer.ViewObject)
-    # Gui::ViewProviderGroupExtensionPython gets us group-like behavior in the Tree View
-    outer.ViewObject.addExtension('Gui::ViewProviderGroupExtensionPython')
+    if App.GuiUp:
+        ViewProviderShaperCutout(outer.ViewObject)
+        # Gui::ViewProviderGroupExtensionPython gets us group-like behavior in the Tree View
+        outer.ViewObject.addExtension('Gui::ViewProviderGroupExtensionPython')
+
+        # Tweak appearances (just do this on creation; the user can do what they
+        # want afterward)
+        outer.ViewObject.Transparency = 15  # slight transparency to help dado
+        outline_sketch.Visibility = False
 
     # Wire up
     outer.Thickness = thickness
@@ -53,11 +59,6 @@ def create(obj_name, center_plane, outline_sketch, thickness, own_sketch=True, o
 
     _ensure_front_face(label_prefix, outer)
     _ensure_back_face(label_prefix, outer)
-
-    # Tweak appearances (just do this on creation; the user can do what they
-    # want afterward)
-    outer.ViewObject.Transparency = 15  # slight transparency to help dado
-    outline_sketch.Visibility = False
 
     doc.recompute()
     return outer
@@ -85,9 +86,6 @@ def _ensure_front_face(label_prefix, obj):
     if face is not None and face in obj.Document.Objects:
         return face
     face = obj.Document.addObject('Part::DatumPlane', label_prefix + 'Front')
-    mat = App.Material()
-    mat.DiffuseColor = (1.0, 1.0, 0.0, 1.0)
-    face.ViewObject.ShapeAppearance = (mat,)
     obj.FrontFace = face
     obj.setEditorMode('FrontFace', 2)
     _insert_if_missing(obj, face)

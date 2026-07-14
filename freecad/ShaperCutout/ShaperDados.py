@@ -14,7 +14,8 @@ def create(cutout, face, invert, depth, name="ShaperDados"):
     obj = doc.addObject('App::DocumentObjectGroupPython', name)
     obj.Label = name
     ShaperDados(obj)
-    ViewProviderShaperDados(obj.ViewObject)
+    if App.GuiUp:
+        ViewProviderShaperDados(obj.ViewObject)
 
     obj.Face = face
     obj.Invert = invert

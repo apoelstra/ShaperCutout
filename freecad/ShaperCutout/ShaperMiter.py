@@ -17,7 +17,8 @@ def create(cutout, edges, angle, miter_axis, name="ShaperMiter"):
     doc = cutout.Document
     obj = doc.addObject('Part::FeaturePython', name)
     ShaperMiter(obj)
-    ViewProviderShaperMiter(obj.ViewObject)
+    if App.GuiUp:
+        ViewProviderShaperMiter(obj.ViewObject)
 
     obj.Edges = edges
     obj.Angle = angle
