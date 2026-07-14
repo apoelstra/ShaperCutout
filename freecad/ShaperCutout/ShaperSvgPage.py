@@ -88,10 +88,17 @@ class ShaperSvgPage:
                 # direction as FreeCAD, need to interpret Flip in the opposite way that you'd
                 # expect, for mirroring purposes.
                 mirror = (not child.Flip) ^ child.Invert
-                dados = _collect_dado_groups(cutout, child.Flip)
-                path_elements, _ = _collect_paths(cutout, dados, mirror=mirror)
+                dados = _collect_dado_groups(cutout, not child.Flip)
+                path_elements, bb = _collect_paths(cutout, dados, mirror=mirror)
+                cx = bb.XMin + bb.XLength / 2
+                cy = bb.YMin + bb.YLength / 2
+                rot = child.Rotation.Value + 180
+                tx = child.OffsetX.Value - bb.XMin
+                ty = -child.OffsetY.Value - bb.YMin - bb.YLength + obj.Height.Value
+                svg += f'  <g transform="translate({tx:.4f},{ty:.4f}) rotate({rot:.4f},{cx:.4f},{cy:.4f})">\n'
                 for path in path_elements:
-                    svg += f'{path}\n'
+                    svg += f'  {path}\n'
+                svg += '  </g>\n'
             except Exception as e:
                 App.Console.PrintWarning(f"ShaperSvgPage render: {e}\n")
                 return
@@ -218,7 +225,7 @@ class ViewProviderShaperSvgPage:
         self._subwindow = sub
 
     def updateData(self, fp, prop):
-        if prop in ('Width', 'Height', 'Group', 'GridSpacing') and self._subwindow_alive():
+        if prop in ('Width', 'Height', 'Group', 'GridSpacing', 'Svg') and self._subwindow_alive():
             self._subwindow.widget().update()
 
     def getDisplayModes(self, obj):

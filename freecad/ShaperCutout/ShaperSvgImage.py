@@ -46,6 +46,13 @@ class ShaperSvgImage:
     def execute(self, obj):
         pass
 
+    def onChanged(self, obj, prop):
+        if prop == 'Type':
+            return
+        for parent in obj.InList:
+            if getattr(parent, 'Type', None) == 'ShaperSvgPage':
+                parent.Proxy._recompute_svg(parent)
+
     def dumps(self):
         return None
 
