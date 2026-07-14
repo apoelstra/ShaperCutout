@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<package format="1">
+	<name>ShaperCutout</name>
+	<description>This workbench adds some functionality to support Andrew's workflow creating objects out of plywood sheets cut using the Shaper Origin.</description>
+	<version>0.1.0</version>
+	<date>2026.07.08</date>
+        <maintainer email="shapercutout@wpsoftware.net">apoelstra</maintainer>
+	<license file="LICENSE">GPL-3.0-or-later</license>
+	<url type="repository" branch="main">https://github.com/leoheck/FreeCAD_Assembly4.1</url>
+        <icon>freecad/ShaperCutout/resources/icons/ShaperCutoutWorkbench.svg</icon>
+	<content>
+		<workbench>
+			<classname>ShaperCutoutWorkbench</classname>
+			<subdirectory>freecad/ShaperCutout/</subdirectory>
+			<tag>ShaperCutout</tag>
+			<freecadmin>0.21.0</freecadmin>
+		</workbench>
+	</content>
+</package>
+
