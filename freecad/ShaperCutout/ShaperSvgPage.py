@@ -52,14 +52,15 @@ class ShaperSvgPage:
         return None
 
     def _recompute_svg(self, obj):
+        from command.export_shaper_svg import _collect_paths, _collect_dado_groups
+
         if not hasattr(obj, 'Width') or not hasattr(obj, 'Height'):
             return
 
         page_w = obj.Width.Value
         page_h = obj.Height.Value
 
-        # Initially we just have a blue "guide" rectangle and nothing else.
-        obj.Svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+        svg = f'''<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
      xmlns:shaper="http://www.shapertools.com/namespaces/shaper"
      viewBox="0 0 {page_w:.4f} {page_h:.4f}"
@@ -68,7 +69,30 @@ class ShaperSvgPage:
         width="{page_w:.4f}" height="{page_h:.4f}"
         fill="none" stroke="blue" stroke-width="1"
         shaper:cutType="guide" />
-</svg>'''
+'''
+
+        # Render each ShaperSvgImage child
+        for child in obj.Group:
+            if getattr(child, 'Type', None) != 'ShaperSvgImage':
+                continue
+            cutout = child.Cutout
+            if cutout is None:
+                continue
+            try:
+                # See comment in export_shaper_svg.py; because SVG interprets Y in the opposite
+                # direction as FreeCAD, need to interpret Flip in the opposite way that you'd
+                # expect, for mirroring purposes.
+                mirror = (not child.Flip) ^ child.Invert
+                dados = _collect_dado_groups(cutout, child.Flip)
+                path_elements, _ = _collect_paths(cutout, dados, mirror=mirror)
+                for path in path_elements:
+                    svg += f'{path}\n'
+            except Exception as e:
+                App.Console.PrintWarning(f"ShaperSvgPage render: {e}\n")
+                return
+
+        # Initially we just have a blue "guide" rectangle and nothing else.
+        obj.Svg = svg + "</svg>\n"
 
 
 class _PageWidget(QtWidgets.QWidget):

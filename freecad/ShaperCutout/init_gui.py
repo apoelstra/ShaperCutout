@@ -9,6 +9,7 @@ import ShaperCutout
 import ShaperDados
 import ShaperMiter
 import ShaperSvgPage
+import ShaperSvgImage
 
 module_path = os.path.dirname(ShaperCutout.__file__)  # lol
 
@@ -57,10 +58,14 @@ class ShaperCutoutWorkbench(Gui.Workbench):
         from command.create_shaper_svg_page import CreateShaperSvgPageCmd
         Gui.addCommand('ShaperCutout_createSvgPage', CreateShaperSvgPageCmd())
 
+        from command.create_shaper_svg_image import CreateShaperSvgImageCmd
+        Gui.addCommand('ShaperCutout_createSvgImage', CreateShaperSvgImageCmd())
+
         self.appendMenu(
             "&Shaper",
             [
                 "ShaperCutout_createSvgPage",
+                "ShaperCutout_createSvgImage",
                 "ShaperCutout_createCutout",
                 "ShaperCutout_createDados",
                 "ShaperCutout_createMiter",
@@ -75,6 +80,7 @@ class ShaperCutoutWorkbench(Gui.Workbench):
             "Shaper",
             [
                 "ShaperCutout_createSvgPage",
+                "ShaperCutout_createSvgImage",
                 "ShaperCutout_createCutout",
                 "ShaperCutout_createDados",
                 "ShaperCutout_createMiter",
