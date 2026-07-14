@@ -42,8 +42,6 @@ class ShaperMiterTaskPanel:
     def __init__(self, cutout, miter=None):
         self._cutout = cutout
         self._doc = cutout.Document
-        self._template = make_expr_template(prop_type='App::PropertyAngle')
-        self._template.set_from_object(miter, 'Angle', default=45.0)
 
         # Build the UI widget
         self.form = QtWidgets.QWidget()
@@ -65,7 +63,6 @@ class ShaperMiterTaskPanel:
         # Angle
         self.angle_spin = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
         self.angle_spin.setProperty('unit', 'deg')
-        self._template.bind(self.angle_spin)
         layout.addRow("Angle:", self.angle_spin)
 
         # Miter axis
@@ -75,6 +72,10 @@ class ShaperMiterTaskPanel:
 
         # Create or snapshot existing miter
         self._doc.openTransaction("Create Miter" if miter is None else "Edit Miter")
+        self._template = make_expr_template(prop_type='App::PropertyAngle')
+        self._template.set_from_object(miter, 'Angle', default=45.0)
+        self._template.bind(self.angle_spin)
+
         self._miter = miter
         if self._miter is None:
             self._miter = ShaperMiter.create(

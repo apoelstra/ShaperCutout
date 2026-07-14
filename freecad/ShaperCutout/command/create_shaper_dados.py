@@ -36,8 +36,6 @@ class ShaperDadosTaskPanel:
     def __init__(self, cutout, dados=None):
         self._cutout = cutout
         self._doc = cutout.Document
-        self._template = make_expr_template()
-        self._template.set_from_object(dados, 'Depth')
 
         self.form = QtWidgets.QWidget()
         self.form.setWindowTitle("Edit Dados" if dados is not None else "Create Dados")
@@ -61,7 +59,6 @@ class ShaperDadosTaskPanel:
         # Depth
         depth_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
         depth_widget.setProperty('unit', 'mm')
-        self._template.bind(depth_widget)
         layout.addRow("Depth:", depth_widget)
         self._depth_widget = depth_widget
 
@@ -86,6 +83,10 @@ class ShaperDadosTaskPanel:
 
         # Open transaction and create/reference dados
         self._doc.openTransaction("Edit Dados" if dados is not None else "Create Dados")
+        self._template = make_expr_template()
+        self._template.set_from_object(dados, 'Depth')
+        self._template.bind(depth_widget)
+
         self._dados = dados
         if self._dados is None:
             face_data = self.face_combo.currentData()

@@ -46,8 +46,6 @@ class ShaperCutoutTaskPanel:
     def __init__(self, cutout=None):
         self._doc = App.ActiveDocument
         self._edit_mode = cutout is not None
-        self._template = make_expr_template()
-        self._template.set_from_object(cutout, 'Thickness')
 
         # Collect available planes and sketches
         internal = _internal_objects(self._doc)
@@ -90,13 +88,15 @@ class ShaperCutoutTaskPanel:
         # Thickness
         thickness_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
         thickness_widget.setProperty('unit', 'mm')
-        self._template.bind(thickness_widget)
         layout.addRow("Thickness:", thickness_widget)
         self._thickness_widget = thickness_widget
 
         # Open transaction and create/reference cutout
         self._doc.openTransaction(
             "Edit Shaper Cutout" if self._edit_mode else "Create Shaper Cutout")
+        self._template = make_expr_template()
+        self._template.set_from_object(cutout, 'Thickness')
+        self._template.bind(thickness_widget)
 
         if self._edit_mode:
             self._cutout = cutout
