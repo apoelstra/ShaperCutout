@@ -103,7 +103,7 @@ class _PageWidget(QtWidgets.QWidget):
 # This ViewProvider, which creates a new MDI window similar to what TechView and Spreadsheet
 # do, is due to Claude. It's a bit hacky -- we call Gui.getMainWindow().centralWidget() to
 # get the MDI area and then directly futz with Qt stuff. So there is no integration with the
-# undo system, etc., and when we close the document the SVG page doesn't get closed with it.
+# undo system, etc.
 class ViewProviderShaperSvgPage:
     def __init__(self, vobj):
         vobj.Proxy = self
@@ -111,6 +111,21 @@ class ViewProviderShaperSvgPage:
 
     def attach(self, vobj):
         self._vobj = vobj
+        # Cache document name so we can check it in slotDeletedDocument, even though
+        # self._vobj will have been deleted
+        self._doc_name = self._vobj.Object.Document.Name
+        # Arguably I should have a dummy object which only implements slotDeletedDocument,
+        # so that I don't accidentally observe other events, but meh.
+        App.addDocumentObserver(self)
+
+    def slotDeletedDocument(self, doc):
+        """Method to allow this ViewProviderShaperSvgPage to act as a document observer"""
+        try:
+            if doc.Name == self._doc_name:
+                if self._subwindow_alive():
+                    self._subwindow.close()
+        except RuntimeError:
+            pass
 
     def getIcon(self):
         import os
