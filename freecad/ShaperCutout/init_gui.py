@@ -8,6 +8,7 @@ import FreeCADGui as Gui
 import ShaperCutout
 import ShaperDados
 import ShaperMiter
+import ShaperSvgPage
 
 module_path = os.path.dirname(ShaperCutout.__file__)  # lol
 
@@ -53,9 +54,13 @@ class ShaperCutoutWorkbench(Gui.Workbench):
         Gui.addCommand('ShaperCutout_exportFrontSVG', ExportShaperSVGCmd(True))
         Gui.addCommand('ShaperCutout_exportBackSVG', ExportShaperSVGCmd(False))
 
+        from command.create_shaper_svg_page import CreateShaperSvgPageCmd
+        Gui.addCommand('ShaperCutout_createSvgPage', CreateShaperSvgPageCmd())
+
         self.appendMenu(
             "&Shaper",
             [
+                "ShaperCutout_createSvgPage",
                 "ShaperCutout_createCutout",
                 "ShaperCutout_createDados",
                 "ShaperCutout_createMiter",
@@ -69,6 +74,7 @@ class ShaperCutoutWorkbench(Gui.Workbench):
         self.appendToolbar(
             "Shaper",
             [
+                "ShaperCutout_createSvgPage",
                 "ShaperCutout_createCutout",
                 "ShaperCutout_createDados",
                 "ShaperCutout_createMiter",
