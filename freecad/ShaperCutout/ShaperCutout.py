@@ -262,8 +262,12 @@ class ViewProviderShaperCutout:
         edit_action.triggered.connect(lambda: open_cutout_task_panel(vobj.Object))
         menu.addAction(edit_action)
 
-        export_action = QtGui.QAction("Export Shaper SVG", menu)
-        export_action.triggered.connect(lambda: export(vobj.Object))
+        export_action = QtGui.QAction("Export Shaper SVG (Front)", menu)
+        export_action.triggered.connect(lambda: export(vobj.Object, True))
+        menu.addAction(export_action)
+
+        export_action = QtGui.QAction("Export Shaper SVG (Back)", menu)
+        export_action.triggered.connect(lambda: export(vobj.Object, False))
         menu.addAction(export_action)
 
     def updateData(self, fp, prop):

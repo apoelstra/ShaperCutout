@@ -235,11 +235,10 @@ def _build_svg(cutout, dado_groups, mirror=False):
 # Export orchestration
 # ---------------------------------------------------------------------------
 
-def _collect_dado_groups(cutout):
-    """Return (front_dados, back_dados) where each is list of (depth_mm, [shapes]).
+def _collect_dado_groups(cutout, exportFront):
+    """Return list of (depth_mm, [shapes]).
     Warns if a dado face is neither FrontFace nor BackFace."""
-    front_dados = []
-    back_dados = []
+    dados = []
 
     for member in cutout.Group:
         if getattr(member, 'Type', None) != 'ShaperDados':
@@ -254,69 +253,39 @@ def _collect_dado_groups(cutout):
             shapes.append(source.Shape)
 
         if face is cutout.FrontFace:
-            front_dados.append((depth_mm, shapes))
+            if exportFront:
+                dados.append((depth_mm, shapes))
         elif face is cutout.BackFace:
-            back_dados.append((depth_mm, shapes))
+            if not exportFront:
+                dados.append((depth_mm, shapes))
         else:
             App.Console.PrintWarning(
                 f"export_shaper_svg: ShaperDados '{member.Label}' face is neither "
                 f"FrontFace nor BackFace of '{cutout.Label}'; skipping\n")
 
-    return front_dados, back_dados
+    return dados
 
 
-def export(cutout):
+def export(cutout, exportFront):
     """Main export entry point. Shows file dialog(s) and writes SVG(s)."""
-    front_dados, back_dados = _collect_dado_groups(cutout)
+    dados = _collect_dado_groups(cutout, exportFront)
 
-    has_front = bool(front_dados)
-    has_back = bool(back_dados)
-    two_files = has_front and has_back
+    path, _ = QtWidgets.QFileDialog.getSaveFileName(
+        None,
+        "Export Shaper SVG",
+        cutout.Label + ("_front" if exportFront else "_back") + ".svg",
+        "SVG Files (*.svg)",
+    )
+    if not path:
+        return
 
-    if two_files:
-        # Ask for a directory + base name via a save dialog using a placeholder
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            None,
-            "Export Shaper SVG — choose base filename (suffixes _front/_back will be added)",
-            cutout.Label + "_front.svg",
-            "SVG Files (*.svg)",
-        )
-        if not path:
-            return
-        base = path[:-len("_front.svg")] if path.endswith("_front.svg") else path[:-4]
-        front_path = base + "_front.svg"
-        back_path = base + "_back.svg"
+    # When exporting the back face, mirror it.
+    svg = _build_svg(cutout, dados, mirror=not exportFront)
 
-        svg_front = _build_svg(cutout, front_dados, mirror=False)
-        svg_back = _build_svg(cutout, back_dados, mirror=True)
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(svg)
 
-        with open(front_path, 'w', encoding='utf-8') as f:
-            f.write(svg_front)
-        with open(back_path, 'w', encoding='utf-8') as f:
-            f.write(svg_back)
-
-        App.Console.PrintMessage(
-            f"export_shaper_svg: wrote '{front_path}' and '{back_path}'\n")
-
-    else:
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            None,
-            "Export Shaper SVG",
-            cutout.Label + ".svg",
-            "SVG Files (*.svg)",
-        )
-        if not path:
-            return
-
-        # If only back dados, mirror; if front or none, don't mirror
-        mirror = has_back and not has_front
-        dado_groups = back_dados if mirror else front_dados
-        svg = _build_svg(cutout, dado_groups, mirror=mirror)
-
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(svg)
-
-        App.Console.PrintMessage(f"export_shaper_svg: wrote '{path}'\n")
+    App.Console.PrintMessage(f"export_shaper_svg: wrote '{path}'\n")
 
 
 # ---------------------------------------------------------------------------
@@ -324,11 +293,21 @@ def export(cutout):
 # ---------------------------------------------------------------------------
 
 class ExportShaperSVGCmd:
+    def __init__(self, exportFront):
+        self.exportFront = exportFront
+
     def GetResources(self):
-        icon_path = os.path.join(os.path.dirname(__file__),
-                                 "../resources/icons/cutout.svg")
+        if self.exportFront:
+            icon_path = os.path.join(os.path.dirname(__file__),
+                                     "../resources/icons/export-svg-front.svg")
+            menu_text = "Export Shaper SVG (Front)"
+        else:
+            icon_path = os.path.join(os.path.dirname(__file__),
+                                     "../resources/icons/export-svg-back.svg")
+            menu_text = "Export Shaper SVG (Back)"
+
         return {
-            "MenuText": "Export Shaper SVG",
+            "MenuText": menu_text,
             "ToolTip": "Export selected ShaperCutout to Shaper-compatible SVG file(s)",
             "Pixmap": icon_path,
         }
@@ -343,4 +322,4 @@ class ExportShaperSVGCmd:
     def Activated(self):
         for obj in Gui.Selection.getSelection():
             if getattr(obj, 'Type', None) == 'ShaperCutout':
-                export(obj)
+                export(obj, self.exportFront)
