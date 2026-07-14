@@ -155,8 +155,8 @@ def _find_anchor_corner(outline_wires):
 # SVG assembly
 # ---------------------------------------------------------------------------
 
-def _build_svg(cutout, dado_groups, mirror=False):
-    """Build a complete SVG string."""
+def _collect_paths(cutout, dado_groups, mirror=False):
+    """Return list of SVG path element strings (no <svg> wrapper)."""
     # The projection logic of Draft importSVG seems quite broken. I cannot directly export
     # a sketch (see https://github.com/FreeCAD/FreeCAD/pull/19765#discussion_r3575523221),
     # but I can export a Clone2D of a sketch (which is flattened to the wrong plane). If
@@ -213,22 +213,23 @@ def _build_svg(cutout, dado_groups, mirror=False):
             path_elements.append(
                 f'  <path d="{d}" fill="red" stroke="none"/>')
 
-    # Bounding box from outline wire vertices
-    bb = outline_shape.BoundBox
+    return path_elements, outline_shape.BoundBox
+
+
+def _build_svg(path_elements, bb):
+    """Build a complete SVG string."""
     vb_x = bb.XMin - 10
     vb_y = bb.YMin - 10
     vb_w = bb.XLength + 20
     vb_h = bb.YLength + 20
-
     paths_str = "\n".join(path_elements)
-    svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+    return f'''<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
      xmlns:shaper="http://www.shapertools.com/namespaces/shaper"
      viewBox="{vb_x:.4f} {vb_y:.4f} {vb_w:.4f} {vb_h:.4f}"
      width="{vb_w:.4f}mm" height="{vb_h:.4f}mm">
 {paths_str}
 </svg>'''
-    return svg
 
 
 # ---------------------------------------------------------------------------
@@ -269,6 +270,8 @@ def _collect_dado_groups(cutout, exportFront):
 def export(cutout, exportFront):
     """Main export entry point. Shows file dialog(s) and writes SVG(s)."""
     dados = _collect_dado_groups(cutout, exportFront)
+    # When exporting the back face, mirror it.
+    path_elements, bb = _collect_paths(cutout, dados, mirror=not exportFront)
 
     path, _ = QtWidgets.QFileDialog.getSaveFileName(
         None,
@@ -279,9 +282,7 @@ def export(cutout, exportFront):
     if not path:
         return
 
-    # When exporting the back face, mirror it.
-    svg = _build_svg(cutout, dados, mirror=not exportFront)
-
+    svg = _build_svg(path_elements, bb)
     with open(path, 'w', encoding='utf-8') as f:
         f.write(svg)
 
