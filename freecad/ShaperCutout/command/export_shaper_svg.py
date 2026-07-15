@@ -171,9 +171,16 @@ def _collect_paths(cutout, dado_groups, mirror=False):
 
     xy_matrix = cutout.CenterPlane.Placement.toMatrix().inverse()
     if mirror:
+        # Rather than mirroring (which would require a non-unitary matrix, and cause
+        # Shape.transformed to take an alternate, less-accurate codepath in which it
+        # converts arcs to splines) we rotate 180 degrees around the Y axis. For a
+        # 2D shape these are identical operations.
         xy_matrix.A11 *= -1
         xy_matrix.A12 *= -1
         xy_matrix.A13 *= -1
+        xy_matrix.A31 *= -1
+        xy_matrix.A32 *= -1
+        xy_matrix.A33 *= -1
 
     outline_shape = cutout.OutlineSketch.Shape.transformed(xy_matrix)
     outline_wires = outline_shape.Wires
@@ -218,17 +225,23 @@ def _collect_paths(cutout, dado_groups, mirror=False):
 
 def _build_svg(path_elements, bb):
     """Build a complete SVG string."""
-    vb_x = bb.XMin - 10
-    vb_y = bb.YMin - 10
-    vb_w = bb.XLength + 20
-    vb_h = bb.YLength + 20
+    vb_x0 = bb.XMin - 10
+    vb_x1 = bb.XMax + 10
+    vb_y0 = bb.YMin - 10
+    vb_y1 = bb.YMax + 10
+    vb_cx = (vb_x0 + vb_x1) / 2.0
+    vb_cy = (vb_y0 + vb_y1) / 2.0
+    vb_w = vb_x1 - vb_x0
+    vb_h = vb_y1 - vb_y0
     paths_str = "\n".join(path_elements)
     return f'''<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
      xmlns:shaper="http://www.shapertools.com/namespaces/shaper"
-     viewBox="{vb_x:.4f} {vb_y:.4f} {vb_w:.4f} {vb_h:.4f}"
+     viewBox="{vb_x0:.4f} {vb_y0:.4f} {vb_w:.4f} {vb_h:.4f}"
      width="{vb_w:.4f}mm" height="{vb_h:.4f}mm">
+<g transform="rotate(180 {vb_cx:.4f} {vb_cy:.4f})">
 {paths_str}
+</g>
 </svg>'''
 
 
@@ -270,8 +283,10 @@ def _collect_dado_groups(cutout, exportFront):
 def export(cutout, exportFront):
     """Main export entry point. Shows file dialog(s) and writes SVG(s)."""
     dados = _collect_dado_groups(cutout, exportFront)
-    # When exporting the back face, mirror it.
-    path_elements, bb = _collect_paths(cutout, dados, mirror=not exportFront)
+    # When exporting the *front* face, mirror it. This is because in SVG, the Y coordinate
+    # is interpreted in the opposite way from FreeCAD, so a naive path computation causes
+    # the element to be mirrored. By explicitly mirroring we undo this.
+    path_elements, bb = _collect_paths(cutout, dados, mirror=exportFront)
 
     path, _ = QtWidgets.QFileDialog.getSaveFileName(
         None,
