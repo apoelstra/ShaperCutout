@@ -89,7 +89,7 @@ class ShaperSvgPage:
                 # expect, for mirroring purposes.
                 mirror = (not child.Flip) ^ child.Invert
                 dados = _collect_dado_groups(cutout, not child.Flip)
-                path_elements, bb = _collect_paths(cutout, dados, mirror=mirror)
+                path_elements, bb = _collect_paths(cutout, dados, mirror=mirror, addAnchor=False)
                 cx = bb.XMin + bb.XLength / 2
                 cy = bb.YMin + bb.YLength / 2
                 rot = child.Rotation.Value + 180

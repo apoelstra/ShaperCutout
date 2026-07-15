@@ -155,7 +155,7 @@ def _find_anchor_corner(outline_wires):
 # SVG assembly
 # ---------------------------------------------------------------------------
 
-def _collect_paths(cutout, dado_groups, mirror=False):
+def _collect_paths(cutout, dado_groups, mirror=False, addAnchor=True):
     """Return list of SVG path element strings (no <svg> wrapper)."""
     # The projection logic of Draft importSVG seems quite broken. I cannot directly export
     # a sketch (see https://github.com/FreeCAD/FreeCAD/pull/19765#discussion_r3575523221),
@@ -211,14 +211,15 @@ def _collect_paths(cutout, dado_groups, mirror=False):
                         f'  <path d="{d}" fill="white" stroke="black" stroke-width="0.1" '
                         f'shaper:cutType="inside" shaper:cutDepth="{depth_mm:.4f}mm"/>')
 
-    anchor_wire = _find_anchor_corner(outer_wires)
-    if not anchor_wire:
-        anchor_wire = _find_anchor_corner(inner_wires)
-    if anchor_wire:
-        d = _wire_to_d(anchor_wire)
-        if d:
-            path_elements.append(
-                f'  <path d="{d}" fill="red" stroke="none"/>')
+    if addAnchor:
+        anchor_wire = _find_anchor_corner(outer_wires)
+        if not anchor_wire:
+            anchor_wire = _find_anchor_corner(inner_wires)
+        if anchor_wire:
+            d = _wire_to_d(anchor_wire)
+            if d:
+                path_elements.append(
+                    f'  <path d="{d}" fill="red" stroke="none"/>')
 
     return path_elements, outline_shape.BoundBox
 
