@@ -4,7 +4,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 
 
-def create(page, cutout, name="ShaperSvgImage"):
+def create(page, cutout, name):
     doc = page.Document
     obj = doc.addObject('App::DocumentObjectGroupPython', name)
     obj.Label = name
