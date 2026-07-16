@@ -5,6 +5,7 @@ import os
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
+import TechDraw
 
 from draftfunctions.svgshapes import get_path
 from PySide import QtWidgets
@@ -83,16 +84,16 @@ def _wire_to_d(wire):
 # Miter rectangle helpers
 # ---------------------------------------------------------------------------
 
-def _miter_rect_faces(cutout, xy_matrix):
-    """Compute miter rectangle faces in projected (XY) space.
-    Returns (rect_faces, union_face) where union_face is None if no miters."""
+def _miter_rectangles(cutout, xy_matrix):
+    """Compute miter rectangles in projected (XY) space. Returns a list of wires,
+    one per rectangle."""
     import math as _math
 
     thickness = cutout.Thickness.Value
     normal_3d = cutout.CenterPlane.Placement.Rotation.multVec(App.Vector(0, 0, 1))
     half = thickness / 2.0
 
-    rect_faces = []
+    ret_wires = []
 
     for member in cutout.Group:
         if getattr(member, 'Type', None) != 'ShaperMiter':
@@ -152,46 +153,32 @@ def _miter_rect_faces(cutout, xy_matrix):
 
                 try:
                     wire = Part.makePolygon([na, nb, fb, fa, na])
-                    face = Part.Face(wire)
-                    rect_faces.append(face)
+                    ret_wires.append(wire)
                 except Exception as e:
                     App.Console.PrintWarning(f"export_shaper_svg: miter rect failed: {e}\n")
 
-    if not rect_faces:
-        return [], None
-
-    union_face = rect_faces[0]
-    for f in rect_faces[1:]:
-        try:
-            union_face = union_face.fuse(f)
-        except Exception as e:
-            App.Console.PrintWarning(f"export_shaper_svg: miter union failed: {e}\n")
-
-    return rect_faces, union_face
+    return ret_wires
 
 
-def _apply_miter_to_wires(outer_wires, inner_wires, union_face):
+def _apply_miter_to_wires(outer_wires, inner_wires, rect_wires):
     """Fuse miter union into outer wire faces; cut from inner wire faces.
     Returns updated (outer_wires, inner_wires)."""
     new_outer = []
     for w in outer_wires:
-        try:
-            face = Part.Face(w)
-            result = face.fuse(union_face)
-            new_outer.extend(result.Wires)
-        except Exception as e:
-            App.Console.PrintWarning(f"export_shaper_svg: outer miter fuse failed: {e}\n")
-            new_outer.append(w)
+        # For outer wires we need to invoke the TechDraw.findOuterWire algorithm to find
+        # the actual outline, since e.g. Part.fuse won't combine wires the way we want.
+        edges = w.Edges
+        for rw in rect_wires:
+            edges.extend(rw.Edges)
+        new_outer.append(TechDraw.findOuterWire(edges))
 
     new_inner = []
     for w in inner_wires:
-        try:
-            face = Part.Face(w)
-            result = face.cut(union_face)
-            new_inner.extend(result.Wires)
-        except Exception as e:
-            App.Console.PrintWarning(f"export_shaper_svg: inner miter cut failed: {e}\n")
-            new_inner.append(w)
+        # For inner wires we can use Part.cut, which *does* seem to do the right thing.
+        face = Part.Face(w)
+        for rw in rect_wires:
+            face = face.cut(Part.Face(rw))
+        new_inner.extend(face.Wires)
 
     return new_outer, new_inner
 
@@ -303,9 +290,8 @@ def _collect_paths(cutout, dado_groups, mirror=False, addAnchor=True):
     outline_wires = outline_shape.Wires
     outer_wires, inner_wires = _classify_wires(outline_wires)
 
-    rect_faces, miter_union = _miter_rect_faces(cutout, xy_matrix)
-    if miter_union is not None:
-        outer_wires, inner_wires = _apply_miter_to_wires(outer_wires, inner_wires, miter_union)
+    rect_wires = _miter_rectangles(cutout, xy_matrix)
+    outer_wires, inner_wires = _apply_miter_to_wires(outer_wires, inner_wires, rect_wires)
 
     path_elements = []
 
@@ -332,13 +318,12 @@ def _collect_paths(cutout, dado_groups, mirror=False, addAnchor=True):
                         f'  <path d="{d}" fill="white" stroke="black" stroke-width="1" '
                         f'shaper:cutType="inside" shaper:cutDepth="{depth_mm:.4f}mm"/>')
 
-    for rf in rect_faces:
-        for w in rf.Wires:
-            d = _wire_to_d(w)
-            if d:
-                path_elements.append(
-                    f'  <path d="{d}" fill="none" stroke="blue" stroke-width="1" '
-                    f'shaper:cutType="guide"/>')
+    for w in rect_wires:
+        d = _wire_to_d(w)
+        if d:
+            path_elements.append(
+                f'  <path d="{d}" fill="none" stroke="blue" stroke-width="1" '
+                f'shaper:cutType="guide"/>')
 
     if addAnchor:
         anchor_wire = _find_anchor_corner(outer_wires)
