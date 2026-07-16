@@ -30,8 +30,10 @@ class ShaperSvgPage:
                         'Page height')
         obj.addProperty('App::PropertyLength', 'GridSpacing', 'Base',
                         'Grid spacing for the page view')
-        obj.addProperty('App::PropertyString', 'Svg', 'Base',
+        obj.addProperty('App::PropertyString', 'zzSvg', 'Base',
                         'SVG code of the whole page')
+
+        obj.setPropertyStatus('zzSvg', 2)
 
         obj.Type = 'ShaperSvgPage'
         obj.Width = '8 ft'
@@ -104,7 +106,7 @@ class ShaperSvgPage:
                 return
 
         # Initially we just have a blue "guide" rectangle and nothing else.
-        obj.Svg = svg + "</svg>\n"
+        obj.zzSvg = svg + "</svg>\n"
 
 
 class _PageWidget(QtWidgets.QWidget):
@@ -154,7 +156,7 @@ class _PageWidget(QtWidgets.QWidget):
 
         # SVG content
         renderer = QtSvg.QSvgRenderer()
-        renderer.load(QtCore.QByteArray(self._page_obj.Svg.encode('utf-8')))
+        renderer.load(QtCore.QByteArray(self._page_obj.zzSvg.encode('utf-8')))
         if renderer.isValid():
             renderer.render(painter, QtCore.QRectF(pad_x, pad_y, avail_w, avail_h))
 
@@ -225,7 +227,7 @@ class ViewProviderShaperSvgPage:
         self._subwindow = sub
 
     def updateData(self, fp, prop):
-        if prop in ('Width', 'Height', 'Group', 'GridSpacing', 'Svg') and self._subwindow_alive():
+        if prop in ('Width', 'Height', 'Group', 'GridSpacing', 'zzSvg') and self._subwindow_alive():
             self._subwindow.widget().update()
 
     def getDisplayModes(self, obj):
