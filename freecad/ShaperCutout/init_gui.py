@@ -61,6 +61,9 @@ class ShaperCutoutWorkbench(Gui.Workbench):
         from command.create_shaper_svg_image import CreateShaperSvgImageCmd
         Gui.addCommand('ShaperCutout_createSvgImage', CreateShaperSvgImageCmd())
 
+        from command.export_shaper_svg_page import ExportShaperSvgPageCmd
+        Gui.addCommand('ShaperCutout_exportSvgPage', ExportShaperSvgPageCmd())
+
         self.appendMenu(
             "&Shaper",
             [
@@ -69,6 +72,7 @@ class ShaperCutoutWorkbench(Gui.Workbench):
                 "ShaperCutout_createMiter",
                 "ShaperCutout_createSvgPage",
                 "ShaperCutout_createSvgImage",
+                "ShaperCutout_exportSvgPage",
                 "ShaperCutout_exportFrontSVG",
                 "ShaperCutout_exportBackSVG",
                 "Part_CoordinateSystem",

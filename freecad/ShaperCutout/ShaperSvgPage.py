@@ -241,6 +241,10 @@ class ViewProviderShaperSvgPage:
         pass
 
     def setupContextMenu(self, vobj, menu):
+        from command.export_shaper_svg_page import export
+        action = menu.addAction("Export SVG Page")
+        action.triggered.connect(lambda: export(vobj.Object))
+
         action = menu.addAction("Add Cutout to Page")
         action.triggered.connect(lambda: self._add_image(vobj.Object))
 
