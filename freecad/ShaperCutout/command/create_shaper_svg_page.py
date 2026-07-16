@@ -8,7 +8,7 @@ import FreeCADGui as Gui
 class CreateShaperSvgPageCmd:
     def GetResources(self):
         icon_path = os.path.join(os.path.dirname(__file__),
-                                 "../resources/icons/export-svg-front.svg")
+                                 "../resources/icons/svg-page.svg")
         return {
             "MenuText": "Create SVG Page",
             "ToolTip": "Create a ShaperSvgPage layout object",

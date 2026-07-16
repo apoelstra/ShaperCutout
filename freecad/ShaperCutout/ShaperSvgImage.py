@@ -70,7 +70,7 @@ class ViewProviderShaperSvgImage:
     def getIcon(self):
         import os
         return os.path.join(os.path.dirname(__file__),
-                            'resources/icons/export-svg-front.svg')
+                            'resources/icons/svg-image.svg')
 
     def dumps(self):
         return None

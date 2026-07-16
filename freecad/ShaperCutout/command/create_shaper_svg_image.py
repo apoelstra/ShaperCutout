@@ -9,7 +9,7 @@ from PySide import QtWidgets
 class CreateShaperSvgImageCmd:
     def GetResources(self):
         icon_path = os.path.join(os.path.dirname(__file__),
-                                 "../resources/icons/export-svg-front.svg")
+                                 "../resources/icons/svg-image.svg")
         return {
             "MenuText": "Add Cutout to Page",
             "ToolTip": "Add a ShaperCutout as an image on the selected ShaperSvgPage",

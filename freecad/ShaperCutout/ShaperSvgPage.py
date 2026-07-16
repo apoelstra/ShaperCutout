@@ -191,7 +191,7 @@ class ViewProviderShaperSvgPage:
     def getIcon(self):
         import os
         return os.path.join(os.path.dirname(__file__),
-                            'resources/icons/export-svg-front.svg')
+                            'resources/icons/svg-page.svg')
 
     def doubleClicked(self, vobj):
         self._open_view(vobj.Object)
