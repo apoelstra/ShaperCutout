@@ -80,6 +80,123 @@ def _wire_to_d(wire):
 
 
 # ---------------------------------------------------------------------------
+# Miter rectangle helpers
+# ---------------------------------------------------------------------------
+
+def _miter_rect_faces(cutout, xy_matrix):
+    """Compute miter rectangle faces in projected (XY) space.
+    Returns (rect_faces, union_face) where union_face is None if no miters."""
+    import math as _math
+
+    thickness = cutout.Thickness.Value
+    normal_3d = cutout.CenterPlane.Placement.Rotation.multVec(App.Vector(0, 0, 1))
+    half = thickness / 2.0
+
+    rect_faces = []
+
+    for member in cutout.Group:
+        if getattr(member, 'Type', None) != 'ShaperMiter':
+            continue
+        if not member.Edges or member.Angle is None:
+            continue
+        angle_deg = member.Angle.Value
+        if angle_deg == 0:
+            continue
+        if angle_deg <= -90 or angle_deg >= 90:
+            continue
+        miter_axis = member.MiterAxis
+
+        for (linked_obj, subnames) in member.Edges:
+            for subname in subnames:
+                if not subname.startswith('Edge'):
+                    continue
+                try:
+                    edge_shape = linked_obj.Shape.getElement(subname)
+                except Exception:
+                    continue
+                if not isinstance(edge_shape.Curve, Part.Line):
+                    continue
+
+                p0_3d = edge_shape.Vertexes[0].Point
+                p1_3d = edge_shape.Vertexes[1].Point
+                edge_vec_3d = p1_3d - p0_3d
+                face_normal_3d = edge_vec_3d.cross(normal_3d).normalize()
+
+                far_dist = _math.tan(_math.radians(angle_deg)) * thickness
+                far_vec_3d = far_dist * face_normal_3d
+
+                if miter_axis == 'Front':
+                    offset_vec_3d = App.Vector(0, 0, 0)
+                elif miter_axis == 'Center':
+                    offset_vec_3d = -far_vec_3d / 2
+                else:  # Back
+                    offset_vec_3d = -far_vec_3d
+
+                # The 4 corners of the miter rectangle in 3D (on the center plane)
+                # near_a/near_b are the edge endpoints offset to the center plane,
+                # far_a/far_b are the far corners.
+                near_a_3d = p0_3d + half * normal_3d + offset_vec_3d
+                near_b_3d = p1_3d + half * normal_3d + offset_vec_3d
+                far_a_3d  = near_a_3d + far_vec_3d
+                far_b_3d  = near_b_3d + far_vec_3d
+
+                # Project all 4 corners onto XY plane
+                def proj(pt):
+                    v = xy_matrix.multiply(pt)
+                    return App.Vector(v.x, v.y, 0)
+
+                na = proj(near_a_3d)
+                nb = proj(near_b_3d)
+                fa = proj(far_a_3d)
+                fb = proj(far_b_3d)
+
+                try:
+                    wire = Part.makePolygon([na, nb, fb, fa, na])
+                    face = Part.Face(wire)
+                    rect_faces.append(face)
+                except Exception as e:
+                    App.Console.PrintWarning(f"export_shaper_svg: miter rect failed: {e}\n")
+
+    if not rect_faces:
+        return [], None
+
+    union_face = rect_faces[0]
+    for f in rect_faces[1:]:
+        try:
+            union_face = union_face.fuse(f)
+        except Exception as e:
+            App.Console.PrintWarning(f"export_shaper_svg: miter union failed: {e}\n")
+
+    return rect_faces, union_face
+
+
+def _apply_miter_to_wires(outer_wires, inner_wires, union_face):
+    """Fuse miter union into outer wire faces; cut from inner wire faces.
+    Returns updated (outer_wires, inner_wires)."""
+    new_outer = []
+    for w in outer_wires:
+        try:
+            face = Part.Face(w)
+            result = face.fuse(union_face)
+            new_outer.extend(result.Wires)
+        except Exception as e:
+            App.Console.PrintWarning(f"export_shaper_svg: outer miter fuse failed: {e}\n")
+            new_outer.append(w)
+
+    new_inner = []
+    for w in inner_wires:
+        try:
+            face = Part.Face(w)
+            result = face.cut(union_face)
+            new_inner.extend(result.Wires)
+        except Exception as e:
+            App.Console.PrintWarning(f"export_shaper_svg: inner miter cut failed: {e}\n")
+            new_inner.append(w)
+
+    return new_outer, new_inner
+
+
+# ---------------------------------------------------------------------------
 # Custom anchor
 # ---------------------------------------------------------------------------
 
@@ -186,6 +303,10 @@ def _collect_paths(cutout, dado_groups, mirror=False, addAnchor=True):
     outline_wires = outline_shape.Wires
     outer_wires, inner_wires = _classify_wires(outline_wires)
 
+    rect_faces, miter_union = _miter_rect_faces(cutout, xy_matrix)
+    if miter_union is not None:
+        outer_wires, inner_wires = _apply_miter_to_wires(outer_wires, inner_wires, miter_union)
+
     path_elements = []
 
     for w in outer_wires:
@@ -201,6 +322,14 @@ def _collect_paths(cutout, dado_groups, mirror=False, addAnchor=True):
             path_elements.append(
                 f'  <path d="{d}" fill="white" stroke="black" stroke-width="0.1" '
                 f'shaper:cutType="inside"/>')
+
+    for rf in rect_faces:
+        for w in rf.Wires:
+            d = _wire_to_d(w)
+            if d:
+                path_elements.append(
+                    f'  <path d="{d}" fill="none" stroke="blue" stroke-width="0.1" '
+                    f'shaper:cutType="guide"/>')
 
     for depth_mm, shapes in dado_groups:
         for shape in shapes:
