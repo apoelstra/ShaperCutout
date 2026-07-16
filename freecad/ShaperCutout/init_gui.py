@@ -64,31 +64,31 @@ class ShaperCutoutWorkbench(Gui.Workbench):
         self.appendMenu(
             "&Shaper",
             [
-                "ShaperCutout_createSvgPage",
-                "ShaperCutout_createSvgImage",
                 "ShaperCutout_createCutout",
                 "ShaperCutout_createDados",
                 "ShaperCutout_createMiter",
+                "ShaperCutout_createSvgPage",
+                "ShaperCutout_createSvgImage",
                 "ShaperCutout_exportFrontSVG",
                 "ShaperCutout_exportBackSVG",
-                "Sketcher_NewSketch",
                 "Part_CoordinateSystem",
                 "Part_DatumPlane",
+                "Sketcher_NewSketch",
             ],
         )
         self.appendToolbar(
             "Shaper",
             [
-                "ShaperCutout_createSvgPage",
-                "ShaperCutout_createSvgImage",
                 "ShaperCutout_createCutout",
                 "ShaperCutout_createDados",
                 "ShaperCutout_createMiter",
+                "ShaperCutout_createSvgPage",
+                "ShaperCutout_createSvgImage",
                 "ShaperCutout_exportFrontSVG",
                 "ShaperCutout_exportBackSVG",
-                "Sketcher_NewSketch",
                 "Part_CoordinateSystem",
                 "Part_DatumPlane",
+                "Sketcher_NewSketch",
             ],
         )
 
