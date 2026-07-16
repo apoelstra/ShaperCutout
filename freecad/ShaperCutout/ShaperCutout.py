@@ -32,7 +32,10 @@ def create(obj_name, center_plane, outline_sketch, thickness, own_sketch=True, o
 
         # Tweak appearances (just do this on creation; the user can do what they
         # want afterward)
-        outer.ViewObject.Transparency = 15  # slight transparency to help dado
+        # Transparency seems to just not work very well and results in confusing tearing.
+        # It would be nice to see how stuff slots into dados but I don't have a reliable
+        # way to do it. This is not it.
+        #outer.ViewObject.Transparency = 15  # slight transparency to help dado
         outline_sketch.Visibility = False
 
     # Wire up
