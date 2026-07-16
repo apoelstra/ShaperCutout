@@ -240,6 +240,8 @@ you're deliberate about it, and almost never any other angle.
 
 Now export the final SVG to the Shaper and you're done!
 
+[Complete .FCStd here](./tutorial-images/chair-demo.FCStd)
+
 # Gallery
 
 Here is a hybrid bassinet/rocking chair I made with this workbench.
