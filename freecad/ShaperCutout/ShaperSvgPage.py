@@ -61,7 +61,7 @@ class ShaperSvgPage:
     def _recompute_svg(self, obj):
         from command.export_shaper_svg import _collect_paths, _collect_dado_groups
 
-        if not hasattr(obj, 'Width') or not hasattr(obj, 'Height'):
+        if not hasattr(obj, 'zzSvg') or not hasattr(obj, 'Width') or not hasattr(obj, 'Height'):
             return
 
         page_w = obj.Width.Value

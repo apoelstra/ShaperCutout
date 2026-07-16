@@ -261,6 +261,9 @@ def _find_anchor_corner(outline_wires):
 
 def _collect_paths(cutout, dado_groups, mirror=False, addAnchor=True):
     """Return list of SVG path element strings (no <svg> wrapper)."""
+    if cutout.OutlineSketch.Shape.isNull():
+        return [], App.BoundBox(0)
+
     # The projection logic of Draft importSVG seems quite broken. I cannot directly export
     # a sketch (see https://github.com/FreeCAD/FreeCAD/pull/19765#discussion_r3575523221),
     # but I can export a Clone2D of a sketch (which is flattened to the wrong plane). If
