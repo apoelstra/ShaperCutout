@@ -313,23 +313,15 @@ def _collect_paths(cutout, dado_groups, mirror=False, addAnchor=True):
         d = _wire_to_d(w)
         if d:
             path_elements.append(
-                f'  <path d="{d}" fill="black" stroke="black" stroke-width="0.1" '
+                f'  <path d="{d}" fill="black" stroke="black" stroke-width="1" '
                 f'shaper:cutType="outside"/>')
 
     for w in inner_wires:
         d = _wire_to_d(w)
         if d:
             path_elements.append(
-                f'  <path d="{d}" fill="white" stroke="black" stroke-width="0.1" '
+                f'  <path d="{d}" fill="white" stroke="black" stroke-width="1" '
                 f'shaper:cutType="inside"/>')
-
-    for rf in rect_faces:
-        for w in rf.Wires:
-            d = _wire_to_d(w)
-            if d:
-                path_elements.append(
-                    f'  <path d="{d}" fill="none" stroke="blue" stroke-width="0.1" '
-                    f'shaper:cutType="guide"/>')
 
     for depth_mm, shapes in dado_groups:
         for shape in shapes:
@@ -337,8 +329,16 @@ def _collect_paths(cutout, dado_groups, mirror=False, addAnchor=True):
                 d = _wire_to_d(w)
                 if d:
                     path_elements.append(
-                        f'  <path d="{d}" fill="white" stroke="black" stroke-width="0.1" '
+                        f'  <path d="{d}" fill="white" stroke="black" stroke-width="1" '
                         f'shaper:cutType="inside" shaper:cutDepth="{depth_mm:.4f}mm"/>')
+
+    for rf in rect_faces:
+        for w in rf.Wires:
+            d = _wire_to_d(w)
+            if d:
+                path_elements.append(
+                    f'  <path d="{d}" fill="none" stroke="blue" stroke-width="1" '
+                    f'shaper:cutType="guide"/>')
 
     if addAnchor:
         anchor_wire = _find_anchor_corner(outer_wires)
@@ -407,7 +407,7 @@ def _collect_dado_groups(cutout, exportFront):
                 f"export_shaper_svg: ShaperDados '{member.Label}' face is neither "
                 f"FrontFace nor BackFace of '{cutout.Label}'; skipping\n")
 
-    return dados
+    return sorted(dados)
 
 
 def export(cutout, exportFront):

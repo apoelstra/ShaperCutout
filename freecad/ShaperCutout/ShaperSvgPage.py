@@ -72,7 +72,7 @@ class ShaperSvgPage:
      width="{page_w:.4f}mm" height="{page_h:.4f}mm">
   <rect x="0" y="0"
         width="{page_w:.4f}" height="{page_h:.4f}"
-        fill="none" stroke="blue" stroke-width="1"
+        fill="none" stroke="blue" stroke-width="2"
         shaper:cutType="guide" />
 '''
 
