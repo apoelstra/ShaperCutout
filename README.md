@@ -40,8 +40,7 @@ I will try to file Github Issues for any specific TODOs. But broadly speaking, w
 * fix bugs (e.g. not autorefreshing when we should)
 * improve the UX (e.g. add missing context menu items, be smarter about what options we
   present in dropdowns, highlight stuff in the 3D view better)
-* improve the geometry (e.g. add edges to all the solids so that the Measure Tool will work the
-  way users expect); optimize the algorithms
+* improve the geometry, optimize algorithms
 * improve FreeCAD integration (e.g. there are a bunch of places that require Sketches and don't
   let you use Links or ShapeBinders, but you should be able to)
 * improve the SVG Page layout tool (e.g. to identify overlaps or label distances)

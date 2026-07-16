@@ -152,6 +152,19 @@ class ShaperCutout:
             # notice them unless they're in the group. So letting the user move
             # these sets around freely is likely to lead to confusing situations.
 
+    def getSubObjects(self, obj, reason):
+        # The FreeCAD STEP exporter, in App/ExportOCAF2.cpp line 476, calls this
+        # `auto subs = obj->getSubObjects();` and then gates a bunch of code on
+        # the result being empty. Part Booleans seem to return this being empty.
+        # By default we don't, because we have the Group extensions on. But if
+        # Part::Cut can do it then surely it's harmless if we do it.
+        #
+        # Having said this, this is almost certainly a bug in FreeCAD that we need
+        # to do this. You can export ShaperCutouts with Part.export (deprecated)
+        # but not with ImportGui.export (the new shiny version). Oh well, just work
+        # around it.
+        return []
+
     def execute(self, obj):
         # Do nothing, not even attempt to recreate stuff, if the links are bad.
         if not obj.CenterPlane or not obj.OutlineSketch or not obj.Thickness:
@@ -278,7 +291,7 @@ class ViewProviderShaperCutout:
         return []
 
     def getDefaultDisplayMode(self):
-        return "Shaded"
+        return "Flat Lines"
 
     def setDisplayMode(self, mode):
         return mode
