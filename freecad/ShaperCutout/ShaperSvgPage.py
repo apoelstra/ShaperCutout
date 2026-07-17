@@ -95,8 +95,8 @@ class ShaperSvgPage:
             # direction as FreeCAD, need to interpret Flip in the opposite way that you'd
             # expect, for mirroring purposes.
             mirror = (not child.Flip) ^ child.Invert
-            dados = _collect_dado_groups(cutout, not child.Flip)
-            path_elements, bb = _collect_paths(cutout, dados, mirror=mirror, addAnchor=False)
+            dados, drill_holes = _collect_dado_groups(cutout, not child.Flip)
+            path_elements, bb = _collect_paths(cutout, dados, drill_holes, mirror=mirror, addAnchor=False)
             cx = bb.XMin + bb.XLength / 2
             cy = bb.YMin + bb.YLength / 2
             rot = child.Rotation.Value + 180

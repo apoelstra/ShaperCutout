@@ -262,7 +262,7 @@ def _find_anchor_corner(outline_wires):
 # SVG assembly
 # ---------------------------------------------------------------------------
 
-def _collect_paths(cutout, dado_groups, mirror=False, addAnchor=True):
+def _collect_paths(cutout, dado_groups, drill_holes, mirror=False, addAnchor=True):
     """Return list of SVG path element strings (no <svg> wrapper)."""
     if cutout.OutlineSketch.Shape.isNull():
         return [], App.BoundBox(0)
@@ -323,6 +323,13 @@ def _collect_paths(cutout, dado_groups, mirror=False, addAnchor=True):
                 path_elements.append(
                     f'  <path d="{d}" fill="white" stroke="black" stroke-width="1" '
                     f'shaper:cutType="inside" shaper:cutDepth="{depth_mm:.4f}mm"/>')
+
+    for (c, radius) in drill_holes:
+        c = xy_matrix.multVec(c)
+        path_elements.append(
+            f'  <circle cx="{c.x:.4f}" cy="{c.y:.4f}" r="{radius:.4f}" '
+            f'fill="white" stroke="black" stroke-width="1" '
+            f'shaper:cutType="inside"/>')
 
     for w in rect_wires:
         d = _wire_to_d(w)
@@ -418,10 +425,16 @@ def _safe_for_cleanFaces(shape):
 
     return len(hfaces) > 0
 
+
 def _collect_dado_groups(cutout, exportFront):
-    """Return list of (depth_mm, [wires]).
-    Warns if a dado face is neither FrontFace nor BackFace."""
+    """Return (dados, drill_holes).
+    dados      -- list of (depth_mm, [wires])
+    drill_holes -- list of (center_3d, radius)
+    """
+    from ShaperDados import autodrill_holes
+
     dados = []
+    drill_holes = []
 
     for member in cutout.Group:
         if getattr(member, 'Type', None) != 'ShaperDados':
@@ -446,6 +459,16 @@ def _collect_dado_groups(cutout, exportFront):
                     width = member.Width.Value / 2.0
                     pipes.extend(_wire_to_pipes(w, normal, tol, width))
 
+                    # Collect autodrill holes
+                    hole_radius = member.HoleDiameter.Value / 2.0
+                    if member.MaxHolesPerLine == 0 or hole_radius == 0.0:
+                        continue
+
+                    cylinders = autodrill_holes(w, member.MinHoleDistance.Value,
+                                                member.EndDistance.Value, member.MaxHolesPerLine)
+                    for center in cylinders:
+                        drill_holes.append((center, member.HoleDiameter.Value))
+
             if len(pipes) > 0:
                 fuse = pipes[0]
                 for pipe in pipes[1:]:
@@ -465,17 +488,18 @@ def _collect_dado_groups(cutout, exportFront):
             App.Console.PrintWarning(
                 f"export_shaper_svg: ShaperDados '{member.Label}' face is neither "
                 f"FrontFace nor BackFace of '{cutout.Label}'; skipping\n")
+            continue
 
-    return sorted(dados)
+    return sorted(dados), drill_holes
 
 
 def export(cutout, exportFront):
     """Main export entry point. Shows file dialog(s) and writes SVG(s)."""
-    dados = _collect_dado_groups(cutout, exportFront)
+    dados, drill_holes = _collect_dado_groups(cutout, exportFront)
     # When exporting the *front* face, mirror it. This is because in SVG, the Y coordinate
     # is interpreted in the opposite way from FreeCAD, so a naive path computation causes
     # the element to be mirrored. By explicitly mirroring we undo this.
-    path_elements, bb = _collect_paths(cutout, dados, mirror=exportFront)
+    path_elements, bb = _collect_paths(cutout, dados, drill_holes, mirror=exportFront)
 
     path, _ = QtWidgets.QFileDialog.getSaveFileName(
         None,

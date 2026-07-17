@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import math
 import os
 import FreeCAD as App
 import Part
@@ -124,6 +125,44 @@ def _wire_to_pipes(wire, normal, tol, width):
     return pipes
 
 
+def autodrill_holes(wire, min_distance, end_distance, max_holes):
+    """Return list of (center_3d, radius) tuples for autodrill holes."""
+    if max_holes == 0:
+        return []
+
+    cylinders = []
+    for edge in wire.Edges:
+        p0 = edge.FirstParameter
+        p1 = edge.LastParameter
+        # Assume that parameter -> position on curve is linear. This is definitely
+        # true for edges and arcs, at least.
+        scale = (p1 - p0) / edge.Length
+
+        # If we can't even fit one hole, skip.
+        if edge.Length < 2 * end_distance:
+            continue
+
+        len_minus_ends = edge.Length - 2 * end_distance
+        max_holes_that_fit = math.floor(len_minus_ends / min_distance) + 1
+        n_holes = min(max_holes, max_holes_that_fit)
+
+        # Determine hole center points along the segment
+        if n_holes == 1:
+            # If we're drilling one hole, it goes right in the center.
+            cylinders.append(edge.valueAt((p0 + p1) * 0.5))
+        else:
+            # At this point we know we are drilling at least two holes. We put one each at the ends
+            # (end_distance from the endpoints) and then equally space the remainder.
+            cylinders.append(edge.valueAt(p0 + end_distance * scale))
+            cylinders.append(edge.valueAt(p1 - end_distance * scale))
+
+            dist = len_minus_ends / (n_holes - 1)
+            for i in range(n_holes):
+                cylinders.append(edge.valueAt(p0 + (i * dist + end_distance) * scale))
+
+    return cylinders
+
+
 class ShaperDados:
     def __init__(self, obj):
         obj.Proxy = self
@@ -146,7 +185,9 @@ class ShaperDados:
         obj.addProperty('Part::PropertyPartShape', 'PocketShape', 'Internal',
                         'Computed pocket solid for subtraction.')
 
-        obj.Version = "2"
+        self.addV3Properties(obj)
+
+        obj.Version = "3"
         obj.Type = "ShaperDados"
 
         obj.setEditorMode('Version', 2)
@@ -156,6 +197,9 @@ class ShaperDados:
         obj.setPropertyStatus('Face', 2)
 
     def onChanged(self, obj, prop):
+        if prop == 'MaxHolesPerLine':
+            if getattr(obj, 'MaxHolesPerLine', 0) < 0:
+                obj.MaxHolesPerLine = 0
         if prop == 'Group':
             keep = set(obj.Sketches or []) | {obj.DadoPlane}
             for member in list(obj.Group):
@@ -244,6 +288,34 @@ class ShaperDados:
                         for face in pipe.Faces:
                             solids.append(face.extrude(extrude_vec))
 
+                    # Open wires can have autodrill holes
+                    hole_radius = obj.HoleDiameter.Value / 2.0
+                    parent = _parent_cutout(obj)
+                    thickness = parent.Thickness.Value if parent and parent.Thickness else None
+
+                    if obj.HoleDiameter > obj.Width:
+                        App.Console.PrintWarning(
+                            f"ShaperDados '{obj.Label}': autodrill hole diameter set to "
+                            f"{obj.HoleDiameter} > dado width {obj.Width}; not drilling\n")
+                    elif obj.MaxHolesPerLine > 0 and hole_radius == 0.0:
+                        App.Console.PrintWarning(
+                            f"ShaperDados '{obj.Label}': autodril has positive MaxHolesPerLine"
+                            f"but zero hole diameter; not drilling\n")
+                    elif obj.HoleDiameter.Value < hole_radius:
+                        App.Console.PrintWarning(
+                            f"ShaperDados '{obj.Label}': autodrill has end distance "
+                            f"{obj.HoleDiameter.Value} < hole radius {hole_radius}; not drilling\n")
+                    elif obj.MaxHolesPerLine == 0:
+                        # fine. this means "disable autodriller"
+                        pass
+                    else:
+                        cylinders = autodrill_holes(translated_wire, obj.MinHoleDistance.Value,
+                                                    obj.EndDistance.Value, obj.MaxHolesPerLine)
+                        for center in cylinders:
+                            cyl_norm = -normal if obj.Invert else normal
+                            cyl = Part.makeCylinder(hole_radius, thickness, center, cyl_norm)
+                            solids.append(cyl)
+
         if not solids:
             obj.PocketShape = Part.Shape()
             return
@@ -267,6 +339,16 @@ class ShaperDados:
         obj.addProperty('App::PropertyLength', 'Tolerance', 'Dado',
                         'Tolerance to add to each side, and the ends, of rectangular ' +
                         'cuts generated based on unclosed wires.')
+
+    def addV3Properties(self, obj):
+        obj.addProperty('App::PropertyInteger', 'MaxHolesPerLine', 'Autodrill',
+                        'Max drill holes per line pair. 0 = disable autodriller.')
+        obj.addProperty('App::PropertyLength', 'HoleDiameter', 'Autodrill',
+                        'Diameter of autodrill holes.')
+        obj.addProperty('App::PropertyLength', 'MinHoleDistance', 'Autodrill',
+                        'Minimum allowable distance between holes.')
+        obj.addProperty('App::PropertyLength', 'EndDistance', 'Autodrill',
+                        'Distance from ends of dados to put drill holes.')
 
     def onDocumentRestored(self, obj):
         version = getattr(obj, 'Version', "1")
@@ -295,6 +377,15 @@ class ShaperDados:
             obj.Depth = old_depth
             if old_depth_expr is not None:
                 obj.setExpression('Depth', old_depth_expr)
+
+        if obj.Version == "2":
+            self.addV3Properties(obj)
+
+            obj.MaxHolesPerLine = 0
+            obj.HoleDiameter = "0.13 in"  # will bite #8 screw, Shaper willing to helix with 1/8 bit
+            obj.MinHoleDistance = "3 in"
+            obj.EndDistance = "0.5 in"
+            obj.Version = "3"
 
 
 class ViewProviderShaperDados:
