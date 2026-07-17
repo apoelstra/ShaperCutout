@@ -85,25 +85,22 @@ class ShaperSvgPage:
             cutout = child.Cutout
             if cutout is None:
                 continue
-            try:
-                # See comment in export_shaper_svg.py; because SVG interprets Y in the opposite
-                # direction as FreeCAD, need to interpret Flip in the opposite way that you'd
-                # expect, for mirroring purposes.
-                mirror = (not child.Flip) ^ child.Invert
-                dados = _collect_dado_groups(cutout, not child.Flip)
-                path_elements, bb = _collect_paths(cutout, dados, mirror=mirror, addAnchor=False)
-                cx = bb.XMin + bb.XLength / 2
-                cy = bb.YMin + bb.YLength / 2
-                rot = child.Rotation.Value + 180
-                tx = child.OffsetX.Value - bb.XMin
-                ty = -child.OffsetY.Value - bb.YMin - bb.YLength + obj.Height.Value
-                svg += f'  <g transform="translate({tx:.4f},{ty:.4f}) rotate({rot:.4f},{cx:.4f},{cy:.4f})">\n'
-                for path in path_elements:
-                    svg += f'  {path}\n'
-                svg += '  </g>\n'
-            except Exception as e:
-                App.Console.PrintWarning(f"ShaperSvgPage render: {e}\n")
-                return
+
+            # See comment in export_shaper_svg.py; because SVG interprets Y in the opposite
+            # direction as FreeCAD, need to interpret Flip in the opposite way that you'd
+            # expect, for mirroring purposes.
+            mirror = (not child.Flip) ^ child.Invert
+            dados = _collect_dado_groups(cutout, not child.Flip)
+            path_elements, bb = _collect_paths(cutout, dados, mirror=mirror, addAnchor=False)
+            cx = bb.XMin + bb.XLength / 2
+            cy = bb.YMin + bb.YLength / 2
+            rot = child.Rotation.Value + 180
+            tx = child.OffsetX.Value - bb.XMin
+            ty = -child.OffsetY.Value - bb.YMin - bb.YLength + obj.Height.Value
+            svg += f'  <g transform="translate({tx:.4f},{ty:.4f}) rotate({rot:.4f},{cx:.4f},{cy:.4f})">\n'
+            for path in path_elements:
+                svg += f'  {path}\n'
+            svg += '  </g>\n'
 
         # Initially we just have a blue "guide" rectangle and nothing else.
         obj.zzSvg = svg + "</svg>\n"
