@@ -67,14 +67,14 @@ The expected workflow is, roughly:
 
 1. Create DatumPlanes for each of your sheets.
 2. Roughly draw outlines on each plane.
-3. Turn the 
+3. Turn the outlines and planes into cutouts, generating front and back faces for them.
 4. Roughly draw dado outlines on the Front and Back faces.
 5. Turn the dado outlines into Dados. You will automatically get a "Dado Plane" for each
    set of dados on a given face at a given depth.
 6. Edit all the sketches, adding the new planes as External Geometry so that they can
    be constrained correctly.
 
-Once you have all our cutouts, you can export them to SVG files that can be understood by
+Once you have all your cutouts, you can export them to SVG files that can be understood by
 the Origin.
 
 ## Overview
@@ -144,7 +144,7 @@ you want the cutout to "own" them. Or you can not.
 
 Once you've done this for all your planes and sketches, things will look something like
 
-<center><img alt="All the cutouts with outlines defined" src="./tutorial-images/006-cutout.png" /></center>
+<center><img alt="All the cutouts with outlines defined" src="./tutorial-images/006-cutouts.png" /></center>
 
 Notice now that every plane has turned into three planes: the original center plane, plus a new
 "Front" and "Back" plane. Since FreeCAD does not let you change the color of planes, you may want
@@ -170,7 +170,7 @@ have identical outlines:
 
 <center><img alt="All the legs have outlines set" src="./tutorial-images/009-outlined.png" /></center>
 
-Next, let's dado out a slot for the seat to fit into the sides. Rreate a new sketch on one of
+Next, let's dado out a slot for the seat to fit into the sides. Create a new sketch on one of
 the side planes (there are 12 now, plus the origin YZ plane, but it doesn't matter which one
 you choose).
 
@@ -180,7 +180,7 @@ set to Varset.Wood_thickness (plus some tolerance).
 
 <center><img alt="Sketch of the chair leg dado" src="./tutorial-images/010-dado-sketch.png" /></center>
 
-Then click the "Create dados" button (the square piece of wood with rectangle slots). Select one
+Then click the "Create dados" button (the square piece of wood with rectangular slots). Select one
 of the front leg cutouts, and your new sketch. Repeat the process with the other front leg cutout,
 and the same sketch. The dialog will let you try both faces until you get the right one. If you
 mess up, you can just double-click on the Dados object in the Tree View to edit it.
@@ -192,7 +192,7 @@ depth of the dado cut.
 
 You can add as many Dados to each cutout as you want, each with whatever depth you want. Each one
 will get its own plane. You can add as many sketches to each Dados as you want and they'll all be
-cut in to the same depth.
+cut to the same depth.
 
 Now, we can edit our Chair_seat_sht outline sketch, and use External Geometry to add the two dado
 planes from the sides, as well as the front and back planes. Then constrain your rectangle to these
@@ -201,9 +201,9 @@ later change their depths!
 
 <center><img alt="Rectangle sketch of the chair seat" src="./tutorial-images/012-seat-sketch.png" /></center>
 
-Repeat the process to add dados to the back, and to constrain the seat back rectangle. You may want
+Repeat the process to add dados to the back, and to constrain the seat-back rectangle. You may want
 to add more Datum Planes, or just read offsets from a Varset. If you find yourself writing long
-expressions of additions and subtractions, consider backup up and using planes instead.
+expressions of additions and subtractions, consider backing up and using planes instead.
 
 When you're done, your chair will be complete!
 
@@ -211,7 +211,7 @@ When you're done, your chair will be complete!
 
 You can see that my dado sketches for the back legs extend too far back. This is easy to fix.
 
-Now, let's get to the good stuff: actually cutting it out. Click the Create SVG Page button.
+Now, let's get to the good stuff: actually cutting it out. Click the "Create SVG Page" button.
 
 <center><img alt="Create SVG Page button" src="./tutorial-images/014-create-svg-page.png" /></center>
 
