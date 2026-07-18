@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import FreeCAD as App
-import FreeCADGui as Gui
 
 
 def create(page, cutout, name):
@@ -51,7 +50,7 @@ class ShaperSvgImage:
             return
         for parent in obj.InList:
             if getattr(parent, 'Type', None) == 'ShaperSvgPage':
-                parent.Proxy._recompute_svg(parent)
+                parent.touch()
 
     def dumps(self):
         return None

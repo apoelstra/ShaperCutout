@@ -46,10 +46,15 @@ class ShaperSvgPage:
             for child in list(obj.Group):
                 if getattr(child, 'Type', None) != 'ShaperSvgImage':
                     obj.removeObject(child)
+        if prop == 'zzSvg':
+            # Ignore changes to the SVG, which presumably are happening programmatically from
+            # this code.
+            return
 
-        self._recompute_svg(obj)
+        obj.touch()
 
     def execute(self, obj):
+        self._recompute_svg(obj)
         pass
 
     def dumps(self):
