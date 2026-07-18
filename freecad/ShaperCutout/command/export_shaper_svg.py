@@ -7,8 +7,11 @@ import FreeCADGui as Gui
 import Part
 import TechDraw
 
+from draftgeoutils import faces
 from draftfunctions.svgshapes import get_path
 from PySide import QtWidgets
+
+from ShaperDados import _wire_to_pipes
 
 
 # ---------------------------------------------------------------------------
@@ -312,14 +315,14 @@ def _collect_paths(cutout, dado_groups, mirror=False, addAnchor=True):
                 f'  <path d="{d}" fill="white" stroke="black" stroke-width="1" '
                 f'shaper:cutType="inside"/>')
 
-    for depth_mm, shapes in dado_groups:
-        for shape in shapes:
-            for w in shape.transformed(xy_matrix).Wires:
-                d = _wire_to_d(w)
-                if d:
-                    path_elements.append(
-                        f'  <path d="{d}" fill="white" stroke="black" stroke-width="1" '
-                        f'shaper:cutType="inside" shaper:cutDepth="{depth_mm:.4f}mm"/>')
+    for depth_mm, wires in dado_groups:
+        for w in wires:
+            w = w.transformed(xy_matrix)
+            d = _wire_to_d(w)
+            if d:
+                path_elements.append(
+                    f'  <path d="{d}" fill="white" stroke="black" stroke-width="1" '
+                    f'shaper:cutType="inside" shaper:cutDepth="{depth_mm:.4f}mm"/>')
 
     for w in rect_wires:
         d = _wire_to_d(w)
@@ -367,8 +370,56 @@ def _build_svg(path_elements, bb):
 # Export orchestration
 # ---------------------------------------------------------------------------
 
+def _safe_for_cleanFaces(shape):
+    # TODO file a bug about this. This is literally just a copy of cleanFaces
+    #  up until an unguarded call to hfaces.pop(), which will fail if you have
+    #  some number of single disjoint faces.
+    faceset = shape.Faces
+
+    def find(hc):
+        """Find a face with the given hashcode."""
+        for f in faceset:
+            if f.hashCode() == hc:
+                return f
+
+    # build lookup table
+    lut = {}
+    for face in faceset:
+        for edge in face.Edges:
+            if edge.hashCode() in lut:
+                lut[edge.hashCode()].append(face.hashCode())
+            else:
+                lut[edge.hashCode()] = [face.hashCode()]
+
+    # print("lut:",lut)
+    # take edges shared by 2 faces
+    sharedhedges = []
+    for k, v in lut.items():
+        if len(v) == 2:
+            sharedhedges.append(k)
+
+    # print(len(sharedhedges)," shared edges:",sharedhedges)
+    # find those with same normals
+    targethedges = []
+    for hedge in sharedhedges:
+        faces = lut[hedge]
+        n1 = find(faces[0]).normalAt(0.5, 0.5)
+        n2 = find(faces[1]).normalAt(0.5, 0.5)
+        if n1 == n2:
+            targethedges.append(hedge)
+
+    # print(len(targethedges)," target edges:",targethedges)
+    # get target faces
+    hfaces = []
+    for hedge in targethedges:
+        for f in lut[hedge]:
+            if f not in hfaces:
+                hfaces.append(f)
+
+    return len(hfaces) > 0
+
 def _collect_dado_groups(cutout, exportFront):
-    """Return list of (depth_mm, [shapes]).
+    """Return list of (depth_mm, [wires]).
     Warns if a dado face is neither FrontFace nor BackFace."""
     dados = []
 
@@ -377,19 +428,39 @@ def _collect_dado_groups(cutout, exportFront):
             continue
         face = member.Face
         depth_mm = member.Depth.Value
-        shapes = []
+        wires = []
         for sketch in (member.Sketches or []):
             if sketch is None:
                 continue
             source = sketch.LinkedObject if sketch.TypeId == 'App::Link' else sketch
-            shapes.append(source.Shape)
+            if source.Shape.isNull():
+                continue
+
+            normal = source.Placement.Rotation.multVec(App.Vector(0, 0, 1))
+            pipes = []
+            for w in source.Shape.Wires:
+                if w.isClosed():
+                    wires.append(w)
+                else:
+                    tol = member.Tolerance.Value
+                    width = member.Width.Value / 2.0
+                    pipes.extend(_wire_to_pipes(w, normal, tol, width))
+
+            if len(pipes) > 0:
+                fuse = pipes[0]
+                for pipe in pipes[1:]:
+                    fuse = fuse.fuse(pipe)
+
+                if _safe_for_cleanFaces(fuse):
+                    fuse = faces.cleanFaces(fuse)
+                wires.extend(fuse.Wires)
 
         if face is cutout.FrontFace:
             if exportFront:
-                dados.append((depth_mm, shapes))
+                dados.append((depth_mm, wires))
         elif face is cutout.BackFace:
             if not exportFront:
-                dados.append((depth_mm, shapes))
+                dados.append((depth_mm, wires))
         else:
             App.Console.PrintWarning(
                 f"export_shaper_svg: ShaperDados '{member.Label}' face is neither "

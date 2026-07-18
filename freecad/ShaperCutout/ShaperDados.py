@@ -47,6 +47,83 @@ def _ensure_dado_plane(collection):
     return plane
 
 
+def _wire_to_pipes(wire, normal, tol, width):
+    # For open wires, we convert them into dados which use the edges as center
+    # lines. It's an interesting question how we ought to consider edges that meet
+    # at their endpoints but aren't tangent.
+    #
+    # There is the makeOffset2D function which rounds the corners, or you can also
+    # set it to "tangent" which just extends the outer lines until they intersect,
+    # but this causes a super far-out point on acute angles (and fails entirely
+    # if the lines are parallel. There is the makePipe function which maintains
+    # the angle that it's sweeping, so the second line's width is reduced, though
+    # I am unsure if this is deliberate.
+    #
+    # But I think none of these ideas make physical sense. The point of a "dado" is
+    # to be an inset that the edge of some material fits into. No physical material
+    # can change direction instantaneously. If the user intended to represent a
+    # bend, she could've drawn an arc connecting the two segments, with the meeting
+    # endpoints tangent to each other. My guess is that what the user is actually
+    # intending is that one sheet is butted up against another sheet. But drawing
+    # this as a corner is (probably) a mistake and we shouldn't attempt to cut more
+    # material to compensate. We should just treat the corner as representing the
+    # start of a new dado, i.e. draw a pocket with a "corner missing".
+    #
+    # As long as edges are tangent to each other, we can use makePipe which will
+    # do the right thing (and will curve along arcs, splines, etc).
+    edges = []
+    init_edge = wire.Edges[0]
+    last_tangent = init_edge.tangentAt(init_edge.FirstParameter)
+    last_vertex = init_edge.lastVertex()
+    if tol > 0.0:
+        edges.append(Part.makeLine(
+            init_edge.firstVertex().Point - tol * last_tangent,
+            init_edge.firstVertex().Point,
+        ))
+
+    wire_norm = normal.cross(last_tangent)
+    sweep_wire = Part.makeLine(
+        init_edge.firstVertex().Point - (width + tol) * wire_norm,
+        init_edge.firstVertex().Point + (width + tol) * wire_norm,
+    )
+
+    pipes = []
+    for edge in wire.Edges:
+        tangent = edge.tangentAt(edge.FirstParameter)
+        if (tangent - last_tangent).Length < 1e-4:
+            edges.append(edge)
+        else:
+            if tol > 0.0:
+                edges.append(Part.makeLine(
+                    last_vertex.Point,
+                    last_vertex.Point + tol * last_tangent,
+                ))
+            pipes.append(Part.Wire(edges).makePipe(sweep_wire).removeSplitter())
+
+            edges = [edge]
+            if tol > 0.0:
+                edges.append(Part.makeLine(
+                    edge.firstVertex().Point - tol * tangent,
+                    edge.firstVertex().Point,
+                ))
+            wire_norm = normal.cross(tangent)
+            sweep_wire = Part.makeLine(
+                edge.firstVertex().Point - (width + tol) * wire_norm,
+                edge.firstVertex().Point + (width + tol) * wire_norm,
+            )
+
+        last_tangent = edge.tangentAt(edge.LastParameter)
+        last_vertex = edge.lastVertex()
+    if tol > 0.0:
+        edges.append(Part.makeLine(
+            last_vertex.Point,
+            last_vertex.Point + tol * last_tangent,
+        ))
+    pipes.append(Part.Wire(edges).makePipe(sweep_wire).removeSplitter())
+
+    return pipes
+
+
 class ShaperDados:
     def __init__(self, obj):
         obj.Proxy = self
@@ -130,17 +207,16 @@ class ShaperDados:
                     f"ShaperDados '{obj.Label}': could not get wires from "
                     f"'{member.Label}'\n")
                 continue
+
+            member_normal = member.Placement.Rotation.multVec(App.Vector(0, 0, 1))
+            if member_normal.cross(normal).Length >= 1e-6:
+                App.Console.PrintWarning(
+                    f"ShaperDados '{obj.Label}':"
+                    f"'{member.Label}' is not parallel to face; skipping\n")
+                continue
+
             face_origin = obj.Face.Placement.Base
             for wire in wires:
-                try:
-                    wire_normal = wire.findPlane().Axis
-                    if wire_normal.cross(normal).Length >= 1e-6:
-                        App.Console.PrintWarning(
-                            f"ShaperDados '{obj.Label}': wire from "
-                            f"'{member.Label}' is not parallel to face; "
-                            f"projecting anyway\n")
-                except Exception:
-                    pass
                 dist = (face_origin - wire.CenterOfGravity).dot(normal)
                 translated_wire = wire.copy()
                 translated_wire.translate(App.Vector(
@@ -148,13 +224,25 @@ class ShaperDados:
                     normal.y * dist,
                     normal.z * dist,
                 ))
-                try:
+                if translated_wire.isClosed():
+                    # Treat closed wires as arbitrary shapes to cut into the sheet.
                     face = Part.Face(translated_wire)
                     solids.append(face.extrude(extrude_vec))
-                except Exception as e:
+                elif obj.Width.Value == 0.0:
                     App.Console.PrintWarning(
-                        f"ShaperDados '{obj.Label}': extrude failed for "
-                        f"'{member.Label}': {e}\n")
+                        f"ShaperDados '{obj.Label}': open wires in "
+                        f"'{member.Label}' but zero Width set for dados; skipping\n")
+                elif translated_wire.Edges == []:
+                    pass
+                else:
+                    tol = obj.Tolerance.Value
+                    width = obj.Width.Value / 2.0
+
+                    for pipe in _wire_to_pipes(translated_wire, normal, tol, width):
+                        # Ideally we would sew any overlapping shapes together. This seems tricky
+                        # to do. For the 3D model it doesn't really matter I suppose.
+                        for face in pipe.Faces:
+                            solids.append(face.extrude(extrude_vec))
 
         if not solids:
             obj.PocketShape = Part.Shape()
