@@ -55,13 +55,15 @@ class ShaperDados:
     def __init__(self, obj):
         obj.Proxy = self
 
+        obj.addProperty('App::PropertyString', 'Version', 'Internal',
+                        'ShaperCutout version used to create this object')
         obj.addProperty('App::PropertyString', 'Type', 'Internal',
                         'Type ID used to identify instances')
         obj.addProperty('App::PropertyLink', 'Face', 'Base',
                         'Front or back face this dado cuts into.')
         obj.addProperty('App::PropertyBool', 'Invert', 'Base',
                         'Direction to cut dado pockets into the face')
-        obj.addProperty('App::PropertyLength', 'Depth', 'Base',
+        obj.addProperty('App::PropertyLength', 'Depth', 'Dado',
                         'Depth of the dado pocket.')
         obj.addProperty('App::PropertyLinkList', 'Sketches', 'Base',
                         'Sketches describing the dado pocket outlines.')
@@ -70,7 +72,10 @@ class ShaperDados:
         obj.addProperty('Part::PropertyPartShape', 'PocketShape', 'Internal',
                         'Computed pocket solid for subtraction.')
 
+        obj.Version = "2"
         obj.Type = "ShaperDados"
+
+        obj.setEditorMode('Version', 2)
         obj.setEditorMode('Type', 2)
         obj.setEditorMode('DadoPlane', 2)
         obj.setEditorMode('PocketShape', 2)
@@ -168,6 +173,29 @@ class ShaperDados:
 
     def loads(self, state):
         return None
+
+    def onDocumentRestored(self, obj):
+        version = getattr(obj, 'Version', "1")
+        if version == "1":
+            # Add version
+            obj.addProperty('App::PropertyString', 'Version', 'Internal',
+                            'ShaperCutout version used to create this object')
+            obj.Version = "2"
+            obj.setEditorMode('Version', 2)
+            # Move Depth property to Dado group (if we do this a second time, let's pull
+            # this out into util.py)
+            old_depth = obj.Depth
+            for prop, expr in obj.ExpressionEngine:
+                if prop == 'Depth':
+                    old_depth_expr = expr
+
+            obj.removeProperty('Depth')
+            obj.addProperty('App::PropertyLength', 'Depth', 'Dado', 'Depth of the dado pocket.')
+            obj.Depth = old_depth
+            if old_depth_expr is not None:
+                obj.setExpression('Depth', old_depth_expr)
+
+            # Add new properties
 
 
 class ViewProviderShaperDados:
