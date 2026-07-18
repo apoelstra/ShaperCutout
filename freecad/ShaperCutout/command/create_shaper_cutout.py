@@ -94,9 +94,9 @@ class ShaperCutoutTaskPanel:
         # Open transaction and create/reference cutout
         self._doc.openTransaction(
             "Edit Shaper Cutout" if self._edit_mode else "Create Shaper Cutout")
-        self._template = make_expr_template()
+        self._template = make_expr_template({'Thickness': 'App::PropertyLength'})
         self._template.set_from_object(cutout, 'Thickness')
-        self._template.bind(thickness_widget)
+        self._template.bind(thickness_widget, 'Thickness')
 
         if self._edit_mode:
             self._cutout = cutout

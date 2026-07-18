@@ -22,13 +22,16 @@ def insert_if_missing(container, obj):
 
 
 class _ExprTemplate:
-    def __init__(self, obj, prop_type):
+    def __init__(self, obj, prop_dict):
         obj.Proxy = self
         obj.ViewObject.Proxy = 0
         obj.ViewObject.ShowInTree = False
-        obj.addProperty(prop_type, 'Dummy')
+
+        for key in prop_dict:
+            obj.addProperty(prop_dict[key], key)
 
         self._template = obj
+        self._widgets = {}
 
     def dumps(self): return None
     def loads(self, state): return None
@@ -36,58 +39,59 @@ class _ExprTemplate:
     def set_from_object(self, obj, prop, default=None):
         if obj is None:
             if default is not None:
-                self._template.Dummy = default
+                setattr(self._template, prop, default)
             return
 
         for obj_prop, obj_expr in obj.ExpressionEngine:
             if obj_prop == prop:
-                self._template.setExpression('Dummy', obj_expr)
+                self._template.setExpression(prop, obj_expr)
                 return
 
-        self._template.Dummy = getattr(obj, prop)
+        setattr(self._template, prop, getattr(obj, prop))
 
     def update_object(self, obj, prop):
         for name, e in self._template.ExpressionEngine:
-            if name == 'Dummy':
+            if name == prop:
                 obj.setExpression(prop, e)
                 obj.recompute()
                 return
 
         obj.clearExpression(prop)
-        if self._widget is None:
-            setattr(obj, prop, self._template.Dummy)
+        widget = self._widgets.get(prop)
+        if widget is None:
+            setattr(obj, prop, getattr(self._template, prop))
         else:
-            setattr(obj, prop, self._widget.text())
+            setattr(obj, prop, widget.text())
 
-    def bind(self, widget):
-        self._widget = widget
-        Gui.ExpressionBinding(widget).bind(self._template, 'Dummy')
+    def bind(self, widget, prop):
+        self._widgets[prop] = widget
+        Gui.ExpressionBinding(widget).bind(self._template, prop)
 
         for name, e in self._template.ExpressionEngine:
-            if name == 'Dummy':
+            if name == prop:
                 evaluated = self._template.evalExpression(e)
                 widget.lineEdit().setText(f'{evaluated}')
                 return
-        widget.lineEdit().setText(f'{self._template.Dummy}')
+        widget.lineEdit().setText(f'{getattr(self._template, prop)}')
 
-    def widget_value(self):
+    def widget_value(self, prop):
         for name, e in self._template.ExpressionEngine:
-            if name == 'Dummy':
+            if name == prop:
                 return self._template.evalExpression(e)
 
-        if self._widget is not None:
-            return self._widget.text()
+        widget = self._widgets.get(prop)
+        if widget is not None:
+            return widget.text()
         else:
-            return self._template.Dummy
+            return getattr(self._template, prop)
 
     def destroyTemplate(self):
         self._template.Document.removeObject(self._template.Name)
 
 
-
-def make_expr_template(prop_type='App::PropertyLength'):
+def make_expr_template(prop_dict):
     obj = App.ActiveDocument.addObject('App::FeaturePython', '_ExprTemplate')
-    return _ExprTemplate(obj, prop_type)
+    return _ExprTemplate(obj, prop_dict)
 
 
 def template_expr(template):

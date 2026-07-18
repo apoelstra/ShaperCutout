@@ -72,16 +72,16 @@ class ShaperMiterTaskPanel:
 
         # Create or snapshot existing miter
         self._doc.openTransaction("Create Miter" if miter is None else "Edit Miter")
-        self._template = make_expr_template(prop_type='App::PropertyAngle')
+        self._template = make_expr_template({'Angle': 'App::PropertyAngle'})
         self._template.set_from_object(miter, 'Angle', default=45.0)
-        self._template.bind(self.angle_spin)
+        self._template.bind(self.angle_spin, 'Angle')
 
         self._miter = miter
         if self._miter is None:
             self._miter = ShaperMiter.create(
                 cutout=cutout,
                 edges=[(cutout.OutlineSketch, [])],
-                angle=self._template.widget_value(),
+                angle=self._template.widget_value('Angle'),
                 miter_axis="Center",
                 name="Miter",
             )

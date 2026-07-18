@@ -83,9 +83,9 @@ class ShaperDadosTaskPanel:
 
         # Open transaction and create/reference dados
         self._doc.openTransaction("Edit Dados" if dados is not None else "Create Dados")
-        self._template = make_expr_template()
+        self._template = make_expr_template({'Depth': 'App::PropertyLength'})
         self._template.set_from_object(dados, 'Depth')
-        self._template.bind(depth_widget)
+        self._template.bind(depth_widget, 'Depth')
 
         self._dados = dados
         if self._dados is None:
@@ -95,7 +95,7 @@ class ShaperDadosTaskPanel:
                 cutout=cutout,
                 face=face,
                 invert=invert,
-                depth=self._template.widget_value(),
+                depth=self._template.widget_value('Depth'),
                 name="Dados",
             )
 
@@ -163,7 +163,7 @@ class ShaperDadosTaskPanel:
         self._dados.recompute()
 
     def accept(self):
-        if self._template.widget_value() == 0:
+        if self._template.widget_value('Depth') == 0:
             QtWidgets.QMessageBox.warning(
                 self.form, "Invalid Depth", "Depth must not be zero.")
             return
