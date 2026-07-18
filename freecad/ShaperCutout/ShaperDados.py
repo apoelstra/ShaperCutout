@@ -9,16 +9,13 @@ from command.create_shaper_dados import open_dados_task_panel
 from util import move_to_root, insert_if_missing
 
 
-def create(cutout, face, invert, depth, name="ShaperDados"):
+def create_uninitialized(cutout, name):
     doc = App.ActiveDocument
     obj = doc.addObject('App::DocumentObjectGroupPython', name)
     obj.Label = name
     ShaperDados(obj)
     if App.GuiUp:
         ViewProviderShaperDados(obj.ViewObject)
-
-    obj.Face = face
-    obj.Invert = invert
 
     # Nest inside the ShaperCutout group
     grp = list(cutout.Group)
@@ -27,7 +24,6 @@ def create(cutout, face, invert, depth, name="ShaperDados"):
 
     _ensure_dado_plane(obj)
 
-    doc.recompute()
     return obj
 
 
@@ -63,10 +59,11 @@ class ShaperDados:
                         'Front or back face this dado cuts into.')
         obj.addProperty('App::PropertyBool', 'Invert', 'Base',
                         'Direction to cut dado pockets into the face')
-        obj.addProperty('App::PropertyLength', 'Depth', 'Dado',
-                        'Depth of the dado pocket.')
         obj.addProperty('App::PropertyLinkList', 'Sketches', 'Base',
                         'Sketches describing the dado pocket outlines.')
+
+        self.addV2Properties(obj)
+
         obj.addProperty('App::PropertyLink', 'DadoPlane', 'Internal',
                         'Datum plane at the dado depth.')
         obj.addProperty('Part::PropertyPartShape', 'PocketShape', 'Internal',
@@ -174,6 +171,15 @@ class ShaperDados:
     def loads(self, state):
         return None
 
+    def addV2Properties(self, obj):
+        obj.addProperty('App::PropertyLength', 'Depth', 'Dado',
+                        'Depth of pockets cut by this dado set (no tolerance added).')
+        obj.addProperty('App::PropertyLength', 'Width', 'Dado',
+                        'Width of rectangular dados cut based on unclosed wires.')
+        obj.addProperty('App::PropertyLength', 'Tolerance', 'Dado',
+                        'Tolerance to add to each side, and the ends, of rectangular ' +
+                        'cuts generated based on unclosed wires.')
+
     def onDocumentRestored(self, obj):
         version = getattr(obj, 'Version', "1")
         if version == "1":
@@ -185,17 +191,22 @@ class ShaperDados:
             # Move Depth property to Dado group (if we do this a second time, let's pull
             # this out into util.py)
             old_depth = obj.Depth
+            old_depth_expr = None
             for prop, expr in obj.ExpressionEngine:
                 if prop == 'Depth':
                     old_depth_expr = expr
 
             obj.removeProperty('Depth')
-            obj.addProperty('App::PropertyLength', 'Depth', 'Dado', 'Depth of the dado pocket.')
+
+            # Add new properties
+            self.addV2Properties(obj)
+            obj.Tolerance = 0.0
+            obj.Width = 0.0
+
+            # Re-set Depth to previous value
             obj.Depth = old_depth
             if old_depth_expr is not None:
                 obj.setExpression('Depth', old_depth_expr)
-
-            # Add new properties
 
 
 class ViewProviderShaperDados:

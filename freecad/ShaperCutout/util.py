@@ -42,26 +42,24 @@ class _ExprTemplate:
                 setattr(self._template, prop, default)
             return
 
+        setattr(self._template, prop, getattr(obj, prop))
         for obj_prop, obj_expr in obj.ExpressionEngine:
             if obj_prop == prop:
                 self._template.setExpression(prop, obj_expr)
                 return
 
-        setattr(self._template, prop, getattr(obj, prop))
-
     def update_object(self, obj, prop):
-        for name, e in self._template.ExpressionEngine:
-            if name == prop:
-                obj.setExpression(prop, e)
-                obj.recompute()
-                return
-
-        obj.clearExpression(prop)
         widget = self._widgets.get(prop)
         if widget is None:
             setattr(obj, prop, getattr(self._template, prop))
         else:
             setattr(obj, prop, widget.text())
+
+        for name, e in self._template.ExpressionEngine:
+            if name == prop:
+                setattr(obj, prop, obj.evalExpression(e))
+                obj.setExpression(prop, e)
+                return
 
     def bind(self, widget, prop):
         self._widgets[prop] = widget

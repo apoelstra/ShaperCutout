@@ -56,11 +56,21 @@ class ShaperDadosTaskPanel:
             self.face_combo.addItem(back.Label + " (Back)", (back, False))
         layout.addRow("Face:", self.face_combo)
 
-        # Depth
+        # Depth / Width / Tolerance
         depth_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
         depth_widget.setProperty('unit', 'mm')
         layout.addRow("Depth:", depth_widget)
         self._depth_widget = depth_widget
+
+        width_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
+        width_widget.setProperty('unit', 'mm')
+        layout.addRow("Width:", width_widget)
+        self._width_widget = width_widget
+
+        tolerance_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
+        tolerance_widget.setProperty('unit', 'mm')
+        layout.addRow("Tolerance:", tolerance_widget)
+        self._tolerance_widget = tolerance_widget
 
         # Sketch list with Add/Remove
         self.sketch_list = QtWidgets.QListWidget()
@@ -81,27 +91,26 @@ class ShaperDadosTaskPanel:
         self.move_check.setChecked(True)
         layout.addRow("Move sketches into group:", self.move_check)
 
-        # Open transaction and create/reference dados
+        # Open transaction, setup expression template and populate dialog
         self._doc.openTransaction("Edit Dados" if dados is not None else "Create Dados")
-        self._template = make_expr_template({'Depth': 'App::PropertyLength'})
-        self._template.set_from_object(dados, 'Depth')
-        self._template.bind(depth_widget, 'Depth')
-
         self._dados = dados
         if self._dados is None:
             face_data = self.face_combo.currentData()
             (face, invert) = face_data if face_data else (None, False)
-            self._dados = DadosModule.create(
-                cutout=cutout,
-                face=face,
-                invert=invert,
-                depth=self._template.widget_value('Depth'),
-                name="Dados",
-            )
+            self._dados = DadosModule.create_uninitialized(cutout, "Dados")
 
-        # Populate UI from dados state
+        self._template = make_expr_template({
+            'Depth': 'App::PropertyLength',
+            'Width': 'App::PropertyLength',
+            'Tolerance': 'App::PropertyLength',
+        })
+        self._template.set_from_object(self._dados, 'Depth', 1.0)
+        self._template.set_from_object(self._dados, 'Width', 8.0)
+        self._template.set_from_object(self._dados, 'Tolerance', 0.0)
+        self._template.bind(depth_widget, 'Depth')
+        self._template.bind(width_widget, 'Width')
+        self._template.bind(tolerance_widget, 'Tolerance')
         self.label_edit.setText(self._dados.Label)
-        self._template.set_from_object(self._dados, 'Depth')
 
         # Set face combo from existing dados
         if dados is not None:
@@ -160,6 +169,8 @@ class ShaperDadosTaskPanel:
             self._dados.Invert = invert
         self._dados.Sketches = self._current_sketches()
         self._template.update_object(self._dados, 'Depth')
+        self._template.update_object(self._dados, 'Width')
+        self._template.update_object(self._dados, 'Tolerance')
         self._dados.recompute()
 
     def accept(self):
