@@ -6,7 +6,6 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtCore, QtWidgets
 
-import ShaperDados as DadosModule
 from shaper_cutout_util import make_expr_template, insert_if_missing
 
 
@@ -34,6 +33,8 @@ def open_dados_task_panel(cutout, dados=None):
 
 class ShaperDadosTaskPanel:
     def __init__(self, cutout, dados=None):
+        from ShaperDados import create_uninitialized
+
         self._cutout = cutout
         self._doc = cutout.Document
 
@@ -97,7 +98,7 @@ class ShaperDadosTaskPanel:
         if self._dados is None:
             face_data = self.face_combo.currentData()
             (face, invert) = face_data if face_data else (None, False)
-            self._dados = DadosModule.create_uninitialized(cutout, "Dados")
+            self._dados = create_uninitialized(cutout, "Dados")
 
         self._template = make_expr_template({
             'Depth': 'App::PropertyLength',
@@ -195,7 +196,7 @@ class ShaperDadosTaskPanel:
         Gui.Control.closeDialog()
 
 
-class createShaperDadosCmd:
+class CreateShaperDadosCmd:
     def GetResources(self):
         icon_path = os.path.join(os.path.dirname(__file__),
                                  "../resources/icons/dados.svg")

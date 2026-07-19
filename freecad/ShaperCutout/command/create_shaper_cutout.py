@@ -6,7 +6,6 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtWidgets
 
-import ShaperCutout as CutoutModule
 from shaper_cutout_util import make_expr_template, move_to_root, insert_if_missing
 
 
@@ -44,6 +43,8 @@ def open_cutout_task_panel(cutout=None):
 
 class ShaperCutoutTaskPanel:
     def __init__(self, cutout=None):
+        from ShaperCutout import create
+
         self._doc = App.ActiveDocument
         self._edit_mode = cutout is not None
 
@@ -120,7 +121,7 @@ class ShaperCutoutTaskPanel:
             self.move_plane_check.setChecked(cp in cutout.Group if cp else False)
             self.move_sketch_check.setChecked(sk in cutout.Group if sk else False)
         else:
-            self._cutout = CutoutModule.create(
+            self._cutout = create(
                 obj_name='',
                 center_plane=self.plane_combo.currentData(),
                 outline_sketch=self.sketch_combo.currentData(),
@@ -184,7 +185,7 @@ class ShaperCutoutTaskPanel:
         Gui.Control.closeDialog()
 
 
-class createShaperCutoutCmd:
+class CreateShaperCutoutCmd:
     def GetResources(self):
         icon_path = os.path.join(os.path.dirname(__file__),
                                  "../resources/icons/cutout.svg")

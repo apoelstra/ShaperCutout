@@ -6,8 +6,8 @@ import Part
 from PySide import QtGui
 
 from ShaperMiter import miter_edges
-from command.create_shaper_cutout import open_cutout_task_panel
-from shaper_cutout_util import move_to_root as _move_to_root, insert_if_missing as _insert_if_missing
+from command import open_cutout_task_panel
+from shaper_cutout_util import move_to_root as _move_to_root, insert_if_missing
 
 
 def _remove_from_group(obj):
@@ -79,7 +79,7 @@ def _ensure_back_face(label_prefix, obj):
     face = obj.Document.addObject('Part::DatumPlane', label_prefix + 'Back')
     obj.BackFace = face
     obj.setEditorMode('BackFace', 2)
-    _insert_if_missing(obj, face)
+    insert_if_missing(obj, face)
     return face
 
 
@@ -91,7 +91,7 @@ def _ensure_front_face(label_prefix, obj):
     face = obj.Document.addObject('Part::DatumPlane', label_prefix + 'Front')
     obj.FrontFace = face
     obj.setEditorMode('FrontFace', 2)
-    _insert_if_missing(obj, face)
+    insert_if_missing(obj, face)
     return face
 
 
@@ -122,8 +122,8 @@ class ShaperCutout:
     def onChanged(self, obj, prop):
         # Make a cursory effort to preserve the group structure.
         if prop == 'Group':
-            _insert_if_missing(obj, obj.FrontFace)
-            _insert_if_missing(obj, obj.BackFace)
+            insert_if_missing(obj, obj.FrontFace)
+            insert_if_missing(obj, obj.BackFace)
             # If the user moved something into the group, and it wasn't one of
             # ours, reject it.
             keep = {

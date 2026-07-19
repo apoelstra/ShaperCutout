@@ -44,26 +44,17 @@ class ShaperCutoutWorkbench(Gui.Workbench):
         )
 
         # Import everything
-        from command.create_shaper_cutout import createShaperCutoutCmd
-        Gui.addCommand('ShaperCutout_createCutout', createShaperCutoutCmd())
+        from command import CreateShaperCutoutCmd, CreateShaperDadosCmd, CreateShaperMiterCmd, \
+            ExportShaperSVGCmd, CreateShaperSvgPageCmd, CreateShaperSvgImageCmd, \
+            ExportShaperSvgPageCmd
 
-        from command.create_shaper_dados import createShaperDadosCmd
-        Gui.addCommand('ShaperCutout_createDados', createShaperDadosCmd())
-
-        from command.create_shaper_miter import createShaperMiterCmd
-        Gui.addCommand('ShaperCutout_createMiter', createShaperMiterCmd())
-
-        from command.export_shaper_svg import ExportShaperSVGCmd
+        Gui.addCommand('ShaperCutout_createCutout', CreateShaperCutoutCmd())
+        Gui.addCommand('ShaperCutout_createDados', CreateShaperDadosCmd())
+        Gui.addCommand('ShaperCutout_createMiter', CreateShaperMiterCmd())
         Gui.addCommand('ShaperCutout_exportFrontSVG', ExportShaperSVGCmd(True))
         Gui.addCommand('ShaperCutout_exportBackSVG', ExportShaperSVGCmd(False))
-
-        from command.create_shaper_svg_page import CreateShaperSvgPageCmd
         Gui.addCommand('ShaperCutout_createSvgPage', CreateShaperSvgPageCmd())
-
-        from command.create_shaper_svg_image import CreateShaperSvgImageCmd
         Gui.addCommand('ShaperCutout_createSvgImage', CreateShaperSvgImageCmd())
-
-        from command.export_shaper_svg_page import ExportShaperSvgPageCmd
         Gui.addCommand('ShaperCutout_exportSvgPage', ExportShaperSvgPageCmd())
 
         self.appendMenu(

@@ -137,7 +137,7 @@ class ShaperMiterTaskPanel:
         Gui.Control.closeDialog()
 
 
-class createShaperMiterCmd:
+class CreateShaperMiterCmd:
     def GetResources(self):
         icon_path = os.path.join(os.path.dirname(__file__),
                                  "../resources/icons/miter.svg")
