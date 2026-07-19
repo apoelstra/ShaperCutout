@@ -18,81 +18,18 @@ def _remove_from_group(obj):
             parent.removeObject(obj)
 
 
-def create(obj_name, center_plane, outline_sketch, thickness, own_sketch=True, own_plane=False):
+def create_uninitialized(name):
     doc = App.ActiveDocument
-    outer_name = 'ShaperCutout' if obj_name == '' else obj_name
-    outer = doc.addObject('Part::FeaturePython', outer_name)
+    obj_name = 'ShaperCutout' if name == '' else name
+    obj = doc.addObject('Part::FeaturePython', obj_name)
     # App::GroupExtensionPython gets us the .Group property
-    outer.addExtension('App::GroupExtensionPython')
-    ShaperCutout(outer)
+    obj.addExtension('App::GroupExtensionPython')
+    ShaperCutout(obj)
     if App.GuiUp:
-        ViewProviderShaperCutout(outer.ViewObject)
+        ViewProviderShaperCutout(obj.ViewObject)
         # Gui::ViewProviderGroupExtensionPython gets us group-like behavior in the Tree View
-        outer.ViewObject.addExtension('Gui::ViewProviderGroupExtensionPython')
-
-        # Tweak appearances (just do this on creation; the user can do what they
-        # want afterward)
-        # Transparency seems to just not work very well and results in confusing tearing.
-        # It would be nice to see how stuff slots into dados but I don't have a reliable
-        # way to do it. This is not it.
-        #outer.ViewObject.Transparency = 15  # slight transparency to help dado
-        outline_sketch.Visibility = False
-
-    # Wire up
-    outer.Thickness = thickness
-    outer.CenterPlane = center_plane
-    outer.OutlineSketch = outline_sketch
-
-    if not center_plane or not outline_sketch:
-        # If we are missing data, give up here.
-        return outer
-
-    # Move the center and/or the outline into the group based on ownership.
-    label_prefix = '' if obj_name == '' else obj_name + '_'
-    initial_group = []
-    if own_plane:
-        _remove_from_group(center_plane)
-        initial_group.append(center_plane)
-        center_plane.Label = label_prefix + 'Center'
-    if own_sketch:
-        _remove_from_group(outline_sketch)
-        outline_sketch.Label = label_prefix + 'Outline'
-        initial_group.append(outline_sketch)
-    outer.Group = initial_group
-
-    _ensure_front_face(label_prefix, outer)
-    _ensure_back_face(label_prefix, outer)
-
-    doc.recompute()
-    return outer
-
-
-# ---------------------------------------------------------------------------
-# Outer container
-# ---------------------------------------------------------------------------
-
-def _ensure_back_face(label_prefix, obj):
-    """Recreate back face if missing or link broken."""
-    face = obj.BackFace
-    if face is not None and face in obj.Document.Objects:
-        return face
-    face = obj.Document.addObject('Part::DatumPlane', label_prefix + 'Back')
-    obj.BackFace = face
-    obj.setEditorMode('BackFace', 2)
-    insert_if_missing(obj, face)
-    return face
-
-
-def _ensure_front_face(label_prefix, obj):
-    """Recreate front face if missing or link broken."""
-    face = obj.FrontFace
-    if face is not None and face in obj.Document.Objects:
-        return face
-    face = obj.Document.addObject('Part::DatumPlane', label_prefix + 'Front')
-    obj.FrontFace = face
-    obj.setEditorMode('FrontFace', 2)
-    insert_if_missing(obj, face)
-    return face
+        obj.ViewObject.addExtension('Gui::ViewProviderGroupExtensionPython')
+    return obj
 
 
 class ShaperCutout:
@@ -119,39 +56,6 @@ class ShaperCutout:
         obj.setEditorMode('FrontFace', 2)
         obj.setEditorMode('BackFace', 2)
 
-    def onChanged(self, obj, prop):
-        # Make a cursory effort to preserve the group structure.
-        if prop == 'Group':
-            insert_if_missing(obj, obj.FrontFace)
-            insert_if_missing(obj, obj.BackFace)
-            # If the user moved something into the group, and it wasn't one of
-            # ours, reject it.
-            keep = {
-                obj.CenterPlane,
-                obj.FrontFace,
-                obj.BackFace,
-                obj.OutlineSketch,
-            } - {None}
-            # Also keep any dados and miters
-            for member in list(obj.Group):
-                if (member is not None and
-                        getattr(member, 'Type', None) in ('ShaperDados', 'ShaperMiter')):
-                    keep.add(member)
-            for member in list(obj.Group):
-                if member not in keep:
-                    _move_to_root(member)
-            # Don't attempt to move the "user-owned" things back in. If the
-            # user wants to pull the outline or center plane out of the group,
-            # whatever, they can make a mess of the tree. We also don't worry
-            # about the user changing links; we set the link properties to
-            # ReadOnly, which should signal the user that they'll break stuff
-            # if they mess with them.
-            #
-            # FIXME we probably should try to move Dados back in, since these
-            # have links to the front/back face of the ShapeCutout but we don't
-            # notice them unless they're in the group. So letting the user move
-            # these sets around freely is likely to lead to confusing situations.
-
     def getSubObjects(self, obj, reason):
         # The FreeCAD STEP exporter, in App/ExportOCAF2.cpp line 476, calls this
         # `auto subs = obj->getSubObjects();` and then gates a bunch of code on
@@ -166,13 +70,16 @@ class ShaperCutout:
         return []
 
     def execute(self, obj):
-        # Do nothing, not even attempt to recreate stuff, if the links are bad.
-        if not obj.CenterPlane or not obj.OutlineSketch or not obj.Thickness:
+        if not obj.CenterPlane or not obj.Thickness:
             return
 
-        label_prefix = obj.Label + '_'
-        front_face = _ensure_front_face(label_prefix, obj)
-        back_face = _ensure_back_face(label_prefix, obj)
+        # Create faces if they don't exist, re-place them, and mark them as updated.
+        self.ensure_front_face(obj).purgeTouched()
+        self.ensure_back_face(obj).purgeTouched()
+
+        if not obj.OutlineSketch:
+            obj.Shape = Part.Shape()
+            return
 
         # Compute data
         plane_origin = obj.CenterPlane.Placement.Base
@@ -229,13 +136,6 @@ class ShaperCutout:
 
         obj.Shape = shape
 
-        back_face.AttachmentSupport = [(obj.CenterPlane)]
-        back_face.MapMode = 'FlatFace'
-        back_face.AttachmentOffset = App.Placement(App.Vector(0, 0, -half), App.Rotation(0, 0, 0))
-        front_face.AttachmentSupport = [(obj.CenterPlane)]
-        front_face.MapMode = 'FlatFace'
-        front_face.AttachmentOffset = App.Placement(App.Vector(0, 0, half), App.Rotation(0, 0, 0))
-
         # The previous computations will cause FreeCAD to mark the children as "touched",
         # causing "wb_test#ShaperCutout_Body still touched after recompute" errors in the
         # console (and spurious blue "needs recompute" checkmarks). The 'correct' way to
@@ -246,14 +146,44 @@ class ShaperCutout:
         # DAG. Another is that overriding execute() on the planes would require changing
         # them to by PythonFeatures rather than DatumPlanes, and then we couldn't use
         # them in sketches as external geometry, which is their whole point of existing.)
-        front_face.purgeTouched()
-        back_face.purgeTouched()
 
     def dumps(self):
         return None
 
     def loads(self, state):
         return None
+
+    def ensure_back_face(self, obj):
+        """Recreate front face if missing or link broken."""
+        if obj.CenterPlane is None or obj.Thickness is None:
+            return None
+
+        if obj.BackFace is None:
+            obj.BackFace = obj.Document.addObject('App::Plane', 'Back')
+            insert_if_missing(obj, obj.BackFace)
+
+        placement = obj.CenterPlane.Placement
+        half = obj.Thickness.Value / 2.0
+        obj.BackFace.Placement = placement.copy()
+        obj.BackFace.Placement.translate(placement.Rotation.multVec(App.Vector(0, 0, -half)))
+
+        return obj.BackFace
+
+    def ensure_front_face(self, obj):
+        """Recreate front face if missing or link broken."""
+        if obj.CenterPlane is None or obj.Thickness is None:
+            return None
+
+        if obj.FrontFace is None:
+            obj.FrontFace = obj.Document.addObject('App::Plane', 'Front')
+            insert_if_missing(obj, obj.FrontFace)
+
+        placement = obj.CenterPlane.Placement
+        half = obj.Thickness.Value / 2.0
+        obj.FrontFace.Placement = placement.copy()
+        obj.FrontFace.Placement.translate(placement.Rotation.multVec(App.Vector(0, 0, half)))
+
+        return obj.FrontFace
 
 
 class ViewProviderShaperCutout:

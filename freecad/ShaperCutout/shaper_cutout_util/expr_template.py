@@ -18,6 +18,14 @@ class _ExprTemplate:
     def dumps(self): return None
     def loads(self, state): return None
 
+    def setExpression(self, prop, expr):
+        """Passthrough to the setExpression method on the underlying engine."""
+        self._template.setExpression(prop, expr)
+
+    def clearExpression(self, prop):
+        """Passthrough to the clearExpression method on the underlying engine."""
+        self._template.clearExpression(prop)
+
     def set_from_object(self, obj, prop, default=None):
         if obj is None:
             if default is not None:
@@ -29,6 +37,7 @@ class _ExprTemplate:
             if obj_prop == prop:
                 self._template.setExpression(prop, obj_expr)
                 return
+        self._template.clearExpression(prop)
 
     def update_object(self, obj, prop):
         widget = self._widgets.get(prop)
@@ -42,6 +51,7 @@ class _ExprTemplate:
                 setattr(obj, prop, obj.evalExpression(e))
                 obj.setExpression(prop, e)
                 return
+        obj.clearExpression(prop)
 
     def bind(self, widget, prop):
         self._widgets[prop] = widget
@@ -66,7 +76,7 @@ class _ExprTemplate:
             return getattr(self._template, prop)
 
     def destroyTemplate(self):
-        self._template.Document.removeObject(self._template.Name)
+        self._template.Document.removeObject(self._template)
 
 
 def make_expr_template(prop_dict):
