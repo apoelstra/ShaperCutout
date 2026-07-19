@@ -11,6 +11,7 @@ from draftgeoutils import faces
 from draftfunctions.svgshapes import get_path
 from PySide import QtWidgets
 
+from shaper_cutout_util import are_exclusively_selected
 from ShaperDados import _wire_to_pipes
 
 
@@ -542,11 +543,7 @@ class ExportShaperSVGCmd:
         }
 
     def IsActive(self):
-        if App.ActiveDocument is None:
-            return False
-        sel = Gui.Selection.getSelection()
-        return (len(sel) >= 1 and
-                all(getattr(o, 'Type', None) == 'ShaperCutout' for o in sel))
+        return App.ActiveDocument and are_exclusively_selected('ShaperCutout')
 
     def Activated(self):
         for obj in Gui.Selection.getSelection():

@@ -5,6 +5,8 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtWidgets
 
+from shaper_cutout_util import are_exclusively_selected, is_single_selected
+
 
 class CreateShaperSvgImageCmd:
     def GetResources(self):
@@ -19,13 +21,8 @@ class CreateShaperSvgImageCmd:
     def IsActive(self):
         if App.ActiveDocument is None:
             return False
-        sel = Gui.Selection.getSelection()
-        selectedPage = (len(sel) == 1 and
-                        getattr(sel[0], 'Type', None) == 'ShaperSvgPage')
-        selectedCuts = (len(sel) > 0 and
-                        all(getattr(sel, 'Type', None) == 'ShaperCutout' for sel in sel))
 
-        return selectedPage or selectedCuts
+        return is_single_selected('ShaperSvgPage') or are_exclusively_selected('ShaperCutout')
 
     def Activated(self):
         import ShaperSvgImage
