@@ -5,11 +5,13 @@ import os
 import FreeCAD as App
 import FreeCADGui as Gui
 
-import ShaperCutout
-import ShaperDados
-import ShaperMiter
-import ShaperSvgPage
-import ShaperSvgImage
+# Every module should be imported here so FreeCAD won't error out with
+# "partially initialized module" errors later.
+import ShaperCutout    # noqa: F401
+import ShaperDados     # noqa: F401
+import ShaperMiter     # noqa: F401
+import ShaperSvgPage   # noqa: F401
+import ShaperSvgImage  # noqa: F401
 
 module_path = os.path.dirname(ShaperCutout.__file__)  # lol
 
