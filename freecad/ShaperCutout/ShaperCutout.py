@@ -210,14 +210,6 @@ class ShaperCutout:
         face.translate(offset_vec)
         shape = face.extrude(extrude_vec)
 
-        # Subtract dado pockets
-        for member in obj.Group:
-            if (member is not None and
-                    getattr(member, 'Type', None) == 'ShaperDados'):
-                pocket = member.PocketShape
-                if pocket is not None and pocket.Solids:
-                    shape = shape.cut(pocket)
-
         # Add/subtract miters
         for member in obj.Group:
             if (member is not None and
@@ -226,6 +218,14 @@ class ShaperCutout:
                     # Skip uninitialized/null/broken miters
                     continue
                 shape = miter_edges(shape, member, obj.CenterPlane, obj.Thickness.Value)
+
+        # Subtract dado pockets
+        for member in obj.Group:
+            if (member is not None and
+                    getattr(member, 'Type', None) == 'ShaperDados'):
+                pocket = member.PocketShape
+                if pocket is not None and pocket.Solids:
+                    shape = shape.cut(pocket)
 
         obj.Shape = shape
 
