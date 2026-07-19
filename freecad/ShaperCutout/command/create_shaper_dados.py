@@ -7,7 +7,7 @@ import FreeCADGui as Gui
 from PySide import QtCore, QtWidgets
 
 import ShaperDados as DadosModule
-from util import make_expr_template, insert_if_missing
+from shaper_cutout_util import make_expr_template, insert_if_missing
 
 
 def _is_sketch(obj):

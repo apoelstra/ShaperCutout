@@ -7,7 +7,7 @@ import Part
 from PySide import QtGui
 
 from command.create_shaper_dados import open_dados_task_panel
-from util import move_to_root, insert_if_missing
+from shaper_cutout_util import move_to_root, insert_if_missing
 
 
 def create_uninitialized(cutout, name):

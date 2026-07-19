@@ -7,7 +7,7 @@ import FreeCADGui as Gui
 from PySide import QtWidgets
 
 import ShaperCutout as CutoutModule
-from util import make_expr_template, move_to_root, insert_if_missing
+from shaper_cutout_util import make_expr_template, move_to_root, insert_if_missing
 
 
 def _is_sketch(obj):

@@ -7,7 +7,7 @@ import FreeCADGui as Gui
 import Part
 from PySide import QtWidgets
 
-from util import make_expr_template
+from shaper_cutout_util import make_expr_template
 import ShaperMiter
 
 

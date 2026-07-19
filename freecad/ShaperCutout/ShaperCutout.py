@@ -7,7 +7,7 @@ from PySide import QtGui
 
 from ShaperMiter import miter_edges
 from command.create_shaper_cutout import open_cutout_task_panel
-from util import move_to_root as _move_to_root, insert_if_missing as _insert_if_missing
+from shaper_cutout_util import move_to_root as _move_to_root, insert_if_missing as _insert_if_missing
 
 
 def _remove_from_group(obj):
