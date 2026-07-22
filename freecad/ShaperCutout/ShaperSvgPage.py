@@ -6,6 +6,8 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtCore, QtGui, QtWidgets, QtSvg
 
+import ShaperSvgImage
+
 
 def create(name="ShaperSvgPage"):
     doc = App.ActiveDocument
@@ -85,8 +87,6 @@ class ShaperSvgPage:
 
         # Render each ShaperSvgImage child
         for child in obj.Group:
-            if getattr(child, 'Type', None) != 'ShaperSvgImage':
-                continue
             cutout = child.Cutout
             if cutout is None:
                 continue
@@ -96,13 +96,15 @@ class ShaperSvgPage:
             # expect, for mirroring purposes.
             mirror = (not child.Flip) ^ child.Invert
             dados, drill_holes = _collect_dado_groups(cutout, not child.Flip)
-            path_elements, bb = _collect_paths(cutout, dados, drill_holes, mirror=mirror, addAnchor=False)
+            path_elements, bb = _collect_paths(cutout, dados, drill_holes,
+                                               mirror=mirror, addAnchor=False)
             cx = bb.XMin + bb.XLength / 2
             cy = bb.YMin + bb.YLength / 2
             rot = child.Rotation.Value + 180
             tx = child.OffsetX.Value - bb.XMin
             ty = -child.OffsetY.Value - bb.YMin - bb.YLength + obj.Height.Value
-            svg += f'  <g transform="translate({tx:.4f},{ty:.4f}) rotate({rot:.4f},{cx:.4f},{cy:.4f})">\n'
+            svg += f'  <g transform="translate({tx:.4f},{ty:.4f}) ' \
+                   f'rotate({rot:.4f},{cx:.4f},{cy:.4f})">\n'
             for path in path_elements:
                 svg += f'  {path}\n'
             svg += '  </g>\n'
@@ -250,15 +252,48 @@ class ViewProviderShaperSvgPage:
         action.triggered.connect(lambda: export(vobj.Object))
 
         action = menu.addAction("Add Cutout to Page")
-        action.triggered.connect(lambda: self._add_image(vobj.Object))
+        action.triggered.connect(lambda: self._add_cutout_to(vobj.Object))
 
-    def _add_image(self, obj):
-        Gui.Selection.clearSelection()
-        Gui.Selection.addSelection(obj)
-        Gui.runCommand('ShaperCutout_createSvgImage')
+    def _add_cutout_to(self, page):
+        # Collect available ShaperCutout objects
+        cutouts = [o for o in App.ActiveDocument.Objects
+                   if getattr(o, 'Type', None) == 'ShaperCutout']
+        if not cutouts:
+            QtWidgets.QMessageBox.warning(
+                None, "No Cutouts",
+                "No ShaperCutout objects found in the document.")
+            return
+
+        labels = [o.Label for o in cutouts]
+        label, ok = QtWidgets.QInputDialog.getItem(
+            None,
+            "Add Cutout to Page",
+            "Select a ShaperCutout:",
+            labels,
+            0,
+            False,
+        )
+        if not ok:
+            return
+
+        cutout = cutouts[labels.index(label)]
+        ShaperSvgImage.create(page, cutout, label + "_svg")
 
     def dumps(self):
         return None
 
     def loads(self, state):
         return None
+
+    def canDragObject(self, child):
+        # Cannot move stuff out of SVG image. Can only delete things.
+        return False
+
+    def canDropObject(self, child):
+        return getattr(child, 'Type', '') == 'ShaperCutout'
+
+    def dropObject(self, vobj, child):
+        if getattr(child, 'Type', '') != 'ShaperCutout':
+            return
+
+        ShaperSvgImage.create(vobj.Object, child, child.Label + "_svg")

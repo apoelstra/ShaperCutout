@@ -5,7 +5,6 @@ from .create_shaper_dados import CreateShaperDadosCmd    # noqa: F401
 from .create_shaper_miter import CreateShaperMiterCmd    # noqa: F401
 from .export_shaper_svg import ExportShaperSVGCmd        # noqa: F401
 from .create_shaper_svg_page import CreateShaperSvgPageCmd    # noqa: F401
-from .create_shaper_svg_image import CreateShaperSvgImageCmd  # noqa: F401
 from .export_shaper_svg_page import ExportShaperSvgPageCmd    # noqa: F401
 
 from .create_shaper_cutout import open_cutout_task_panel  # noqa: F401

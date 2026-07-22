@@ -45,8 +45,7 @@ class ShaperCutoutWorkbench(Gui.Workbench):
 
         # Import everything
         from command import CreateShaperCutoutCmd, CreateShaperDadosCmd, CreateShaperMiterCmd, \
-            ExportShaperSVGCmd, CreateShaperSvgPageCmd, CreateShaperSvgImageCmd, \
-            ExportShaperSvgPageCmd
+            ExportShaperSVGCmd, CreateShaperSvgPageCmd, ExportShaperSvgPageCmd
 
         Gui.addCommand('ShaperCutout_createCutout', CreateShaperCutoutCmd())
         Gui.addCommand('ShaperCutout_createDados', CreateShaperDadosCmd())
@@ -54,7 +53,6 @@ class ShaperCutoutWorkbench(Gui.Workbench):
         Gui.addCommand('ShaperCutout_exportFrontSVG', ExportShaperSVGCmd(True))
         Gui.addCommand('ShaperCutout_exportBackSVG', ExportShaperSVGCmd(False))
         Gui.addCommand('ShaperCutout_createSvgPage', CreateShaperSvgPageCmd())
-        Gui.addCommand('ShaperCutout_createSvgImage', CreateShaperSvgImageCmd())
         Gui.addCommand('ShaperCutout_exportSvgPage', ExportShaperSvgPageCmd())
 
         self.appendMenu(
@@ -64,7 +62,6 @@ class ShaperCutoutWorkbench(Gui.Workbench):
                 "ShaperCutout_createDados",
                 "ShaperCutout_createMiter",
                 "ShaperCutout_createSvgPage",
-                "ShaperCutout_createSvgImage",
                 "ShaperCutout_exportSvgPage",
                 "ShaperCutout_exportFrontSVG",
                 "ShaperCutout_exportBackSVG",
@@ -80,7 +77,6 @@ class ShaperCutoutWorkbench(Gui.Workbench):
                 "ShaperCutout_createDados",
                 "ShaperCutout_createMiter",
                 "ShaperCutout_createSvgPage",
-                "ShaperCutout_createSvgImage",
                 "ShaperCutout_exportFrontSVG",
                 "ShaperCutout_exportBackSVG",
                 "Part_CoordinateSystem",
