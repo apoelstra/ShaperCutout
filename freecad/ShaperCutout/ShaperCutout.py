@@ -7,15 +7,7 @@ from PySide import QtGui
 
 from ShaperMiter import miter_edges
 from command import open_cutout_task_panel
-from shaper_cutout_util import move_to_root as _move_to_root, insert_if_missing
-
-
-def _remove_from_group(obj):
-    for parent in obj.InList:
-        if hasattr(parent, 'Group') and obj in parent.Group:
-            App.Console.PrintLog(
-                f"ShaperCutout: moving '{obj.Label}' out of current group '{parent.Label}'")
-            parent.removeObject(obj)
+from shaper_cutout_util import global_normal, is_sketch, objects_are_parallel
 
 
 def create_uninitialized(name):
@@ -23,7 +15,6 @@ def create_uninitialized(name):
     obj_name = 'ShaperCutout' if name == '' else name
     obj = doc.addObject('Part::FeaturePython', obj_name)
     # App::GroupExtensionPython gets us the .Group property
-    obj.addExtension('App::GroupExtensionPython')
     ShaperCutout(obj)
     if App.GuiUp:
         ViewProviderShaperCutout(obj.ViewObject)
@@ -48,6 +39,10 @@ class ShaperCutout:
                         'Front (positive z offset) plane of the sheet.')
         obj.addProperty('App::PropertyLink', 'BackFace', 'Internal',
                         'Back (negative z offset) plane of the sheet.')
+        obj.addProperty('App::PropertyLinkList', 'Dados', 'Internal',
+                        'The dado sets associated with this cutout.')
+        obj.addProperty('App::PropertyLinkList', 'Miters', 'Internal',
+                        'The miters associated with this cutout.')
 
         obj.Type = "ShaperCutout"
         obj.setPropertyStatus('OutlineSketch', 2)
@@ -55,6 +50,8 @@ class ShaperCutout:
         obj.setEditorMode('Type', 2)
         obj.setEditorMode('FrontFace', 2)
         obj.setEditorMode('BackFace', 2)
+        obj.setEditorMode('Dados', 2)
+        obj.setEditorMode('Miters', 2)
 
     def getSubObjects(self, obj, reason):
         # The FreeCAD STEP exporter, in App/ExportOCAF2.cpp line 476, calls this
@@ -83,7 +80,7 @@ class ShaperCutout:
 
         # Compute data
         plane_origin = obj.CenterPlane.Placement.Base
-        normal = obj.CenterPlane.Placement.Rotation.multVec(App.Vector(0, 0, 1))
+        normal = global_normal(obj.CenterPlane)
         half = obj.Thickness.Value / 2.0
         extrude_vec = App.Vector(normal.x * half * 2,
                                  normal.y * half * 2,
@@ -96,13 +93,13 @@ class ShaperCutout:
                                 normal.z * (-half + dist))
 
         # Create shape
+        sketch_normal = global_normal(obj.OutlineSketch)
         wires = obj.OutlineSketch.Shape.Wires
         if not wires:
             return
 
         try:
-            sketch_axis = wires[0].findPlane().Axis
-            if sketch_axis.cross(normal).Length >= 1e-6:
+            if sketch_normal.cross(normal).Length >= 1e-6:
                 App.Console.PrintWarning(
                     f"ShaperCutout '{obj.Label}': outline sketch is not parallel "
                     f"to center plane; projecting anyway\n")
@@ -118,21 +115,17 @@ class ShaperCutout:
         shape = face.extrude(extrude_vec)
 
         # Add/subtract miters
-        for member in obj.Group:
-            if (member is not None and
-                    getattr(member, 'Type', None) == 'ShaperMiter'):
-                if not member.Edges or member.Angle is None:
-                    # Skip uninitialized/null/broken miters
-                    continue
-                shape = miter_edges(shape, member, obj.CenterPlane, obj.Thickness.Value)
+        for member in obj.Miters:
+            if not member.Edges or member.Angle is None:
+                # Skip uninitialized/null/broken miters
+                continue
+            shape = miter_edges(shape, member, obj.CenterPlane, obj.Thickness.Value)
 
         # Subtract dado pockets
-        for member in obj.Group:
-            if (member is not None and
-                    getattr(member, 'Type', None) == 'ShaperDados'):
-                pocket = member.PocketShape
-                if pocket is not None and pocket.Solids:
-                    shape = shape.cut(pocket)
+        for member in obj.Dados:
+            pocket = member.PocketShape
+            if pocket is not None and pocket.Solids:
+                shape = shape.cut(pocket)
 
         obj.Shape = shape
 
@@ -153,6 +146,33 @@ class ShaperCutout:
     def loads(self, state):
         return None
 
+    def onDocumentRestored(self, obj):
+        # Add missing lists
+        if not hasattr(obj, 'Dados'):
+            obj.addProperty('App::PropertyLinkList', 'Dados', 'Internal',
+                            'The dado sets associated with this cutout.')
+            obj.setEditorMode('Dados', 2)
+
+        if not hasattr(obj, 'Miters'):
+            obj.addProperty('App::PropertyLinkList', 'Miters', 'Internal',
+                            'The miters associated with this cutout.')
+            obj.setEditorMode('Miters', 2)
+
+        # Empty out old Group list
+        newdados = list(obj.Dados)
+        newmiters = list(obj.Miters)
+        for gchild in getattr(obj, 'Group', []):
+            # Pull the dados and miters out, drop everything else (which should just be planes and
+            # the outline sketch, already redundantly covered by existing links).
+            if getattr(gchild, 'Type', '') == 'ShaperDados':
+                newdados.append(gchild)
+            elif getattr(gchild, 'Type', '') == 'ShaperMiter':
+                newmiters.append(gchild)
+        obj.Dados = newdados
+        obj.Miters = newmiters
+
+        obj.Group = []
+
     def ensure_back_face(self, obj):
         """Recreate front face if missing or link broken."""
         if obj.CenterPlane is None or obj.Thickness is None:
@@ -160,7 +180,6 @@ class ShaperCutout:
 
         if obj.BackFace is None:
             obj.BackFace = obj.Document.addObject('App::Plane', 'Back')
-            insert_if_missing(obj, obj.BackFace)
 
         placement = obj.CenterPlane.Placement
         half = obj.Thickness.Value / 2.0
@@ -176,7 +195,6 @@ class ShaperCutout:
 
         if obj.FrontFace is None:
             obj.FrontFace = obj.Document.addObject('App::Plane', 'Front')
-            insert_if_missing(obj, obj.FrontFace)
 
         placement = obj.CenterPlane.Placement
         half = obj.Thickness.Value / 2.0
@@ -191,10 +209,80 @@ class ViewProviderShaperCutout:
         vobj.Proxy = self
 
     def attach(self, vobj):
+        self.ViewObject = vobj
+        self.Object = vobj.Object
         pass
 
     def getIcon(self):
         return os.path.join(os.path.dirname(__file__), "resources/icons/cutout.svg")
+
+    # Which "children" show up in the Tree View. Curiously there is no requirement that
+    # the parent relationship be unique, so many cutouts can claim the same sketches
+    # or planes.
+    def claimChildren(self):
+        return [
+            self.Object.OutlineSketch,
+            self.Object.CenterPlane,
+            self.Object.FrontFace,
+            self.Object.BackFace,
+        ] + self.Object.Dados + self.Object.Miters
+
+    # Whether it is allowed to drag objects out of the container.
+    #
+    # We allow the outline sketch to be "dragged out". This will not actually remove the
+    # sketch from the container -- we only enable it so that you can drag outlines onto
+    # other cutouts.
+    def canDragObject(self, child):
+        # We also need to give permission to drag stuff out of our dado sets, even
+        # though they do their own filtering. We just blanket-allow it.
+        for dado in self.Object.Dados:
+            if child in dado.Group:
+                return True
+        return child == self.Object.OutlineSketch
+
+    def dragObject(self, vobj, child):
+        # Dragging out doesn't actually do anything. If you want to remove the outline sketch
+        # you need to edit the Cutout and remove it.
+        pass
+
+    # The only thing permissible to drop on a ShaperCutout is a sketch, which can be used
+    # to set the outline.
+    def dropObject(self, vobj, child):
+        print(f"drop in Cutout {child.Label}")
+        if not is_sketch(child):
+            return
+
+        if not objects_are_parallel(self.Object.CenterPlane, child):
+            # Annoyingly, this does not cancel the removal from the source, so we drop the item
+            # in the document root. But you can Ctrl+Z this so I guess it's okay. The alternative
+            # is to reject in canDragObject, but we can't print warnings there because it's called
+            # too often during mouse hovering.
+            App.Console.PrintWarning(
+                f"Sketch '{child.Label}': outline sketch is not parallel to Cutout; rejecting.\n")
+            return
+
+        if self.Object.OutlineSketch is None:
+            self.Object.Document.openTransaction("Replace outline sketch")
+            self.Object.OutlineSketch = child
+            self.Object.Document.commitTransaction()
+        else:
+            msg_box = QtGui.QMessageBox()
+            msg_box.setText(
+                f"Replace existing outline sketch ({self.Object.OutlineSketch.Label}) "
+                f"with {child.Label}?"
+            )
+            replace_btn = msg_box.addButton(QtGui.QMessageBox.Yes)
+            msg_box.addButton(QtGui.QMessageBox.Cancel)
+            msg_box.setDefaultButton(QtGui.QMessageBox.Cancel)
+            print(msg_box.exec_())
+
+            self.Object.Document.openTransaction("Replace outline sketch")
+            if msg_box.clickedButton() == replace_btn:
+                self.Object.OutlineSketch = child
+                self.Object.recompute()  # recompute inside Undo transaction
+                self.Object.Document.commitTransaction()
+            else:
+                self.Object.Document.abortTransaction()
 
     def doubleClicked(self, vobj):
         open_cutout_task_panel(vobj.Object)

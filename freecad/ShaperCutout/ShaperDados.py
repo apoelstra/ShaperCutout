@@ -7,21 +7,25 @@ import Part
 from PySide import QtGui
 
 from command.create_shaper_dados import open_dados_task_panel
-from shaper_cutout_util import move_to_root, insert_if_missing
+from shaper_cutout_util import global_normal, is_sketch, objects_are_parallel
 
 
 def create_uninitialized(cutout, name):
     doc = App.ActiveDocument
     obj = doc.addObject('App::DocumentObjectGroupPython', name)
+    # App::GroupExtensionPython gets us the .Group property
+    obj.addExtension('App::GroupExtensionPython')
     obj.Label = name
     ShaperDados(obj)
     if App.GuiUp:
         ViewProviderShaperDados(obj.ViewObject)
+        # Gui::ViewProviderGroupExtensionPython gets us group-like behavior in the Tree View
+        obj.ViewObject.addExtension('Gui::ViewProviderGroupExtensionPython')
 
     # Nest inside the ShaperCutout group
-    grp = list(cutout.Group)
-    grp.append(obj)
-    cutout.Group = grp
+    dados = list(cutout.Dados)
+    dados.append(obj)
+    cutout.Dados = dados
 
     _ensure_dado_plane(obj)
 
@@ -29,8 +33,8 @@ def create_uninitialized(cutout, name):
 
 
 def _parent_cutout(dados):
-    for o in dados.Document.Objects:
-        if (getattr(o, 'Type', None) == 'ShaperCutout' and dados in o.Group):
+    for o in dados.InList:
+        if (getattr(o, 'Type', None) == 'ShaperCutout' and dados in o.Dados):
             return o
     return None
 
@@ -44,7 +48,6 @@ def _ensure_dado_plane(collection):
         'Part::DatumPlane', collection.Name + '_Plane')
     collection.DadoPlane = plane
     collection.setEditorMode('DadoPlane', 2)
-    insert_if_missing(collection, plane)
     return plane
 
 
@@ -200,15 +203,6 @@ class ShaperDados:
         if prop == 'MaxHolesPerLine':
             if getattr(obj, 'MaxHolesPerLine', 0) < 0:
                 obj.MaxHolesPerLine = 0
-        if prop == 'Group':
-            keep = set(obj.Sketches or []) | {obj.DadoPlane}
-            for member in list(obj.Group):
-                if member is None:
-                    continue
-                if member not in keep:
-                    App.Console.PrintWarning(
-                        f"ShaperDados: removing unlinked member '{member.Label}'\n")
-                    move_to_root(member)
 
     def execute(self, obj):
         if not obj.Face or not obj.Depth:
@@ -221,7 +215,7 @@ class ShaperDados:
                     f"ShaperDados '{obj.Label}': Depth ({obj.Depth}) "
                     f"exceeds sheet Thickness ({parent.Thickness})\n")
 
-        normal = obj.Face.Placement.Rotation.multVec(App.Vector(0, 0, 1))
+        normal = global_normal(obj.Face)
 
         depth = -obj.Depth.Value if obj.Invert else obj.Depth.Value
         extrude_vec = App.Vector(
@@ -252,7 +246,7 @@ class ShaperDados:
                     f"'{member.Label}'\n")
                 continue
 
-            member_normal = member.Placement.Rotation.multVec(App.Vector(0, 0, 1))
+            member_normal = global_normal(member)
             if member_normal.cross(normal).Length >= 1e-6:
                 App.Console.PrintWarning(
                     f"ShaperDados '{obj.Label}':"
@@ -387,16 +381,31 @@ class ShaperDados:
             obj.EndDistance = "0.5 in"
             obj.Version = "3"
 
+        # Old versions stored the plane in the group, but this is wrong/redundant.
+        group = []
+        for gchild in getattr(obj, 'Group', []):
+            if is_sketch(gchild):
+                group.append(gchild)
+        obj.Group = group
+
 
 class ViewProviderShaperDados:
     def __init__(self, vobj):
         vobj.Proxy = self
 
     def attach(self, vobj):
+        self.ViewObject = vobj
+        self.Object = vobj.Object
         pass
 
     def getIcon(self):
         return os.path.join(os.path.dirname(__file__), "resources/icons/dados.svg")
+
+    # Which "children" show up in the Tree View. Curiously there is no requirement that
+    # the parent relationship be unique, so many cutouts can claim the same sketches
+    # or planes.
+    def claimChildren(self):
+        return [self.Object.DadoPlane] + self.Object.Group
 
     def doubleClicked(self, vobj):
         parent = _parent_cutout(vobj.Object)
@@ -415,3 +424,38 @@ class ViewProviderShaperDados:
 
     def loads(self, state):
         return None
+
+    def canDragObject(self, child):
+        return is_sketch(child)
+
+    def dragObject(self, vobj, child):
+        # Unlike Cutout, dados act like groups (though only for their sketches); you can move
+        # things in and out of them by dragging and they don't get duplicated (without some
+        # shenanigans).
+        if not is_sketch(child):
+            return
+
+        grp = list(self.Object.Group)
+        try:
+            grp.remove(child)
+        except ValueError:
+            return
+        self.Object.Group = grp
+
+    def canDropObject(self, child):
+        # Don't print warnings here, this event triggers many times while the user is hovering.
+        # Just filter to "sketches only" which is easy for the user to understand, and do further
+        # filters in `dropChild` where we can print warnings to explain why we reject things.
+        return is_sketch(child)
+
+    def dropObject(self, vobj, child):
+        if not is_sketch(child):
+            return
+
+        if not objects_are_parallel(self.Object.DadoPlane, child):
+            App.Console.PrintWarning(
+                f"Sketch '{child.Label}': outline sketch is not parallel to Dados; rejecting.\n")
+
+        grp = list(self.Object.Group)
+        grp.append(child)
+        self.Object.Group = grp

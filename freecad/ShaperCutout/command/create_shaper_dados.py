@@ -6,7 +6,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtCore, QtWidgets
 
-from shaper_cutout_util import make_expr_template, insert_if_missing
+from shaper_cutout_util import make_expr_template, insert_if_missing, is_single_selected
 
 
 def _is_sketch(obj):
@@ -202,38 +202,17 @@ class CreateShaperDadosCmd:
                                  "../resources/icons/dados.svg")
         return {
             "MenuText": "Create Dados",
-            "ToolTip": "Create a dado pocket collection on a ShaperCutout",
+            "ToolTip": "Create a dado pocket collection on the selected ShaperCutout",
             "Pixmap": icon_path,
         }
 
     def IsActive(self):
         if not App.ActiveDocument:
             return False
-        return any(
-            getattr(o, 'Type', None) == 'ShaperCutout'
-            for o in App.ActiveDocument.Objects
-        )
+        return is_single_selected('ShaperCutout')
 
     def Activated(self):
-        doc = App.ActiveDocument
-        cutouts = [
-            o for o in doc.Objects
-            if getattr(o, 'Type', None) == 'ShaperCutout'
-        ]
-        if not cutouts:
-            QtWidgets.QMessageBox.warning(
-                None, "No Cutout", "No ShaperCutout found in document.")
+        sel = Gui.Selection.getSelection()
+        if len(sel) == 0 or getattr(sel[0], 'Type', '') != 'ShaperCutout':
             return
-
-        if len(cutouts) == 1:
-            cutout = cutouts[0]
-        else:
-            labels = [o.Label for o in cutouts]
-            chosen, ok = QtWidgets.QInputDialog.getItem(
-                Gui.getMainWindow(), "Select Cutout",
-                "Plywood plane:", labels, 0, False)
-            if not ok:
-                return
-            cutout = cutouts[labels.index(chosen)]
-
-        open_dados_task_panel(cutout)
+        open_dados_task_panel(sel[0])
