@@ -142,8 +142,11 @@ def autodrill_holes(wire, min_distance, end_distance, max_holes):
             continue
 
         len_minus_ends = edge.Length - 2 * end_distance
-        max_holes_that_fit = math.floor(len_minus_ends / min_distance) + 1
-        n_holes = min(max_holes, max_holes_that_fit)
+        if min_distance == 0:
+            n_holes = max_holes
+        else:
+            max_holes_that_fit = math.floor(len_minus_ends / min_distance) + 1
+            n_holes = min(max_holes, max_holes_that_fit)
 
         # Determine hole center points along the segment
         if n_holes == 1:
