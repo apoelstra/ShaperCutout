@@ -2,8 +2,9 @@
 
 import os
 import FreeCAD as App
+import FreeCADGui as Gui
 import Part
-from PySide import QtGui
+from PySide import QtGui, QtWidgets, QtCore
 
 from ShaperMiter import miter_edges
 from command import open_cutout_task_panel
@@ -207,6 +208,34 @@ class ShaperCutout:
         return obj.FrontFace
 
 
+class _DropChoiceDialog(QtWidgets.QDialog):
+    def __init__(self, old_label, new_label, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Drop Sketch")
+        self.result = 'cancel'
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setAlignment(QtCore.Qt.AlignCenter)
+
+        label = QtWidgets.QLabel(
+            f"Drop '{new_label}' onto cutout with existing outline '{old_label}':")
+        label.setAlignment(QtCore.Qt.AlignCenter)
+        layout.addWidget(label)
+
+        for text, value in [
+            ("Create Dado Set", 'dado'),
+            ("Replace Outline Sketch", 'replace'),
+            ("Cancel", 'cancel'),
+        ]:
+            btn = QtWidgets.QPushButton(text)
+            btn.clicked.connect(lambda checked=False, v=value: self._choose(v))
+            layout.addWidget(btn, alignment=QtCore.Qt.AlignCenter)
+
+    def _choose(self, value):
+        self.result = value
+        self.accept()
+
+
 class ViewProviderShaperCutout:
     def __init__(self, vobj):
         vobj.addExtension("Gui::ViewProviderGroupExtensionPython")
@@ -243,7 +272,7 @@ class ViewProviderShaperCutout:
         # We also need to give permission to drag stuff out of our dado sets, even
         # though they do their own filtering. We just blanket-allow it.
         for dado in self.Object.Dados:
-            if child in dado.Group:
+            if child in dado.Sketches:
                 return True
         return child == self.Object.OutlineSketch
 
@@ -281,23 +310,19 @@ class ViewProviderShaperCutout:
             self.Object.OutlineSketch = child
             self.Object.Document.commitTransaction()
         else:
-            msg_box = QtGui.QMessageBox()
-            msg_box.setText(
-                f"Replace existing outline sketch ({self.Object.OutlineSketch.Label}) "
-                f"with {child.Label}?"
-            )
-            replace_btn = msg_box.addButton(QtGui.QMessageBox.Yes)
-            msg_box.addButton(QtGui.QMessageBox.Cancel)
-            msg_box.setDefaultButton(QtGui.QMessageBox.Cancel)
-            msg_box.exec_()
+            dlg = _DropChoiceDialog(self.Object.OutlineSketch.Label, child.Label)
+            dlg.exec_()
+            choice = dlg.result
 
-            self.Object.Document.openTransaction("Replace outline sketch")
-            if msg_box.clickedButton() == replace_btn:
+            if choice == 'replace':
+                self.Object.Document.openTransaction("Replace outline sketch")
                 self.Object.OutlineSketch = child
-                self.Object.recompute()  # recompute inside Undo transaction
+                self.Object.recompute()
                 self.Object.Document.commitTransaction()
-            else:
-                self.Object.Document.abortTransaction()
+            elif choice == 'dado':
+                from command.create_shaper_dados import open_dados_task_panel
+                open_dados_task_panel(self.Object, initial_sketches=[child])
+            # 'cancel' — do nothing
 
     def doubleClicked(self, vobj):
         open_cutout_task_panel(vobj.Object)

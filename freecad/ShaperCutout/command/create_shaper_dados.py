@@ -6,7 +6,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtCore, QtWidgets
 
-from shaper_cutout_util import make_expr_template, insert_if_missing, is_single_selected
+from shaper_cutout_util import make_expr_template, is_single_selected
 
 
 def _is_sketch(obj):
@@ -23,16 +23,16 @@ def _available_sketches(doc, already_linked):
     return [o for o in doc.Objects if _is_sketch(o) and o not in linked_set]
 
 
-def open_dados_task_panel(cutout, dados=None):
+def open_dados_task_panel(cutout, dados=None, initial_sketches=[]):
     """Open the task panel. If dados is None, a new one will be created."""
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
-    panel = ShaperDadosTaskPanel(cutout, dados)
+    panel = ShaperDadosTaskPanel(cutout, dados, initial_sketches)
     Gui.Control.showDialog(panel)
 
 
 class ShaperDadosTaskPanel:
-    def __init__(self, cutout, dados=None):
+    def __init__(self, cutout, dados=None, initial_sketches=[]):
         from ShaperDados import create_uninitialized
 
         self._cutout = cutout
@@ -87,11 +87,6 @@ class ShaperDadosTaskPanel:
         layout.addRow("Sketches:", self.sketch_list)
         layout.addRow("", sketch_buttons)
 
-        # Move into group
-        self.move_check = QtWidgets.QCheckBox()
-        self.move_check.setChecked(True)
-        layout.addRow("Move sketches into group:", self.move_check)
-
         # Open transaction, setup expression template and populate dialog
         self._doc.openTransaction("Edit Dados" if dados is not None else "Create Dados")
         self._dados = dados
@@ -124,11 +119,15 @@ class ShaperDadosTaskPanel:
         # Populate sketch list
         for sk in (self._dados.Sketches or []):
             self.sketch_list.addItem(self._make_item(sk))
+        for sk in initial_sketches:
+            self.sketch_list.addItem(self._make_item(sk))
 
         # Connect signals AFTER populating
         self.label_edit.textChanged.connect(self._on_changed)
         self.face_combo.currentIndexChanged.connect(self._on_changed)
         self._depth_widget.valueChanged.connect(self._on_changed)
+        self._width_widget.valueChanged.connect(self._on_changed)
+        self._tolerance_widget.valueChanged.connect(self._on_changed)
         self.add_btn.clicked.connect(self._on_add)
         self.remove_btn.clicked.connect(self._on_remove)
 
@@ -172,7 +171,9 @@ class ShaperDadosTaskPanel:
         self._template.update_object(self._dados, 'Depth')
         self._template.update_object(self._dados, 'Width')
         self._template.update_object(self._dados, 'Tolerance')
+
         self._dados.recompute()
+        self._cutout.recompute()
 
     def accept(self):
         if self._template.widget_value('Depth') == 0:
@@ -184,9 +185,8 @@ class ShaperDadosTaskPanel:
                 self.form, "No Sketches", "Please add at least one sketch.")
             return
         self._on_changed()
-        if self.move_check.isChecked():
-            for sk in self._current_sketches():
-                insert_if_missing(self._dados, sk)
+
+        self._dados.Sketches = self._current_sketches()
         self._template.destroyTemplate()
         self._doc.commitTransaction()
         Gui.Control.closeDialog()

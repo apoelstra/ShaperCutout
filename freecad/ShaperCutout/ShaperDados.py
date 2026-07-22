@@ -12,15 +12,11 @@ from shaper_cutout_util import global_normal, is_sketch, objects_are_parallel
 
 def create_uninitialized(cutout, name):
     doc = App.ActiveDocument
-    obj = doc.addObject('App::DocumentObjectGroupPython', name)
-    # App::GroupExtensionPython gets us the .Group property
-    obj.addExtension('App::GroupExtensionPython')
+    obj = doc.addObject('Part::FeaturePython', name)
     obj.Label = name
     ShaperDados(obj)
     if App.GuiUp:
         ViewProviderShaperDados(obj.ViewObject)
-        # Gui::ViewProviderGroupExtensionPython gets us group-like behavior in the Tree View
-        obj.ViewObject.addExtension('Gui::ViewProviderGroupExtensionPython')
 
     # Nest inside the ShaperCutout group
     dados = list(cutout.Dados)
@@ -179,7 +175,7 @@ class ShaperDados:
         obj.addProperty('App::PropertyBool', 'Invert', 'Base',
                         'Direction to cut dado pockets into the face')
         obj.addProperty('App::PropertyLinkList', 'Sketches', 'Base',
-                        'Sketches describing the dado pocket outlines.')
+                        'The sketches associated with this dado set.')
 
         self.addV2Properties(obj)
 
@@ -381,12 +377,13 @@ class ShaperDados:
             obj.EndDistance = "0.5 in"
             obj.Version = "3"
 
-        # Old versions stored the plane in the group, but this is wrong/redundant.
+        # Old versions stored the plane in the group, but this is wrong/redundant. We only want
+        # sketches -- and also let's not use Group, because we want to be able to share sketches
+        # between dado sets. We already have the Sketches list.
         group = []
         for gchild in getattr(obj, 'Group', []):
             if is_sketch(gchild):
                 group.append(gchild)
-        obj.Group = group
 
 
 class ViewProviderShaperDados:
@@ -405,7 +402,13 @@ class ViewProviderShaperDados:
     # the parent relationship be unique, so many cutouts can claim the same sketches
     # or planes.
     def claimChildren(self):
-        return [self.Object.DadoPlane] + self.Object.Group
+        return [self.Object.DadoPlane] + self.Object.Sketches
+
+    def canDragObjects(self):
+        return True
+
+    def canDropObjects(self):
+        return True
 
     def doubleClicked(self, vobj):
         parent = _parent_cutout(vobj.Object)
@@ -429,18 +432,9 @@ class ViewProviderShaperDados:
         return is_sketch(child)
 
     def dragObject(self, vobj, child):
-        # Unlike Cutout, dados act like groups (though only for their sketches); you can move
-        # things in and out of them by dragging and they don't get duplicated (without some
-        # shenanigans).
-        if not is_sketch(child):
-            return
-
-        grp = list(self.Object.Group)
-        try:
-            grp.remove(child)
-        except ValueError:
-            return
-        self.Object.Group = grp
+        # Similar to cutouts, dados act kinda like groups except that sketches can live in
+        # multiple instances at once, and dragging out of the group has no effect.
+        pass
 
     def canDropObject(self, child):
         # Don't print warnings here, this event triggers many times while the user is hovering.
@@ -456,6 +450,6 @@ class ViewProviderShaperDados:
             App.Console.PrintWarning(
                 f"Sketch '{child.Label}': outline sketch is not parallel to Dados; rejecting.\n")
 
-        grp = list(self.Object.Group)
+        grp = list(self.Object.Sketches)
         grp.append(child)
-        self.Object.Group = grp
+        self.Object.Sketches = grp
