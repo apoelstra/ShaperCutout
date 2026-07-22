@@ -99,9 +99,7 @@ def _miter_rectangles(cutout, xy_matrix):
 
     ret_wires = []
 
-    for member in cutout.Group:
-        if getattr(member, 'Type', None) != 'ShaperMiter':
-            continue
+    for member in cutout.Miters:
         if not member.Edges or member.Angle is None:
             continue
         angle_deg = member.Angle.Value
@@ -437,9 +435,7 @@ def _collect_dado_groups(cutout, exportFront):
     dados = []
     drill_holes = []
 
-    for member in cutout.Group:
-        if getattr(member, 'Type', None) != 'ShaperDados':
-            continue
+    for member in cutout.Dados:
         face = member.Face
         depth_mm = member.Depth.Value
         wires = []
