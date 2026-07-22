@@ -10,16 +10,14 @@ from command import open_cutout_task_panel
 from shaper_cutout_util import global_normal, is_sketch, objects_are_parallel
 
 
-def create_uninitialized(name):
+def create_uninitialized(name=None):
     doc = App.ActiveDocument
-    obj_name = 'ShaperCutout' if name == '' else name
+    obj_name = 'ShaperCutout' if name is None else name
     obj = doc.addObject('Part::FeaturePython', obj_name)
-    # App::GroupExtensionPython gets us the .Group property
     ShaperCutout(obj)
     if App.GuiUp:
         ViewProviderShaperCutout(obj.ViewObject)
-        # Gui::ViewProviderGroupExtensionPython gets us group-like behavior in the Tree View
-        obj.ViewObject.addExtension('Gui::ViewProviderGroupExtensionPython')
+
     return obj
 
 
@@ -158,7 +156,9 @@ class ShaperCutout:
                             'The miters associated with this cutout.')
             obj.setEditorMode('Miters', 2)
 
-        # Empty out old Group list
+        # We need the group extension for drag/drop to work, but we leave the actual Group empty.
+        # Old versions of the extension put stuff in Group, so empty it out here and put stuff
+        # in their right places.
         newdados = list(obj.Dados)
         newmiters = list(obj.Miters)
         for gchild in getattr(obj, 'Group', []):
@@ -171,7 +171,10 @@ class ShaperCutout:
         obj.Dados = newdados
         obj.Miters = newmiters
 
-        obj.Group = []
+        if hasattr(obj, 'Group'):
+            obj.Group = []
+        else:
+            obj.addExtension("App::GroupExtensionPython")
 
     def ensure_back_face(self, obj):
         """Recreate front face if missing or link broken."""
@@ -206,6 +209,7 @@ class ShaperCutout:
 
 class ViewProviderShaperCutout:
     def __init__(self, vobj):
+        vobj.addExtension("Gui::ViewProviderGroupExtensionPython")
         vobj.Proxy = self
 
     def attach(self, vobj):
@@ -227,6 +231,9 @@ class ViewProviderShaperCutout:
             self.Object.BackFace,
         ] + self.Object.Dados + self.Object.Miters
 
+    def canDragObjects(self):
+        return True
+
     # Whether it is allowed to drag objects out of the container.
     #
     # We allow the outline sketch to be "dragged out". This will not actually remove the
@@ -245,10 +252,18 @@ class ViewProviderShaperCutout:
         # you need to edit the Cutout and remove it.
         pass
 
+    def canDropObjects(self):
+        return True
+
+    def canDropObject(self, child):
+        # Whether it's allowed to drop stuff in the child -- we allow only sketches. (Actually
+        # we have further restrictions but we defer them to when the user actually does the
+        # drop, since then we can output warnings and be sure they'll only be printed once.)
+        return is_sketch(child)
+
     # The only thing permissible to drop on a ShaperCutout is a sketch, which can be used
     # to set the outline.
     def dropObject(self, vobj, child):
-        print(f"drop in Cutout {child.Label}")
         if not is_sketch(child):
             return
 
@@ -274,7 +289,7 @@ class ViewProviderShaperCutout:
             replace_btn = msg_box.addButton(QtGui.QMessageBox.Yes)
             msg_box.addButton(QtGui.QMessageBox.Cancel)
             msg_box.setDefaultButton(QtGui.QMessageBox.Cancel)
-            print(msg_box.exec_())
+            msg_box.exec_()
 
             self.Object.Document.openTransaction("Replace outline sketch")
             if msg_box.clickedButton() == replace_btn:

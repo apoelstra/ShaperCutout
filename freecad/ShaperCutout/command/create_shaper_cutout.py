@@ -145,10 +145,13 @@ class ShaperCutoutTaskPanel:
             if cutout.OutlineSketch:
                 force_combo_to_value(self.sketch_combo, cutout.OutlineSketch)
         else:
-            self._cutout = create_uninitialized('')
+            self._cutout = create_uninitialized()
             self._cutout.ViewObject.ShowInTree = False
             if getattr(current_sel, 'Type', '') == 'ShaperCutout':
-                force_combo_to_value(self.plane_combo, current_sel.CenterPlane)
+                self._cutout.CenterPlane = current_sel.CenterPlane
+            else:
+                self._cutout.CenterPlane = current_sel
+            force_combo_to_value(self.plane_combo, self._cutout.CenterPlane)
 
         for s in self._all_sketches:
             if objects_are_parallel(self.plane_combo.currentData(), s):
@@ -167,10 +170,7 @@ class ShaperCutoutTaskPanel:
         # Copy thickness from current selection, if we are making a new cutout from an
         # existing one. To deal with expression/value complexity it's fastest to just
         # do the copy in two steps via the template object.
-        print(self._edit_mode)
-        print(getattr(current_sel, 'Type', ''))
         if not self._edit_mode and getattr(current_sel, 'Type', '') == 'ShaperCutout':
-            print("Setting thickness...")
             self._template.set_from_object(current_sel, 'Thickness')
             self._template.update_object(self._cutout, 'Thickness')
 
