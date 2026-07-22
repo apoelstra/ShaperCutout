@@ -286,14 +286,15 @@ class ViewProviderShaperSvgPage:
         return None
 
     def canDragObject(self, child):
-        # Cannot move stuff out of SVG image. Can only delete things.
-        return False
+        return True
 
     def canDropObject(self, child):
-        return getattr(child, 'Type', '') == 'ShaperCutout'
+        return getattr(child, 'Type', '') in ('ShaperCutout', 'ShaperSvgImage')
 
     def dropObject(self, vobj, child):
-        if getattr(child, 'Type', '') != 'ShaperCutout':
-            return
-
-        ShaperSvgImage.create(vobj.Object, child, child.Label + "_svg")
+        if getattr(child, 'Type', '') == 'ShaperCutout':
+            ShaperSvgImage.create(vobj.Object, child, child.Label + "_svg")
+        else:
+            grp = list(vobj.Object.Group)
+            grp.append(child)
+            vobj.Object.Group = grp

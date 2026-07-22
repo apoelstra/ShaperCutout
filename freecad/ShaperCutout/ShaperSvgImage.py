@@ -5,7 +5,7 @@ import FreeCAD as App
 
 def create(page, cutout, name):
     doc = page.Document
-    obj = doc.addObject('App::DocumentObjectGroupPython', name)
+    obj = doc.addObject('App::FeaturePython', name)
     obj.Label = name
     ShaperSvgImage(obj)
     if App.GuiUp:
