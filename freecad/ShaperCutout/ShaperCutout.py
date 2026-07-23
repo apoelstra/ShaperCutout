@@ -89,17 +89,14 @@ class ShaperCutout:
 
         # Compute data
         plane_origin = obj.CenterPlane.Placement.Base
+        thickness = obj.Thickness.Value
         normal = global_normal(obj.CenterPlane)
-        half = obj.Thickness.Value / 2.0
-        extrude_vec = App.Vector(normal.x * half * 2,
-                                 normal.y * half * 2,
-                                 normal.z * half * 2)
+        half = thickness / 2.0
+        extrude_vec = (half * 2) * normal
 
         sketch_origin = obj.OutlineSketch.Shape.CenterOfGravity
         dist = (plane_origin - sketch_origin).dot(normal)
-        offset_vec = App.Vector(normal.x * (-half + dist),
-                                normal.y * (-half + dist),
-                                normal.z * (-half + dist))
+        offset_vec = (-half + dist) * normal
 
         # Create shape
         sketch_normal = global_normal(obj.OutlineSketch)
@@ -128,12 +125,26 @@ class ShaperCutout:
             if not member.Edges or member.Angle is None:
                 # Skip uninitialized/null/broken miters
                 continue
-            shape = miter_edges(shape, member, obj.CenterPlane, obj.Thickness.Value)
+            shape = miter_edges(shape, member, obj.CenterPlane, thickness)
 
         # Subtract dado pockets
         for member in obj.Dados:
+            if member.Depth.Value > thickness:
+                App.Console.PrintWarning(
+                    f"Warning: ShaperDados '{member.Label}': Depth ({member.Depth}) exceeds "
+                    f"parent sheet `{obj.Label}'  Thickness ({obj.Thickness}).\n")
+                # Try to do it anyway, just warn.
+
             pocket = member.PocketShape
             if pocket is not None and pocket.Solids:
+                shape = shape.cut(pocket)
+
+            # These faces all sit on the dado's reference face, not its plane, so the cut depth
+            # for holes will be the full thickness.
+            faces = member.AutodrillFaces
+            if faces is not None and faces.Faces:
+                drill_vec = thickness * (-normal if member.Invert else normal)
+                pocket = faces.extrude(drill_vec)
                 shape = shape.cut(pocket)
 
         obj.Shape = shape
@@ -186,6 +197,9 @@ class ShaperCutout:
             obj.Group = []
         else:
             obj.addExtension("App::GroupExtensionPython")
+
+        # Install faces
+        self.ensure_front_face(obj)
 
     def ensure_back_face(self, obj):
         """Recreate front face if missing or link broken."""

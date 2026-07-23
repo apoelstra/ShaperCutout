@@ -174,8 +174,9 @@ class ShaperDados:
                         'Computed pocket solid for subtraction.')
 
         self.addV3Properties(obj)
+        self.addV4Properties(obj)
 
-        obj.Version = "3"
+        obj.Version = "4"
         obj.Type = "ShaperDados"
 
         obj.setEditorMode('Version', 2)
@@ -196,15 +197,6 @@ class ShaperDados:
         if not obj.Face or not obj.Depth:
             return
 
-        self.ensure_dado_plane(obj).purgeTouched()
-
-        parent = _parent_cutout(obj)
-        if parent is not None and parent.Thickness:
-            if obj.Depth.Value > parent.Thickness.Value:
-                App.Console.PrintWarning(
-                    f"ShaperDados '{obj.Label}': Depth ({obj.Depth}) "
-                    f"exceeds sheet Thickness ({parent.Thickness})\n")
-
         normal = global_normal(obj.Face)
 
         depth = -obj.Depth.Value if obj.Invert else obj.Depth.Value
@@ -215,6 +207,7 @@ class ShaperDados:
         )
 
         solids = []
+        autodrill_faces = []
         for member in (obj.Sketches or []):
             if member is None:
                 continue
@@ -265,8 +258,6 @@ class ShaperDados:
 
                     # Open wires can have autodrill holes
                     hole_radius = obj.HoleDiameter.Value / 2.0
-                    parent = _parent_cutout(obj)
-                    thickness = parent.Thickness.Value if parent and parent.Thickness else None
 
                     if obj.HoleDiameter > obj.Width:
                         App.Console.PrintWarning(
@@ -284,12 +275,13 @@ class ShaperDados:
                         # fine. this means "disable autodriller"
                         pass
                     else:
-                        cylinders = autodrill_holes(translated_wire, obj.MinHoleDistance.Value,
-                                                    obj.EndDistance.Value, obj.MaxHolesPerLine)
-                        for center in cylinders:
-                            cyl_norm = -normal if obj.Invert else normal
-                            cyl = Part.makeCylinder(hole_radius, thickness, center, cyl_norm)
-                            solids.append(cyl)
+                        centers = autodrill_holes(translated_wire, obj.MinHoleDistance.Value,
+                                                  obj.EndDistance.Value, obj.MaxHolesPerLine)
+                        for center in centers:
+                            circle = Part.makeCircle(hole_radius, center, normal)
+                            wire = Part.Wire(circle)
+                            face = Part.Face(wire)
+                            autodrill_faces.append(face)
 
         if not solids:
             obj.PocketShape = Part.Shape()
@@ -299,6 +291,7 @@ class ShaperDados:
         for s in solids[1:]:
             shape = shape.fuse(s)
         obj.PocketShape = shape
+        obj.AutodrillFaces = Part.Shape(autodrill_faces)
 
     def dumps(self):
         return None
@@ -324,6 +317,11 @@ class ShaperDados:
                         'Minimum allowable distance between holes.')
         obj.addProperty('App::PropertyLength', 'EndDistance', 'Autodrill',
                         'Distance from ends of dados to put drill holes.')
+
+    def addV4Properties(self, obj):
+        obj.addProperty('Part::PropertyPartShape', 'AutodrillFaces', 'Autodrill',
+                        'Computed shape describing drill holes.')
+        obj.setEditorMode('AutodrillFaces', 2)
 
     def onDocumentRestored(self, obj):
         version = getattr(obj, 'Version', "1")
@@ -361,6 +359,10 @@ class ShaperDados:
             obj.MinHoleDistance = "3 in"
             obj.EndDistance = "0.5 in"
             obj.Version = "3"
+
+        if obj.Version == "3":
+            self.addV4Properties(obj)
+            obj.Version = "4"
 
         # Old versions stored the plane in the group, but this is wrong/redundant. We only want
         # sketches -- and also let's not use Group, because we want to be able to share sketches
