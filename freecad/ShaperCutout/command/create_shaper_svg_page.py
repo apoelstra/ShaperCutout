@@ -19,8 +19,8 @@ class CreateShaperSvgPageCmd:
         return App.ActiveDocument is not None
 
     def Activated(self):
-        import ShaperSvgPage as _mod
-        _mod.create()
+        import ShaperSvgPage
+        ShaperSvgPage.create()
         App.ActiveDocument.recompute()
         Gui.SendMsgToActiveView("ViewFit")
 

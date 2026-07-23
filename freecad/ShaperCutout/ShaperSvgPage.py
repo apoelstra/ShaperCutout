@@ -11,12 +11,14 @@ import ShaperSvgImage
 
 def create(name="ShaperSvgPage"):
     doc = App.ActiveDocument
+    doc.openTransaction("create Shaper SVG page")
     obj = doc.addObject('App::DocumentObjectGroupPython', name)
     obj.Label = name
     ShaperSvgPage(obj)
     if App.GuiUp:
         ViewProviderShaperSvgPage(obj.ViewObject)
     doc.recompute()
+    doc.commitTransaction()
     return obj
 
 
@@ -148,12 +150,21 @@ class _PageWidget(QtWidgets.QWidget):
 
         # Light grey grid
         if grid_px > 1:
-            painter.setPen(QtGui.QPen(QtGui.QColor(220, 220, 220), 0.5))
             for x in range(grid_w):
+                if x % 10 == 0:
+                    painter.setPen(QtGui.QPen(QtGui.QColor(220, 120, 120), 0.5))
+                else:
+                    painter.setPen(QtGui.QPen(QtGui.QColor(220, 220, 220), 0.5))
+
                 px = pad_x + x * grid_px
                 painter.drawLine(QtCore.QPointF(px, pad_y),
                                  QtCore.QPointF(px, pad_y + avail_h))
             for y in range(grid_h):
+                if y % 10 == 0:
+                    painter.setPen(QtGui.QPen(QtGui.QColor(220, 120, 120), 0.5))
+                else:
+                    painter.setPen(QtGui.QPen(QtGui.QColor(220, 220, 220), 0.5))
+
                 py = pad_y + y * grid_px
                 painter.drawLine(QtCore.QPointF(pad_x, py),
                                  QtCore.QPointF(pad_x + avail_w, py))

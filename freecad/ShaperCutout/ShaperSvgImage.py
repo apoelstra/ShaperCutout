@@ -30,9 +30,9 @@ class ShaperSvgImage:
                         'Mirror the image over its Y axis.')
         obj.addProperty('App::PropertyAngle', 'Rotation', 'Base',
                         'Rotation about the image bounding box center (degrees).')
-        obj.addProperty('App::PropertyLength', 'OffsetX', 'Base',
+        obj.addProperty('App::PropertyDistance', 'OffsetX', 'Base',
                         'X offset from page bottom-left to image bottom-left (mm).')
-        obj.addProperty('App::PropertyLength', 'OffsetY', 'Base',
+        obj.addProperty('App::PropertyDistance', 'OffsetY', 'Base',
                         'Y offset from page bottom-left to image bottom-left (mm).')
 
         obj.Type = 'ShaperSvgImage'

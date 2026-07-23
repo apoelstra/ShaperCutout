@@ -432,10 +432,13 @@ def _collect_dado_groups(cutout, exportFront):
     """
     from ShaperDados import autodrill_holes
 
+    dados_objs = sorted(cutout.Dados, key=lambda x: x.Depth.Value)
+    pipes = []
     dados = []
     drill_holes = []
 
-    for member in cutout.Dados:
+    for i in range(len(dados_objs)):
+        member = dados_objs[i]
         face = member.Face
         depth_mm = member.Depth.Value
         wires = []
@@ -447,7 +450,7 @@ def _collect_dado_groups(cutout, exportFront):
                 continue
 
             normal = source.Placement.Rotation.multVec(App.Vector(0, 0, 1))
-            pipes = []
+
             for w in source.Shape.Wires:
                 if w.isClosed():
                     wires.append(w)
@@ -466,6 +469,7 @@ def _collect_dado_groups(cutout, exportFront):
                     for center in cylinders:
                         drill_holes.append((center, member.HoleDiameter.Value))
 
+        if i == len(dados_objs) - 1 or dados_objs[i].Depth.Value != dados_objs[i + 1].Depth.Value:
             if len(pipes) > 0:
                 fuse = pipes[0]
                 for pipe in pipes[1:]:
@@ -474,12 +478,13 @@ def _collect_dado_groups(cutout, exportFront):
                 if _safe_for_cleanFaces(fuse):
                     fuse = faces.cleanFaces(fuse)
                 wires.extend(fuse.Wires)
+            pipes = []
 
         if face is cutout.FrontFace:
-            if exportFront:
+            if len(wires) > 0 and exportFront:
                 dados.append((depth_mm, wires))
         elif face is cutout.BackFace:
-            if not exportFront:
+            if len(wires) > 0 and not exportFront:
                 dados.append((depth_mm, wires))
         else:
             App.Console.PrintWarning(
@@ -487,7 +492,7 @@ def _collect_dado_groups(cutout, exportFront):
                 f"FrontFace nor BackFace of '{cutout.Label}'; skipping\n")
             continue
 
-    return sorted(dados), drill_holes
+    return sorted(dados, key=lambda d: d[0]), drill_holes
 
 
 def export(cutout, exportFront):
