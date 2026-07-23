@@ -81,166 +81,212 @@ the Origin.
 
 Let's take a look at the workbench toolbar.
 
-<center><img alt="ShaperCutout toolbar" src="./tutorial-images/001-icons.png" /></center>
+<center><img alt="ShaperCutout toolbar" src="./tutorial-images/00-toolbar.png" /></center>
 
 On a new document, these are mostly disbled, but they are:
 
-* **Create Shaper Cutout** is the primary entry point to the workbench. Once you have defined a
-  datum plane and an outline sketch, this will let you create a "shaper cutout", a sheet of wood
-  centered on the datum plane whose outline is the given sketch.
+* **Create Shaper Cutout** is the primary entry point to the workbench. Create a datum plane (or
+  a LCS plane) and select it. Then by clicking this button, it becomes a "shaper cutout", which
+  interprets the original plane as the center plane of a sheet of wood. You define a thickness,
+  and it creates front and back face planes for you. Then by dragging a parallel sketch onto it,
+  it becomes a solid piece, a cutout outlined by the sketch.
 * **Create Dados** lets you attach a collection of "dado sketches" to a shaper cutout, choosing
-  which face of the wood to cut into and to what depth.
+  which face of the wood to cut into and to what depth. Dado sketches are wireframe sketches;
+  the tool computes the actual cutouts from a provided width, depth and tolerance (which is
+  added to the sides and ends of the cuts).
 * **Miter** lets you miter a set of edges. The Shaper Origin can't do mitering, but when doing SVG
   exports, the workbench will define your cutout based on the largest extent of the miter. Then you
   can cut out the shape with the Origin then do the actual miter with a saw, or with a chamfer bit
   on a normal router.
 * **Create SVG Page** creates a full sheet on which you can lay out your cuts. It defaults to being
-  sized as a 8' by 4' sheet.
-* **Add Cutout to Page** creates a SVG image of a particular face of a particular cutout and adds it
-  to a SVG page. (If you just want a single cutout, better to use the "SVG Export" buttons.)
-* **SVG Export** these two buttons export the two faces of a given sheet as SVGs that the Origin can
-  understand. The outline sketch will use "outer" lines; dados "inner" lines with an encoded depth
-  matching the dado depth; and guide lines will be added that show where miters are. If there is a
-  90 degree corner somewhere in the outline sketch, a custom anchor will be added there, which will
-  make it easier to cut out a piece, flip it over, then grid it so that you can cut the opposite
-  side's dados in the right location.
+  sized as a 8' by 4' sheet. Once you have created a page, you can right-click on it to export the
+  whole thing as one SVG that the Shaper can understand (including encoded cut types and depths).
+* **SVG Export** these two buttons export the two faces of a single cutout as SVGs.
 
 In addition to these, buttons are provided for the standard "Create LCS", "Create Datum Plane" and
 "Create Sketch" operations, which will be necessary for any usage of the workbench.
 
+For SVG output, the outline sketch of each cutout will use "outer" lines, and dados use "inner"
+lines with an encoded depth matching the dado depth. (I don't use "pocket" because in my experience
+it's faster and cleaner to cut dados with a 1/4" bit by first offsetting the outline to cut out the
+center, then cutting the outline.
+
+For individual cutout exports, if there is a 90 degree corner somewhere in the outline sketch, a
+custom anchor will be added there, which hopefully will make it easier to define a grid on an
+already-cutout piece, e.g. to put dados on the reverse side.
+
 ## Tutorial
 
-Let's do a walkthrough of creating a clumsy sort of chair.
+Let's do a walkthrough of creating a small shelf that can sit on my garage shelves to provide
+some extra surface area. The total depth is 24", the total available width is 32", and I know
+I need clearance of 6" and 5" respectively for the boxes that will go there.
 
 First, open an empty document, switch to the Shaper Cutout workbench, and create a varset with
-some basic data about the chair.
+some basic data about the project. This will make it much easier to tweak things once we have
+a full rendering.
 
-<center><img alt="A FreeCAD varset" src="./tutorial-images/002-varset.png" /></center>
+<center><img alt="A FreeCAD varset" src="./tutorial-images/01-varset.png" /></center>
 
 Then using this data, lay out the planes that will form the centers of our plywood sheets.
+Because our VarSet has the maximum extents, while we want center planes, you will need to
+be careful about your expressions.
 
-<center><img alt="Some Datum Planes" src="./tutorial-images/003-planes.png" /></center>
+<center><img alt="A FreeCAD varset" src="./tutorial-images/02-expression.png" /></center>
 
-...and roughly draw some sketches on them. Don't bother trying to constrain them carefully. When
-we turn them into cutouts, the workbench will create new planes for us which we can use to
-constrain the sketches without needing to carefully track offsets due to wood thickness, dado
-depth, etc.
+We will have 6 planes for the 4 sides of the shelf and the 2 shelves. The front plane is not
+a center plane, it's just a reference for a maximum extent, so it's named accordingly.
 
-<center><img alt="Some Sketches on Datum Planes" src="./tutorial-images/004-sketches.png" /></center>
+<center><img alt="A FreeCAD varset" src="./tutorial-images/03-planes.png" /></center>
 
-Then click the "Create Shaper Cutout" button, the one that looks like a piece of wood with a
-star cut out of it. This will open the "Create Shaper Cutout" dialog:
+Next, select each of your planes and turn them into cutouts. The thickness should be set to
+<tt>=VarSet.Wood_thickness</tt> for each of them. We don't have an outline sketch yet so you
+can leave that unset.
 
-<center><img alt="The Create Cutout button" src="./tutorial-images/001-cutout-button.png" /></center>
-<center><img alt="The Create Cutout dialog" src="./tutorial-images/005-dialog.png" /></center>
+<center><img alt="A FreeCAD varset" src="./tutorial-images/04-cutout-button.png" /></center>
+<center><img alt="A FreeCAD varset" src="./tutorial-images/05-cutout-dialog.png" /></center>
 
-Choose your plane and your sketch. The same plane can be used for multiple cutouts, and the same
-outline sketch can be used for multiple cutouts. (The sketch must be parallel to the plane, but
-it does not need to be attached directly to it; unlike the PartDesign tools, the workbench will
-translate the sketch along the normal of the plane so that it's at the right offset.)
+Once you've done this for the 5 planes that we'll have wood at, your 3D view will start to
+look pretty trippy since all your planes will have been tripled. You may also want to rename
+the generated planes at this point, because the default "Front"/"Back" names are hard to
+interpret in 3D space.
 
-Each cutout acts as a Group, so you can move the center planes and outline sketch into it if
-you want the cutout to "own" them. Or you can not.
+<center><img alt="A FreeCAD varset" src="./tutorial-images/06-planes.png" /></center>
 
-Once you've done this for all your planes and sketches, things will look something like
+Now let's start making real pieces. Our plan is to have two legs on each of the side planes,
+and one backing piece. We'll start with the back legs. Select the right center plane (or any
+plane parallel to it, the Z-offset doesn't matter to ShaperCutout objects), and create a
+sketch attached to it.
 
-<center><img alt="All the cutouts with outlines defined" src="./tutorial-images/006-cutouts.png" /></center>
+<center><img alt="A FreeCAD varset" src="./tutorial-images/07-sketch.png" /></center>
 
-Notice now that every plane has turned into three planes: the original center plane, plus a new
-"Front" and "Back" plane. Since FreeCAD does not let you change the color of planes, you may want
-to rename the Front/Back planes in the Tree View to make sure they're correct (and maybe change
-them to Top/Bottom or Inside/Outside).
+Using the External Geometry tool (keyboard: G-X) we can add the top plane of our top cutout,
+and the back plane of our back cutout, and then we can just constrain our rectangle to those
+things (and the origin which I'm using as the "floor" of the shelf).
 
-Next, add a Datum Plane representing the front of the chair, which we forgot to do at the start.
-(This won't be a cutout, it's just a normal plane.)
+We do need to set the width, which I simply hardcoded here, but for a serious project you
+should add these things to the VarSet. Once the sketch is done, drag it onto the Left_sheet
+cutout object. It will move under the Left_sheet object in the Tree View, and the Left_sheet
+object will now render as a rectangular cutout in the 3D view.
 
-<center><img alt="The front-of-chair plane" src="./tutorial-images/007-plane.png" /></center>
+<center><img alt="Some Datum Planes" src="./tutorial-images/08-drag.png" /></center>
 
-This is enough that we can correctly constrain our front leg outline sketch. Find it in whatever
-cutout you moved it into, then use the "External Geometry" tool to add the top (Front) plane of
-the Chair_seat_sht as well as the front plane. We'll also fix the slot radius to 1.5in, which
-we'll do directly in the sketch. Note that this is the only dimension we need to explicitly add
-in the Sketcher.
+Next, drag the **same sketch** onto Right_sheet. It won't be moved out of the left sheet (to do
+that you need to double-click on Left_sheet and remove the sketch in the object editor). Instead,
+the same sketch will appear under both sheets.
 
-<center><img alt="Chair's front legs with outlines set" src="./tutorial-images/008-front-leg.png" /></center>
+This is what we want, because these two legs should be identical, but we need to be careful! Any
+edits made to the sketch will be applied to both legs, and if you delete the sketch, it will be
+deleted from both legs.
 
-Do something similar for the back legs. Notice that when you edit the sketch, both cutouts that
-used the sketch are updated. So the two front legs have identical outlines and the two back legs
-have identical outlines:
+<center><img alt="Some Datum Planes" src="./tutorial-images/09-double-sketch.png" /></center>
 
-<center><img alt="All the legs have outlines set" src="./tutorial-images/009-outlined.png" /></center>
+Once you've done this, you'll have two legs in the 3D view.
 
-Next, let's dado out a slot for the seat to fit into the sides. Create a new sketch on one of
-the side planes (there are 12 now, plus the origin YZ plane, but it doesn't matter which one
-you choose).
+<center><img alt="Some Datum Planes" src="./tutorial-images/10-two-legs.png" /></center>
 
-Use the External Geometry tool to add the seat's center plane (inside the Chair_seat_sht group),
-then create a rectangle with one side's vertices constrained-symmetric around it, and its thickness
-set to Varset.Wood_thickness (plus some tolerance).
+Nice. Let's cut some dados into them so that the shelves can slot into. To do this, again select
+the Left_sheet center plane (or any parallel plane that's convenient) and create a new sketch.
+This time we just need to add the center planes of the shelves as External Geometry and draw two
+lines on them. We don't need to draw rectangles, set width, constrain symmetry, remember to add
+tolerance, etc.
 
-<center><img alt="Sketch of the chair leg dado" src="./tutorial-images/010-dado-sketch.png" /></center>
+<center><img alt="Some Datum Planes" src="./tutorial-images/11-dado-sketch.png" /></center>
 
-Then click the "Create dados" button (the square piece of wood with rectangular slots). Select one
-of the front leg cutouts, and your new sketch. Repeat the process with the other front leg cutout,
-and the same sketch. The dialog will let you try both faces until you get the right one. If you
-mess up, you can just double-click on the Dados object in the Tree View to edit it.
+In my sketch I've "overshot" the edges of the leg so that when I cut this with the Shaper I won't
+have rounded corners to chisel out.
 
-Once you've created a Dados, you will see yet another plane has been created, which represents the
-depth of the dado cut.
+Next, I drag the dado sketch onto my left leg cutout. Because the cutout already has an outline
+sketch, this time a dialog pops up asking me what to do.
 
-<center><img alt="The new Datum Plane for a new dados" src="./tutorial-images/011-dados-plane.png" /></center>
+<center><img alt="Some Datum Planes" src="./tutorial-images/12-drag.png" /></center>
+<center><img alt="Some Datum Planes" src="./tutorial-images/13-dialog.png" /></center>
 
-You can add as many Dados to each cutout as you want, each with whatever depth you want. Each one
-will get its own plane. You can add as many sketches to each Dados as you want and they'll all be
-cut to the same depth.
+We click the first button, which opens a "Create Dados" dialog. The sketch list has the sketch
+we dragged onto the cutout. The numeric fields we fill in with data from our VerSet.
 
-Now, we can edit our Chair_seat_sht outline sketch, and use External Geometry to add the two dado
-planes from the sides, as well as the front and back planes. Then constrain your rectangle to these
-lines, and you've got a seat cutout which will perfectly fit into your dadoed slots, even if you
-later change their depths!
+If we'd wanted, we can add multiple sketches to this dado set. We can also have multiple dado
+sets, if we wanted to set a different depth or autodrill policy.
 
-<center><img alt="Rectangle sketch of the chair seat" src="./tutorial-images/012-seat-sketch.png" /></center>
+<center><img alt="Some Datum Planes" src="./tutorial-images/14-dialog.png" /></center>
 
-Repeat the process to add dados to the back, and to constrain the seat-back rectangle. You may want
-to add more Datum Planes, or just read offsets from a Varset. If you find yourself writing long
-expressions of additions and subtractions, consider backing up and using planes instead.
+Before moving on, let's demonstrate the autodriller. We don't have a dialog yet, but by editing
+properties in the Property Editor, we can add screw holes to our dados. For projects where we
+don't want to glue, and don't mind visible screws, this provides precisely spaced screw holes
+in your dados.
 
-When you're done, your chair will be complete!
+<center><img alt="Some Datum Planes" src="./tutorial-images/15-autodrill.png" /></center>
 
-<center><img alt="Complete chair model in 3D view" src="./tutorial-images/013-dados-done.png" /></center>
+In the same way, create a second dado set with a vertical line that the back panel can fit into.
+Then drag both dado sketches (not the outline sketches!) from one side sheet to the other to
+create symmetric dados on the other side.
 
-You can see that my dado sketches for the back legs extend too far back. This is easy to fix.
+<center><img alt="Some Datum Planes" src="./tutorial-images/16-dado-drag.png" /></center>
+<center><img alt="Some Datum Planes" src="./tutorial-images/17-two-dados.png" /></center>
 
-Now, let's get to the good stuff: actually cutting it out. Click the "Create SVG Page" button.
+Now that we have our side dados cut, and dado planes automatically created by the workbench, we
+can draw our backing sketch. We add the top shelf's top plane, the bottom shelf's bottom plane,
+and the two side dado planes as External Geometry.
 
-<center><img alt="Create SVG Page button" src="./tutorial-images/014-create-svg-page.png" /></center>
+<center><img alt="Some Datum Planes" src="./tutorial-images/18-back-sketch.png" /></center>
+<center><img alt="Some Datum Planes" src="./tutorial-images/19-back-sketch.png" /></center>
 
-Change the wood size from 8' x 4' to 4' x 4', because it's easier to see in the zoom-to-fit view,
-and that's all we need for this project. Then select all the cutouts and click the Add Cutout To
-Page button to add SVGs of all the cutouts to the page.
+Next, let's add the front legs. Since the front legs will be on the same plane as our back
+legs, we do this by *selecting one of the front legs* and then clicking "Create Shaper Cutout".
+The dialog will automatically populate with values copied from the other leg (and in fact,
+these values will be linked -- try varying the thickness and you'll see the original leg change
+thickness as well! If you don't want this behavior, you need to create a new center plane.)
 
-<center><img alt="Add Cutout To Page button" src="./tutorial-images/015-add-to-page.png" /></center>
+<center><img alt="Some Datum Planes" src="./tutorial-images/20-new-cutout.png" /></center>
 
-Then double-click on the SVG page in the Tree View, which will bring up a new window with a rendering
-of all the SVGs. Expand the ShaperSVG page, and in the Data tab of each subelement, you can change
-the offset and rotation. If your dados aren't visible, click the "Flip" checkbox to render the opposite
-side of the cutout instead. (For pieces with dados on both sides, this becomes quite useful.)
+Repeat the process to draw the legs and add some dados for the shelves, and you're done!
 
-You can also click the "Invert" button which will simply mirror the SVG rather than rendering the
-opposite side of the cutout. If you find yourself needing this feature, it may indicate a bug in the
-workbench! Ideally you should not need to think carefully about your sketch orientation.
+<center><img alt="Some Datum Planes" src="./tutorial-images/21-done.png" /></center>
 
-By offsetting and rotating, lay out all the pieces so that they'll fit onto your sheet.
+Before continuing to export SVGs for the Shaper, let's go back and edit all our sketches to
+look cooler and take advantage of the fact that we have a CNC mill. Alternately, you could
+stop here, switch to the TechDraw workbench, and produce dimensioned drawings you can carry
+down to the table saw for manual cutting.
 
-**For a real project, remember to consider the grain of your wood.** If you are painting stuff it
-doesn't matter. But if you're staining, you probably only want to rotate 180 degrees, or 90 if
-you're deliberate about it, and almost never any other angle.
+Anyway here's what I did:
 
-<center><img alt="Add Cutout To Page button" src="./tutorial-images/016-all-laid-out.png" /></center>
+<center><img alt="Some Datum Planes" src="./tutorial-images/22-done.png" /></center>
 
-Now export the final SVG to the Shaper and you're done!
+If you want, you can right-click on the individual cutouts in the Tree View and choose the "Export
+SVG" option. Since these parts all have dados on only one side, that's the side you want to
+export. Instead, let's lay them all out on a single giant 8'x4' sketch that we can lay out over
+a whole sheet of plywood.
 
-[Complete .FCStd here](./tutorial-images/chair-demo.FCStd)
+Start by clicking "Create SVG Page":
+
+<center><img alt="Some Datum Planes" src="./tutorial-images/23-create-svg.png" /></center>
+
+which creates a new SvgPage object.
+
+<center><img alt="Some Datum Planes" src="./tutorial-images/24-svg.png" /></center>
+
+Double-click on this to see a render of it.
+
+<center><img alt="Some Datum Planes" src="./tutorial-images/25-svg.png" /></center>
+
+Yikes. All the pieces are on top of each other in the bottom-left corner and we can't tell them
+apart. This part of the interface needs a lot of work, but for now it's totally usable. To move
+and rotate the pieces, edit the X/Y and Rotation attributes in the Property Editor:
+
+<center><img alt="Some Datum Planes" src="./tutorial-images/26-prop-edit.png" /></center>
+
+If the wrong side (i.e. the non-dado side) is showing, check the "Flip" box to flip it over.
+(If you want to render the same side, but mirrored, check the "Invert" box. This should never
+be needed for a project like this where we modeled every individual sheet in its final position
+in the 3D view.)
+
+After a bit of work, and resizing the sheet to match the half-cut sheet of plywood in my
+garage, I laid everything out to be nonoverlapping.
+
+<center><img alt="Some Datum Planes" src="./tutorial-images/27-placed.png" /></center>
+
+And we're done! Right-click the SVG Page, choose "Export SVG Page", and take it down to the Shaper.
+
+[Complete .FCStd here](./tutorial-images/tutorial.FCStd)
 
 # Gallery
 
