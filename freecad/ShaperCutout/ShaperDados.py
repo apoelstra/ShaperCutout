@@ -14,7 +14,7 @@ def create_uninitialized(cutout, name):
     doc = App.ActiveDocument
     obj = doc.addObject('Part::FeaturePython', name)
     obj.Label = name
-    ShaperDados(obj)
+    ShaperDados(obj).ensure_dado_plane(obj)
     if App.GuiUp:
         ViewProviderShaperDados(obj.ViewObject)
 
@@ -22,8 +22,6 @@ def create_uninitialized(cutout, name):
     dados = list(cutout.Dados)
     dados.append(obj)
     cutout.Dados = dados
-
-    _ensure_dado_plane(obj)
 
     return obj
 
@@ -33,18 +31,6 @@ def _parent_cutout(dados):
         if (getattr(o, 'Type', None) == 'ShaperCutout' and dados in o.Dados):
             return o
     return None
-
-
-def _ensure_dado_plane(collection):
-    """Recreate dado plane if missing or link broken."""
-    plane = collection.DadoPlane
-    if plane is not None and plane in collection.Document.Objects:
-        return plane
-    plane = collection.Document.addObject(
-        'Part::DatumPlane', collection.Name + '_Plane')
-    collection.DadoPlane = plane
-    collection.setEditorMode('DadoPlane', 2)
-    return plane
 
 
 def _wire_to_pipes(wire, normal, tol, width):
@@ -203,9 +189,14 @@ class ShaperDados:
             if getattr(obj, 'MaxHolesPerLine', 0) < 0:
                 obj.MaxHolesPerLine = 0
 
+        if prop in ('Depth', 'Invert', 'Face') or obj.DadoPlane is None:
+            self.ensure_dado_plane(obj)
+
     def execute(self, obj):
         if not obj.Face or not obj.Depth:
             return
+
+        self.ensure_dado_plane(obj).purgeTouched()
 
         parent = _parent_cutout(obj)
         if parent is not None and parent.Thickness:
@@ -222,15 +213,6 @@ class ShaperDados:
             normal.y * depth,
             normal.z * depth,
         )
-
-        dado_plane = _ensure_dado_plane(obj)
-        dado_plane.AttachmentSupport = [(obj.Face)]
-        dado_plane.MapMode = 'FlatFace'
-        dado_plane.AttachmentOffset = App.Placement(
-            App.Vector(0, 0, depth),
-            App.Rotation(0, 0, 0),
-        )
-        dado_plane.purgeTouched()
 
         solids = []
         for member in (obj.Sketches or []):
@@ -387,6 +369,26 @@ class ShaperDados:
         for gchild in getattr(obj, 'Group', []):
             if is_sketch(gchild):
                 group.append(gchild)
+
+    def ensure_dado_plane(self, obj):
+        """Recreate dado plane if missing or link broken, and update its position."""
+        if not hasattr(obj, 'Face') or not hasattr(obj, 'Depth') or not hasattr(obj, 'Invert'):
+            return
+
+        if obj.DadoPlane is None:
+            obj.DadoPlane = obj.Document.addObject('Part::DatumPlane', obj.Name + '_Plane')
+            obj.setEditorMode('DadoPlane', 2)
+
+        depth = -obj.Depth.Value if obj.Invert else obj.Depth.Value
+
+        obj.DadoPlane.AttachmentSupport = [(obj.Face)]
+        obj.DadoPlane.MapMode = 'FlatFace'
+        obj.DadoPlane.AttachmentOffset = App.Placement(
+            App.Vector(0, 0, depth),
+            App.Rotation(0, 0, 0),
+        )
+
+        return obj.DadoPlane
 
 
 class ViewProviderShaperDados:

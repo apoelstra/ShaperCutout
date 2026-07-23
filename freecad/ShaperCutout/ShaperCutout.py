@@ -2,7 +2,6 @@
 
 import os
 import FreeCAD as App
-import FreeCADGui as Gui
 import Part
 from PySide import QtGui, QtWidgets, QtCore
 
@@ -65,13 +64,24 @@ class ShaperCutout:
         # around it.
         return []
 
-    def execute(self, obj):
-        if not obj.CenterPlane or not obj.Thickness:
+    def onChanged(self, obj, prop):
+        if getattr(obj, 'CenterPlane', None) is None:
+            return
+        if getattr(obj, 'Thickness', None) is None:
             return
 
         # Create faces if they don't exist, re-place them, and mark them as updated.
-        self.ensure_front_face(obj).purgeTouched()
-        self.ensure_back_face(obj).purgeTouched()
+        if prop in ('CenterPlane', 'Thickness'):
+            self.ensure_front_face(obj)
+            self.ensure_back_face(obj)
+        elif obj.FrontFace is None:
+            self.ensure_front_face(obj)
+        elif obj.BackFace is None:
+            self.ensure_back_face(obj)
+
+    def execute(self, obj):
+        if not obj.CenterPlane or not obj.Thickness:
+            return
 
         if not obj.OutlineSketch:
             obj.Shape = Part.Shape()
@@ -179,31 +189,32 @@ class ShaperCutout:
 
     def ensure_back_face(self, obj):
         """Recreate front face if missing or link broken."""
-        if obj.CenterPlane is None or obj.Thickness is None:
-            return None
 
         if obj.BackFace is None:
-            obj.BackFace = obj.Document.addObject('App::Plane', 'Back')
+            obj.BackFace = obj.Document.addObject('Part::DatumPlane', 'Back')
 
-        placement = obj.CenterPlane.Placement
         half = obj.Thickness.Value / 2.0
-        obj.BackFace.Placement = placement.copy()
-        obj.BackFace.Placement.translate(placement.Rotation.multVec(App.Vector(0, 0, -half)))
+        obj.BackFace.AttachmentSupport = [(obj.CenterPlane)]
+        obj.BackFace.MapMode = 'FlatFace'
+        obj.BackFace.AttachmentOffset = App.Placement(
+            App.Vector(0, 0, -half),
+            App.Rotation(0, 0, 0),
+        )
 
         return obj.BackFace
 
     def ensure_front_face(self, obj):
         """Recreate front face if missing or link broken."""
-        if obj.CenterPlane is None or obj.Thickness is None:
-            return None
-
         if obj.FrontFace is None:
-            obj.FrontFace = obj.Document.addObject('App::Plane', 'Front')
+            obj.FrontFace = obj.Document.addObject('Part::DatumPlane', 'Front')
 
-        placement = obj.CenterPlane.Placement
         half = obj.Thickness.Value / 2.0
-        obj.FrontFace.Placement = placement.copy()
-        obj.FrontFace.Placement.translate(placement.Rotation.multVec(App.Vector(0, 0, half)))
+        obj.FrontFace.AttachmentSupport = [(obj.CenterPlane)]
+        obj.FrontFace.MapMode = 'FlatFace'
+        obj.FrontFace.AttachmentOffset = App.Placement(
+            App.Vector(0, 0, half),
+            App.Rotation(0, 0, 0),
+        )
 
         return obj.FrontFace
 
