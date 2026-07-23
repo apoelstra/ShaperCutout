@@ -20,7 +20,7 @@ def export(obj):
         return
 
     with open(path, 'w', encoding='utf-8') as f:
-        f.write(obj.Svg)
+        f.write(obj.zzSvg)
 
     App.Console.PrintMessage(f"export_shaper_svg_page: wrote '{path}'\n")
 
