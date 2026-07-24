@@ -2,16 +2,7 @@
 
 import os
 
-import FreeCAD as App
 import FreeCADGui as Gui
-
-# Every module should be imported here so FreeCAD won't error out with
-# "partially initialized module" errors later.
-import ShaperCutout    # noqa: F401
-import ShaperDados     # noqa: F401
-import ShaperMiter     # noqa: F401
-import ShaperSvgPage   # noqa: F401
-import ShaperSvgImage  # noqa: F401
 
 from shaper_cutout_util import _ADDON_ROOT, _ICON_ROOT
 
@@ -35,6 +26,8 @@ class ShaperCutoutWorkbench(Gui.Workbench):
         return "Gui::PythonWorkbench"
 
     def Initialize(self):
+        import FreeCAD as App
+
         # Read metadata from FreeCAD (will throw an exception prior to 0.21)
         packageFile = os.path.join(_ADDON_ROOT, "package.xml")
         metadata = App.Metadata(packageFile)
@@ -43,7 +36,14 @@ class ShaperCutoutWorkbench(Gui.Workbench):
                 ' (' + metadata.Version + ', ' + metadata.Date + ') .'
         )
 
-        # Import everything
+        # Import all modules so that FreeCAD recognizes them later.
+        import ShaperCutout    # noqa: F401
+        import ShaperDados     # noqa: F401
+        import ShaperMiter     # noqa: F401
+        import ShaperSvgPage   # noqa: F401
+        import ShaperSvgImage  # noqa: F401
+
+        # Import all commands.
         from command import CreateShaperCutoutCmd, CreateShaperDadosCmd, CreateShaperMiterCmd, \
             ExportShaperSVGCmd, CreateShaperSvgPageCmd, ExportShaperSvgPageCmd
 
