@@ -6,7 +6,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtCore, QtWidgets
 
-from shaper_cutout_util import make_expr_template, is_single_selected
+from shaper_cutout_util import _ICON_ROOT, make_expr_template, is_single_selected
 
 
 def _is_sketch(obj):
@@ -198,8 +198,7 @@ class ShaperDadosTaskPanel:
 
 class CreateShaperDadosCmd:
     def GetResources(self):
-        icon_path = os.path.join(os.path.dirname(__file__),
-                                 "../resources/icons/dados.svg")
+        icon_path = os.path.join(_ICON_ROOT, "dados.svg")
         return {
             "MenuText": "Create Dados",
             "ToolTip": "Create a dado pocket collection on the selected ShaperCutout",

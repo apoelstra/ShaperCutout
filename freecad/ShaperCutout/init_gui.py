@@ -13,13 +13,13 @@ import ShaperMiter     # noqa: F401
 import ShaperSvgPage   # noqa: F401
 import ShaperSvgImage  # noqa: F401
 
-module_path = os.path.dirname(ShaperCutout.__file__)  # lol
+from shaper_cutout_util import _ADDON_ROOT, _ICON_ROOT
 
 
 class ShaperCutoutWorkbench(Gui.Workbench):
     MenuText = "ShaperCutout"
     ToolTip = "Andrew's Shaper Origin plywood workbench"
-    Icon = os.path.join(module_path, "resources/icons/ShaperCutoutWorkbench.svg")
+    Icon = os.path.join(_ICON_ROOT, "ShaperCutoutWorkbench.svg")
 
     def __init__(self):
         "This function is executed when FreeCAD starts"
@@ -36,7 +36,7 @@ class ShaperCutoutWorkbench(Gui.Workbench):
 
     def Initialize(self):
         # Read metadata from FreeCAD (will throw an exception prior to 0.21)
-        packageFile = os.path.join(module_path, '../../package.xml')
+        packageFile = os.path.join(_ADDON_ROOT, "package.xml")
         metadata = App.Metadata(packageFile)
         App.Console.PrintMessage(
                 "Initializing Andrew's Shaper workbench" +

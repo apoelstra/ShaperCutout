@@ -6,7 +6,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtWidgets
 
-from shaper_cutout_util import is_single_selected, is_sketch, make_expr_template, \
+from shaper_cutout_util import _ICON_ROOT, is_single_selected, is_sketch, make_expr_template, \
         force_combo_to_value, objects_are_parallel
 
 
@@ -249,8 +249,7 @@ class ShaperCutoutTaskPanel:
 
 class CreateShaperCutoutCmd:
     def GetResources(self):
-        icon_path = os.path.join(os.path.dirname(__file__),
-                                 "../resources/icons/cutout.svg")
+        icon_path = os.path.join(_ICON_ROOT, "cutout.svg")
         return {
             "MenuText": "Create Shaper Cutout",
             "ToolTip": "Create an empty cutout from the selected plane (or the center plane of "

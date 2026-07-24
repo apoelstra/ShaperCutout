@@ -1,6 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import os
+
 import FreeCAD as App
+
+from shaper_cutout_util import _ICON_ROOT
 
 
 def create(page, cutout, name):
@@ -67,9 +71,7 @@ class ViewProviderShaperSvgImage:
         self._vobj = vobj
 
     def getIcon(self):
-        import os
-        return os.path.join(os.path.dirname(__file__),
-                            'resources/icons/svg-image.svg')
+        return os.path.join(_ICON_ROOT, "svg-image.svg")
 
     def dumps(self):
         return None

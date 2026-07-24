@@ -7,7 +7,7 @@ from PySide import QtGui, QtWidgets, QtCore
 
 from ShaperMiter import miter_edges
 from command import open_cutout_task_panel
-from shaper_cutout_util import global_normal, is_sketch, objects_are_parallel
+from shaper_cutout_util import _ICON_ROOT, global_normal, is_sketch, objects_are_parallel
 
 
 def create_uninitialized(name=None):
@@ -272,7 +272,7 @@ class ViewProviderShaperCutout:
         pass
 
     def getIcon(self):
-        return os.path.join(os.path.dirname(__file__), "resources/icons/cutout.svg")
+        return os.path.join(_ICON_ROOT, "cutout.svg")
 
     # Which "children" show up in the Tree View. Curiously there is no requirement that
     # the parent relationship be unique, so many cutouts can claim the same sketches

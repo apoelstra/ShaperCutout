@@ -11,7 +11,7 @@ from draftgeoutils import faces
 from draftfunctions.svgshapes import get_path
 from PySide import QtWidgets
 
-from shaper_cutout_util import are_exclusively_selected
+from shaper_cutout_util import _ICON_ROOT, are_exclusively_selected
 from ShaperDados import _wire_to_pipes
 
 
@@ -529,12 +529,10 @@ class ExportShaperSVGCmd:
 
     def GetResources(self):
         if self.exportFront:
-            icon_path = os.path.join(os.path.dirname(__file__),
-                                     "../resources/icons/export-svg-front.svg")
+            icon_path = os.path.join(_ICON_ROOT, "export-svg-front.svg")
             menu_text = "Export Shaper SVG (Front)"
         else:
-            icon_path = os.path.join(os.path.dirname(__file__),
-                                     "../resources/icons/export-svg-back.svg")
+            icon_path = os.path.join(_ICON_ROOT, "export-svg-back.svg")
             menu_text = "Export Shaper SVG (Back)"
 
         return {

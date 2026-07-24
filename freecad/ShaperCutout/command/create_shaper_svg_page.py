@@ -4,11 +4,12 @@ import os
 import FreeCAD as App
 import FreeCADGui as Gui
 
+from shaper_cutout_util import _ICON_ROOT
+
 
 class CreateShaperSvgPageCmd:
     def GetResources(self):
-        icon_path = os.path.join(os.path.dirname(__file__),
-                                 "../resources/icons/svg-page.svg")
+        icon_path = os.path.join(_ICON_ROOT, "svg-page.svg")
         return {
             "MenuText": "Create SVG Page",
             "ToolTip": "Create a ShaperSvgPage layout object",

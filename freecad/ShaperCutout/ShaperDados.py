@@ -7,7 +7,7 @@ import Part
 from PySide import QtGui
 
 from command.create_shaper_dados import open_dados_task_panel
-from shaper_cutout_util import global_normal, is_sketch, objects_are_parallel
+from shaper_cutout_util import _ICON_ROOT, global_normal, is_sketch, objects_are_parallel
 
 
 def create_uninitialized(cutout, name):
@@ -403,7 +403,7 @@ class ViewProviderShaperDados:
         pass
 
     def getIcon(self):
-        return os.path.join(os.path.dirname(__file__), "resources/icons/dados.svg")
+        return os.path.join(_ICON_ROOT, "dados.svg")
 
     # Which "children" show up in the Tree View. Curiously there is no requirement that
     # the parent relationship be unique, so many cutouts can claim the same sketches

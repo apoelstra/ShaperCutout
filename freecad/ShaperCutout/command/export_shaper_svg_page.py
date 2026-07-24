@@ -6,6 +6,8 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtWidgets
 
+from shaper_cutout_util import _ICON_ROOT
+
 
 def export(obj):
     obj.Proxy._recompute_svg(obj)
@@ -27,9 +29,12 @@ def export(obj):
 
 class ExportShaperSvgPageCmd:
     def GetResources(self):
+        # FIXME add a dedicated export icon instead of riding on the "create" icon
+        icon_path = os.path.join(_ICON_ROOT, "svg-page.svg")
         return {
             "MenuText": "Export SVG Page",
             "ToolTip": "Export selected ShaperSvgPage to an SVG file",
+            "Pixmap": icon_path,
         }
 
     def IsActive(self):

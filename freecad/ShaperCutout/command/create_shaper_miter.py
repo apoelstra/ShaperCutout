@@ -7,7 +7,7 @@ import FreeCADGui as Gui
 import Part
 from PySide import QtWidgets
 
-from shaper_cutout_util import make_expr_template
+from shaper_cutout_util import _ICON_ROOT, make_expr_template
 import ShaperMiter
 
 
@@ -139,8 +139,7 @@ class ShaperMiterTaskPanel:
 
 class CreateShaperMiterCmd:
     def GetResources(self):
-        icon_path = os.path.join(os.path.dirname(__file__),
-                                 "../resources/icons/miter.svg")
+        icon_path = os.path.join(_ICON_ROOT, "miter.svg")
         return {
             "MenuText": "Create Miter",
             "ToolTip": "Create a miter cut on selected edges of a ShaperCutout outline sketch",

@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import os
 import math
 
 import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtCore, QtGui, QtWidgets, QtSvg
 
+from shaper_cutout_util import _ICON_ROOT
 import ShaperSvgImage
 
 
@@ -206,9 +208,7 @@ class ViewProviderShaperSvgPage:
             pass
 
     def getIcon(self):
-        import os
-        return os.path.join(os.path.dirname(__file__),
-                            'resources/icons/svg-page.svg')
+        return os.path.join(_ICON_ROOT, "svg-page.svg")
 
     def doubleClicked(self, vobj):
         self._open_view(vobj.Object)

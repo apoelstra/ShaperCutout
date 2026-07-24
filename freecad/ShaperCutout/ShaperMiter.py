@@ -6,6 +6,8 @@ import os
 import FreeCAD as App
 import Part
 
+from shaper_cutout_util import _ICON_ROOT
+
 
 def create(cutout, edges, angle, miter_axis, name="ShaperMiter"):
     """Create a ShaperMiter inside a ShaperCutout.
@@ -164,7 +166,7 @@ class ViewProviderShaperMiter:
         return True
 
     def getIcon(self):
-        return os.path.join(os.path.dirname(__file__), "resources/icons/miter.svg")
+        return os.path.join(_ICON_ROOT, "miter.svg")
 
     def dumps(self):
         return None
