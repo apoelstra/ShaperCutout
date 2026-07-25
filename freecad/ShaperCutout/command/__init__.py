@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from .check_collisions import CheckCollisionsCmd    # noqa: F401
 from .create_shaper_cutout import CreateShaperCutoutCmd  # noqa: F401
 from .create_shaper_dados import CreateShaperDadosCmd    # noqa: F401
 from .create_shaper_miter import CreateShaperMiterCmd    # noqa: F401
