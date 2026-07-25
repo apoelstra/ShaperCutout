@@ -69,6 +69,17 @@ class ShaperSvgPage:
     def loads(self, state):
         return None
 
+    def onDocumentRestored(self, obj):
+        if not hasattr(obj, 'zzSvg'):
+            obj.addProperty('App::PropertyString', 'zzSvg', 'Base',
+                            'SVG code of the whole page')
+        if hasattr(obj, 'Svg'):
+            # OK to clobber existing zzSvg value, if any, since it will
+            # be recomputed. Nothing should simultaneously have a zzSvg
+            # and a Svg property anyway.
+            obj.zzSvg = obj.Svg
+            obj.removeProperty('Svg')
+
     def _recompute_svg(self, obj):
         from command.export_shaper_svg import _collect_paths, _collect_dado_groups
 
