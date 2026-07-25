@@ -5,9 +5,36 @@ assumes you have a XY CNC mill, and was designed in particular for the
 [Shaper Origin](https://www.shapertools.com/en-us/origin). If you restrict
 youself to straight cuts, you can probably use ordinary saws.
 
-It also supports miter cuts on straight edges, which the Shaper does not
-directly support; it assumes that you will cut out pieces with the Shaper
-then do a mitering pass with a table saw or with a chamfer bit on a router.
+The design principles are that you can build nontrivial objects by flat sheets
+that meet in a traditional woodworking joint (especially dado joints, which the
+Shaper makes easy to do precisely, if slowly) or by slots, where two intersecting
+pieces meet in interlocking "U" like in a wooden kit plane.
+
+The workbench also supports miter cuts on straight edges, which the Shaper does
+not directly support; it assumes that you will cut out pieces with the Shaper
+then do a mitering pass with a table saw or with a chamfer bit on a router. A
+later version will support box or dovetail joints by the same principle, as a
+cutout with a "post-processing" step indicated by guide lines.
+
+## Comparison With Other Workbenches
+
+The most similar popular bench is probably the **Woodworking Workbench**, which
+is a huge swiss-army knife of functions and objects to help build cabinetry. There
+are a couple main differences between the workbenches:
+
+* the Woodworking Workbench, somewhat like the Part Workbench, uses solids (particularly
+  cubes of various dimensions) as its primary building component; this workbench,
+  somewhat like the Part Design Workbench, uses planes and sketches
+* the Woodworking Workbench is very rectangle-centric, and much of its functionality, like
+  extracting cut lists or snapping parts together, is based around that; this workbench is
+  designed to be used with arbitrary sketches whose vertices are constrained to external
+  datum planes where pieces need to meet
+* the Woodworking Workbench includes a huge diversity of tools needed by its author for
+  rotating parts as a unit, iterating through parts, etc., while this workbench tries to
+  be narrowly focused and let other workbenches handle other stuff
+
+If you are building something where your primary tool is a table saw, you may be better
+off using the Woodworking Workbench.
 
 ## Installation
 
@@ -102,6 +129,8 @@ On a new document, these are mostly disbled, but they are:
   sized as a 8' by 4' sheet. Once you have created a page, you can right-click on it to export the
   whole thing as one SVG that the Shaper can understand (including encoded cut types and depths).
 * **SVG Export** these two buttons export the two faces of a single cutout as SVGs.
+* **Check for Collisions** iterates through every pair of cutouts, looking for nontrivial
+  intersections between the pieces.
 
 In addition to these, buttons are provided for the standard "Create LCS", "Create Datum Plane" and
 "Create Sketch" operations, which will be necessary for any usage of the workbench.
@@ -228,7 +257,7 @@ can draw our backing sketch. We add the top shelf's top plane, the bottom shelf'
 and the two side dado planes as External Geometry.
 
 <center><img alt="Some Datum Planes" src="./tutorial-images/18-back-sketch.png" /></center>
-<center><img alt="Some Datum Planes" src="./tutorial-images/19-back-sketch.png" /></center>
+<center><img alt="Some Datum Planes" src="./tutorial-images/19-back-cutout.png" /></center>
 
 Next, let's add the front legs. Since the front legs will be on the same plane as our back
 legs, we do this by *selecting one of the front legs* and then clicking "Create Shaper Cutout".
