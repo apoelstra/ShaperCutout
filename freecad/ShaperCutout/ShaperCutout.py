@@ -285,6 +285,13 @@ class ViewProviderShaperCutout:
             self.Object.BackFace,
         ] + self.Object.Dados + self.Object.Miters
 
+    def canDelete(self, child):
+        # All this does is pop up the "this might break the following referencing objects"
+        # dialog. The user can still click Yes and break us, but it's better than nothing.
+        if child in (self.Object.FrontFace, self.Object.BackFace, self.Object.CenterPlane):
+            return False
+        return True
+
     def canDragObjects(self):
         return True
 
