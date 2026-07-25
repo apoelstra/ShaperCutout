@@ -215,6 +215,10 @@ class ShaperCutout:
             App.Rotation(0, 0, 0),
         )
 
+        obj.BackFace.setPropertyStatus('AttachmentSupport', 2)
+        obj.BackFace.setPropertyStatus('AttachmentOffset', 2)
+        obj.BackFace.setPropertyStatus('MapMode', 2)
+
         return obj.BackFace
 
     def ensure_front_face(self, obj):
@@ -229,6 +233,10 @@ class ShaperCutout:
             App.Vector(0, 0, half),
             App.Rotation(0, 0, 0),
         )
+
+        obj.FrontFace.setPropertyStatus('AttachmentSupport', 2)
+        obj.FrontFace.setPropertyStatus('AttachmentOffset', 2)
+        obj.FrontFace.setPropertyStatus('MapMode', 2)
 
         return obj.FrontFace
 
