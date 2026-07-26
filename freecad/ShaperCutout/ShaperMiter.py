@@ -27,9 +27,9 @@ def create(cutout, edges, angle, miter_axis, name="ShaperMiter"):
     obj.MiterAxis = miter_axis
 
     # Nest inside the ShaperCutout group
-    grp = list(cutout.Group)
+    grp = list(cutout.Miters)
     grp.append(obj)
-    cutout.Group = grp
+    cutout.Miters = grp
 
     return obj
 
