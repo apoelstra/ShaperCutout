@@ -12,7 +12,7 @@ from draftfunctions.svgshapes import get_path
 from PySide import QtWidgets
 
 from shaper_cutout_util import _ICON_ROOT, are_exclusively_selected
-from ShaperDados import _wire_to_pipes
+from ShaperDados import ZERO_DEPTH_TOLERANCE, _wire_to_pipes
 
 
 # ---------------------------------------------------------------------------
@@ -466,11 +466,13 @@ def _collect_dado_groups(cutout, exportFront):
 
             for w in source.Shape.Wires:
                 if w.isClosed():
-                    wires.append(w)
+                    if depth_mm > ZERO_DEPTH_TOLERANCE:
+                        wires.append(w)
                 else:
                     tol = member.Tolerance.Value
                     width = member.Width.Value / 2.0
-                    pipes.extend(_wire_to_pipes(w, normal, tol, width))
+                    if depth_mm > ZERO_DEPTH_TOLERANCE:
+                        pipes.extend(_wire_to_pipes(w, normal, tol, width))
 
                     # Collect autodrill holes
                     hole_radius = member.HoleDiameter.Value / 2.0

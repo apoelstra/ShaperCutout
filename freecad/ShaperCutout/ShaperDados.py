@@ -9,6 +9,8 @@ from PySide import QtGui
 from command.create_shaper_dados import open_dados_task_panel
 from shaper_cutout_util import _ICON_ROOT, global_normal, is_sketch, objects_are_parallel
 
+ZERO_DEPTH_TOLERANCE = 1e-5
+
 
 def create_uninitialized(cutout, name):
     doc = App.ActiveDocument
@@ -197,17 +199,12 @@ class ShaperDados:
             self.ensure_dado_plane(obj)
 
     def execute(self, obj):
-        if not obj.Face or not obj.Depth:
+        if not obj.Face:
             return
 
         normal = global_normal(obj.Face)
-
-        depth = -obj.Depth.Value if obj.Invert else obj.Depth.Value
-        extrude_vec = App.Vector(
-            normal.x * depth,
-            normal.y * depth,
-            normal.z * depth,
-        )
+        extrude_vec = obj.DadoPlane.Placement.Base - obj.Face.Placement.Base
+        depth = extrude_vec.Length
 
         solids = []
         autodrill_faces = []
@@ -240,29 +237,27 @@ class ShaperDados:
                     normal.z * dist,
                 ))
                 if translated_wire.isClosed():
-                    # Treat closed wires as arbitrary shapes to cut into the sheet.
-                    face = Part.Face(translated_wire)
-                    solids.append(face.extrude(extrude_vec))
-                elif obj.Width.Value == 0.0:
-                    App.Console.PrintWarning(
-                        f"ShaperDados '{obj.Label}': open wires in "
-                        f"'{member.Label}' but zero Width set for dados; skipping\n")
+                    if depth > 0.0:
+                        # Treat closed wires as arbitrary shapes to cut into the sheet.
+                        face = Part.Face(translated_wire)
+                        solids.append(face.extrude(extrude_vec))
                 elif translated_wire.Edges == []:
                     pass
                 else:
                     tol = obj.Tolerance.Value
                     width = obj.Width.Value / 2.0
 
-                    for pipe in _wire_to_pipes(translated_wire, normal, tol, width):
-                        # Ideally we would sew any overlapping shapes together. This seems tricky
-                        # to do. For the 3D model it doesn't really matter I suppose.
-                        for face in pipe.Faces:
-                            solids.append(face.extrude(extrude_vec))
+                    if depth > ZERO_DEPTH_TOLERANCE and width > 0.0:
+                        for pipe in _wire_to_pipes(translated_wire, normal, tol, width):
+                            # Ideally we would sew any overlapping shapes together. This seems
+                            # tricky to do. For the 3D model it doesn't really matter I suppose.
+                            for face in pipe.Faces:
+                                solids.append(face.extrude(extrude_vec))
 
                     # Open wires can have autodrill holes
                     hole_radius = obj.HoleDiameter.Value / 2.0
 
-                    if obj.HoleDiameter > obj.Width:
+                    if depth > ZERO_DEPTH_TOLERANCE and obj.HoleDiameter > obj.Width:
                         App.Console.PrintWarning(
                             f"ShaperDados '{obj.Label}': autodrill hole diameter set to "
                             f"{obj.HoleDiameter} > dado width {obj.Width}; not drilling\n")
@@ -286,6 +281,8 @@ class ShaperDados:
                             face = Part.Face(wire)
                             autodrill_faces.append(face)
 
+        obj.AutodrillFaces = Part.Shape(autodrill_faces)
+
         if not solids:
             obj.PocketShape = Part.Shape()
             return
@@ -294,7 +291,6 @@ class ShaperDados:
         for s in solids[1:]:
             shape = shape.fuse(s)
         obj.PocketShape = shape
-        obj.AutodrillFaces = Part.Shape(autodrill_faces)
 
     def dumps(self):
         return None
