@@ -273,7 +273,7 @@ def _collect_paths(cutout, dado_groups, drill_holes, mirror=False, addAnchor=Tru
     # that. This also lets us directly compute bounding boxes, set the anchor, etc.,
     # without trying to extract data from the stringly-typed get_path output.
 
-    xy_matrix = cutout.CenterPlane.Placement.toMatrix().inverse()
+    xy_matrix = cutout.OutlineSketch.getGlobalPlacement().toMatrix().inverse()
     if mirror:
         # Rather than mirroring (which would require a non-unitary matrix, and cause
         # Shape.transformed to take an alternate, less-accurate codepath in which it
@@ -297,10 +297,18 @@ def _collect_paths(cutout, dado_groups, drill_holes, mirror=False, addAnchor=Tru
     if cutout.Slots:
         face = Part.makeFace(outer_wires + inner_wires)
         for slot in cutout.Slots:
+            # Our xy matrix above is relative to the outline sketch's placement. But the slot
+            # wires are computed on the center plane. These might be arbitrarily offset from
+            # each other.
+            center_to_sketch = cutout.OutlineSketch.getGlobalPlacement().Base \
+                - cutout.CenterPlane.getGlobalPlacement().Base
+
             slot_wire = cutout.Proxy._compute_slot_wire(cutout, slot)
             if slot_wire is None:
                 continue
-            face = face.cut(Part.Face(slot_wire.transformed(xy_matrix)))
+            slot_face = Part.Face(slot_wire.translated(center_to_sketch).transformed(xy_matrix))
+
+            face = face.cut(slot_face)
 
         outline_wires = face.Wires
         # Then re-classify the wires as inner/outer, since the slots might've broken stuff
