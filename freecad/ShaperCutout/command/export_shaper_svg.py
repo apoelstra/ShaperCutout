@@ -296,9 +296,11 @@ def _collect_paths(cutout, dado_groups, drill_holes, mirror=False, addAnchor=Tru
 
     # First compute the miter rectangles, which are linked to pre-slot edges
     rect_wires = _miter_rectangles(cutout, xy_matrix)
+    outer_wires, inner_wires = _classify_wires(outline_wires)
+    outer_wires, inner_wires = _apply_miter_to_wires(outer_wires, inner_wires, rect_wires)
     # Then cut any slots, which would relabel the edges, but we don't need the labels anymore.
     if cutout.Slots:
-        face = Part.makeFace(outline_wires)
+        face = Part.makeFace(outer_wires + inner_wires)
         for slot in cutout.Slots:
             slot_wire = cutout.Proxy._compute_slot_wire(cutout, slot)
             if slot_wire is None:
@@ -306,10 +308,8 @@ def _collect_paths(cutout, dado_groups, drill_holes, mirror=False, addAnchor=Tru
             face = face.cut(Part.Face(slot_wire.transformed(xy_matrix)))
 
         outline_wires = face.Wires
-    # Then classify the wires as inner/outer, since we won't change shapes anymore.
-    outer_wires, inner_wires = _classify_wires(outline_wires)
-    # *Then* apply the miter rectangles, since their application depends on inner/outer
-    outer_wires, inner_wires = _apply_miter_to_wires(outer_wires, inner_wires, rect_wires)
+        # Then re-classify the wires as inner/outer, since the slots might've broken stuff
+        outer_wires, inner_wires = _classify_wires(outline_wires)
 
     path_elements = []
 
