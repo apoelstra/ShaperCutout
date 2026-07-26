@@ -11,7 +11,7 @@ from draftgeoutils import faces
 from draftfunctions.svgshapes import get_path
 from PySide import QtWidgets
 
-from shaper_cutout_util import _ICON_ROOT, are_exclusively_selected
+from shaper_cutout_util import _ICON_ROOT, are_exclusively_selected, global_normal
 from ShaperDados import ZERO_DEPTH_TOLERANCE, _wire_to_pipes
 
 
@@ -94,8 +94,7 @@ def _miter_rectangles(cutout, xy_matrix):
     import math as _math
 
     thickness = cutout.Thickness.Value
-    normal_3d = cutout.CenterPlane.Placement.Rotation.multVec(App.Vector(0, 0, 1))
-    half = thickness / 2.0
+    normal_3d = global_normal(cutout.CenterPlane)
 
     ret_wires = []
 
@@ -138,20 +137,16 @@ def _miter_rectangles(cutout, xy_matrix):
                 # The 4 corners of the miter rectangle in 3D (on the center plane)
                 # near_a/near_b are the edge endpoints offset to the center plane,
                 # far_a/far_b are the far corners.
-                near_a_3d = p0_3d + half * normal_3d + offset_vec_3d
-                near_b_3d = p1_3d + half * normal_3d + offset_vec_3d
-                far_a_3d  = near_a_3d + far_vec_3d
-                far_b_3d  = near_b_3d + far_vec_3d
+                near_a_3d = p0_3d + offset_vec_3d
+                near_b_3d = p1_3d + offset_vec_3d
+                far_a_3d = near_a_3d + far_vec_3d
+                far_b_3d = near_b_3d + far_vec_3d
 
                 # Project all 4 corners onto XY plane
-                def proj(pt):
-                    v = xy_matrix.multiply(pt)
-                    return App.Vector(v.x, v.y, 0)
-
-                na = proj(near_a_3d)
-                nb = proj(near_b_3d)
-                fa = proj(far_a_3d)
-                fb = proj(far_b_3d)
+                na = xy_matrix.multVec(near_a_3d)
+                nb = xy_matrix.multVec(near_b_3d)
+                fa = xy_matrix.multVec(far_a_3d)
+                fb = xy_matrix.multVec(far_b_3d)
 
                 try:
                     wire = Part.makePolygon([na, nb, fb, fa, na])
