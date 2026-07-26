@@ -149,17 +149,6 @@ class ShaperCutout:
 
         obj.Shape = shape
 
-        # The previous computations will cause FreeCAD to mark the children as "touched",
-        # causing "wb_test#ShaperCutout_Body still touched after recompute" errors in the
-        # console (and spurious blue "needs recompute" checkmarks). The 'correct' way to
-        # avoid this would be for the objects to set their own properties in their own
-        # execute() methods, but this is impossible for a couple of reasons. (One is that
-        # ShaperCutout has a link to its child objects, and if they then tried to access
-        # the Thickness property of their parent, this would cause a circularity in the
-        # DAG. Another is that overriding execute() on the planes would require changing
-        # them to by PythonFeatures rather than DatumPlanes, and then we couldn't use
-        # them in sketches as external geometry, which is their whole point of existing.)
-
     def dumps(self):
         return None
 
