@@ -41,6 +41,8 @@ class ShaperCutout:
                         'The dado sets associated with this cutout.')
         obj.addProperty('App::PropertyLinkList', 'Miters', 'Internal',
                         'The miters associated with this cutout.')
+        obj.addProperty('App::PropertyLinkList', 'Slots', 'Internal',
+                        'The slots associated with this cutout.')
 
         obj.Type = "ShaperCutout"
         obj.setPropertyStatus('OutlineSketch', 2)
@@ -50,6 +52,7 @@ class ShaperCutout:
         obj.setEditorMode('BackFace', 2)
         obj.setEditorMode('Dados', 2)
         obj.setEditorMode('Miters', 2)
+        obj.setEditorMode('Slots', 2)
 
     def getSubObjects(self, obj, reason):
         # The FreeCAD STEP exporter, in App/ExportOCAF2.cpp line 476, calls this
@@ -120,6 +123,103 @@ class ShaperCutout:
         face.translate(offset_vec)
         shape = face.extrude(extrude_vec)
 
+        # Cut slots
+        for slot in obj.Slots:
+            if not slot.InterfacePlane:
+                continue
+
+            # Determine which cutout is this one, get face planes and normal of other.
+            if slot.Cutout1Front == obj.FrontFace and slot.Cutout1Back == obj.BackFace:
+                front_face = slot.Cutout2Front
+                back_face = slot.Cutout2Back
+            elif slot.Cutout2Front == obj.FrontFace and slot.Cutout2Back == obj.BackFace:
+                front_face = slot.Cutout1Front
+                back_face = slot.Cutout1Back
+            else:
+                continue
+
+            if not front_face or not back_face:
+                continue
+
+            our_normal = global_normal(obj.CenterPlane)
+            other_normal = global_normal(front_face)  # assume front and back have same normal
+            slot_dir = (-1.0 if slot.Invert else 1.0) * our_normal.cross(other_normal)
+            if 1.0 - slot_dir.Length > 1e-4:
+                App.Console.PrintWarning(
+                    f"ShaperCutout '{obj.Label}' slot '{slot.Label}': the two cutouts are "
+                    "not orthogonal, so the slot would require miter cuts for the sides. "
+                    "This is not implemented and hard to manufacture. Skipping.\n")
+                continue
+
+            # Create slot rectangle
+            # The slot rectangle is defined by:
+            # - The sides: two boundary lines from other cutout's front/back faces
+            # - The surface: a boundary line orthogonal to these, centered on interface plane
+            # - Another boundary line outside the extent of the sketch's bounding box.
+
+            print(f"computing slot {slot.Label} for {obj.Label}")
+            # Get the center point where the three planes meet, by taking the two endpoints
+            # and averaging them. This center point is the only one that we fix to: we need
+            # both slots to be rectangles (all angles 90) and both slots' sides to lie along
+            # to the opposing cutouts' face planes. Which leaves us only one degree of freedom,
+            # which we fix by having the two slots touch at one point, their mutual center.
+            #
+            # We do *not* attempt to make the slot surface parallel to the intersection plane.
+            # In general, this would require at least one of the two slot *surfaces* to be a
+            # miter cut which is basically impossible with the tools I have, and anyway is never
+            # necessary (even if we later allow the sides to be miters).
+            front_wall = front_face.Shape.Surface.intersect(obj.CenterPlane.Shape.Surface)
+            back_wall = back_face.Shape.Surface.intersect(obj.CenterPlane.Shape.Surface)
+            if not front_wall or not back_wall:
+                App.Console.PrintWarning(
+                    f"ShaperCutout '{obj.Label}' slot '{slot.Label}': could not find "
+                    "intersection between center plane and other cutout's side.\n")
+                continue
+            front_wall = front_wall[0]
+            back_wall = back_wall[0]
+            front_intersect = slot.InterfacePlane.Shape.Surface.intersect(front_wall)
+            back_intersect = slot.InterfacePlane.Shape.Surface.intersect(back_wall)
+            if not front_intersect or not front_intersect[0] \
+                    or not back_intersect or not back_intersect[0]:
+                App.Console.PrintWarning(
+                    f"ShaperCutout '{obj.Label}' slot '{slot.Label}': could not find "
+                    f"intersection between side and interface '{slot.InterfacePlane.Label}.\n")
+                continue
+            front_intersect = App.Vector(
+                front_intersect[0][0].X,
+                front_intersect[0][0].Y,
+                front_intersect[0][0].Z,
+            )
+            back_intersect = App.Vector(
+                back_intersect[0][0].X,
+                back_intersect[0][0].Y,
+                back_intersect[0][0].Z,
+            )
+            intersect = (front_intersect + back_intersect) / 2.0
+
+            # Calculate the slot rectangle vertices
+            surf0 = front_wall.projectPoint(intersect)
+            surf1 = back_wall.projectPoint(intersect)
+            surface_line = Part.makeLine(surf0, surf1)
+            full_bound_box = obj.OutlineSketch.Shape.BoundBox.united(surface_line.BoundBox)
+            # side_length inspired by `ProfileBased::getThroughAllLength` in the PartDesign source
+            side_length = full_bound_box.DiagonalLength * 1.01
+            top0 = surf0 + side_length * slot_dir
+            top1 = surf1 + side_length * slot_dir
+
+            # Create the slot wire
+            slot_wire = Part.Wire(Part.makePolygon([surf0, surf1, top1, top0, surf0]))
+
+            # Create a face from the wire and cut it from the shape
+            try:
+                slot_face = Part.Face(slot_wire)
+                slot_face.translate(-extrude_vec / 2.0)
+                slot_shape = slot_face.extrude(extrude_vec)
+                shape = shape.cut(slot_shape)
+            except Exception as e:
+                App.Console.PrintWarning(
+                    f"ShaperCutout '{obj.Label}': failed to cut slot: {e}\n")
+
         # Add/subtract miters
         for member in obj.Miters:
             if not member.Edges or member.Angle is None:
@@ -166,6 +266,11 @@ class ShaperCutout:
             obj.addProperty('App::PropertyLinkList', 'Miters', 'Internal',
                             'The miters associated with this cutout.')
             obj.setEditorMode('Miters', 2)
+
+        if not hasattr(obj, 'Slots'):
+            obj.addProperty('App::PropertyLinkList', 'Slots', 'Internal',
+                            'The slots associated with this cutout.')
+            obj.setEditorMode('Slots', 2)
 
         # We need the group extension for drag/drop to work, but we leave the actual Group empty.
         # Old versions of the extension put stuff in Group, so empty it out here and put stuff
@@ -280,7 +385,7 @@ class ViewProviderShaperCutout:
             self.Object.CenterPlane,
             self.Object.FrontFace,
             self.Object.BackFace,
-        ] + self.Object.Dados + self.Object.Miters
+        ] + self.Object.Dados + self.Object.Miters + self.Object.Slots
 
     def canDelete(self, child):
         # All this does is pop up the "this might break the following referencing objects"

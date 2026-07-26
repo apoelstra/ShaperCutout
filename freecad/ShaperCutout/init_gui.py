@@ -40,13 +40,14 @@ class ShaperCutoutWorkbench(Gui.Workbench):
         import ShaperCutout    # noqa: F401
         import ShaperDados     # noqa: F401
         import ShaperMiter     # noqa: F401
+        import ShaperSlot      # noqa: F401
         import ShaperSvgPage   # noqa: F401
         import ShaperSvgImage  # noqa: F401
 
         # Import all commands.
         from command import CreateShaperCutoutCmd, CreateShaperDadosCmd, CreateShaperMiterCmd, \
             ExportShaperSVGCmd, CreateShaperSvgPageCmd, ExportShaperSvgPageCmd, \
-            CheckCollisionsCmd
+            CheckCollisionsCmd, CreateShaperSlotCmd
 
         Gui.addCommand('ShaperCutout_createCutout', CreateShaperCutoutCmd())
         Gui.addCommand('ShaperCutout_createDados', CreateShaperDadosCmd())
@@ -56,6 +57,7 @@ class ShaperCutoutWorkbench(Gui.Workbench):
         Gui.addCommand('ShaperCutout_createSvgPage', CreateShaperSvgPageCmd())
         Gui.addCommand('ShaperCutout_exportSvgPage', ExportShaperSvgPageCmd())
         Gui.addCommand('ShaperCutout_checkCollisions', CheckCollisionsCmd())
+        Gui.addCommand('ShaperCutout_createSlot', CreateShaperSlotCmd())
 
         self.appendMenu(
             "&Shaper",
@@ -63,6 +65,7 @@ class ShaperCutoutWorkbench(Gui.Workbench):
                 "ShaperCutout_createCutout",
                 "ShaperCutout_createDados",
                 "ShaperCutout_createMiter",
+                "ShaperCutout_createSlot",
                 "ShaperCutout_createSvgPage",
                 "ShaperCutout_exportSvgPage",
                 "ShaperCutout_exportFrontSVG",
@@ -80,6 +83,7 @@ class ShaperCutoutWorkbench(Gui.Workbench):
                 "ShaperCutout_createCutout",
                 "ShaperCutout_createDados",
                 "ShaperCutout_createMiter",
+                "ShaperCutout_createSlot",
                 "ShaperCutout_createSvgPage",
                 "ShaperCutout_exportFrontSVG",
                 "ShaperCutout_exportBackSVG",
