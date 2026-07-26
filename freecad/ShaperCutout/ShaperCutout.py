@@ -151,13 +151,11 @@ class ShaperCutout:
                     "This is not implemented and hard to manufacture. Skipping.\n")
                 continue
 
-            # Create slot rectangle
             # The slot rectangle is defined by:
             # - The sides: two boundary lines from other cutout's front/back faces
             # - The surface: a boundary line orthogonal to these, centered on interface plane
             # - Another boundary line outside the extent of the sketch's bounding box.
 
-            print(f"computing slot {slot.Label} for {obj.Label}")
             # Get the center point where the three planes meet, by taking the two endpoints
             # and averaging them. This center point is the only one that we fix to: we need
             # both slots to be rectangles (all angles 90) and both slots' sides to lie along
@@ -198,8 +196,12 @@ class ShaperCutout:
             intersect = (front_intersect + back_intersect) / 2.0
 
             # Calculate the slot rectangle vertices
-            surf0 = front_wall.projectPoint(intersect)
-            surf1 = back_wall.projectPoint(intersect)
+            surf0 = front_wall.projectPoint(intersect) - slot.LengthTolerance.Value * slot_dir
+            surf1 = back_wall.projectPoint(intersect) - slot.LengthTolerance.Value * slot_dir
+            tolerance_v = slot.WidthTolerance.Value * (surf1 - surf0).normalize()
+            surf0 -= tolerance_v
+            surf1 += tolerance_v
+
             surface_line = Part.makeLine(surf0, surf1)
             full_bound_box = obj.OutlineSketch.Shape.BoundBox.united(surface_line.BoundBox)
             # side_length inspired by `ProfileBased::getThroughAllLength` in the PartDesign source

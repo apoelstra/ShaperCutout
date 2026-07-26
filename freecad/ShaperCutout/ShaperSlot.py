@@ -37,6 +37,13 @@ class ShaperSlot:
     def __init__(self, obj):
         obj.Proxy = self
 
+        obj.addProperty('App::PropertyDistance', 'LengthTolerance', 'Slot',
+                        'Amount to offset the slot surface; positive numbers create a longer slot.')
+        obj.addProperty('App::PropertyDistance', 'WidthTolerance', 'Slot',
+                        'Amount to offset each side of the slot to widen it.')
+        obj.addProperty('App::PropertyBool', 'Invert', 'Slot',
+                        'Invert the slot direction')
+
         obj.addProperty('App::PropertyString', 'Type', 'Internal',
                         'Type ID used to identify instances')
         obj.addProperty('App::PropertyLink', 'Cutout1Front', 'Base',
@@ -49,8 +56,6 @@ class ShaperSlot:
                         'Back face plane of second ShaperCutout')
         obj.addProperty('App::PropertyLink', 'InterfacePlane', 'Base',
                         'Plane defining the slot interface')
-        obj.addProperty('App::PropertyBool', 'Invert', 'Base',
-                        'Invert the slot direction')
 
         obj.Type = 'ShaperSlot'
         obj.Invert = False
