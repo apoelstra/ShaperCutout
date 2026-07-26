@@ -123,6 +123,13 @@ class ShaperCutout:
         face.translate(offset_vec)
         shape = face.extrude(extrude_vec)
 
+        # Add/subtract miters
+        for member in obj.Miters:
+            if not member.Edges or member.Angle is None:
+                # Skip uninitialized/null/broken miters
+                continue
+            shape = miter_edges(shape, member, obj.CenterPlane, thickness)
+
         # Cut slots
         for slot in obj.Slots:
             slot_wire = self._compute_slot_wire(obj, slot)
@@ -138,13 +145,6 @@ class ShaperCutout:
             except Exception as e:
                 App.Console.PrintWarning(
                     f"ShaperCutout '{obj.Label}': failed to cut slot: {e}\n")
-
-        # Add/subtract miters
-        for member in obj.Miters:
-            if not member.Edges or member.Angle is None:
-                # Skip uninitialized/null/broken miters
-                continue
-            shape = miter_edges(shape, member, obj.CenterPlane, thickness)
 
         # Subtract dado pockets
         for member in obj.Dados:
