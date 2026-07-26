@@ -81,7 +81,7 @@ def _miter_edge(shape, edge_shape, angle_deg, miter_axis, center_plane, thicknes
 
         fuse_tri_face = Part.Face(fuse_tri)
         cut_tri_face = Part.Face(cut_tri)
-        shape = shape.fuse(fuse_tri_face.extrude(edge_vec))
+        shape = shape.fuse(fuse_tri_face.extrude(edge_vec)).removeSplitter()
         shape = shape.cut(cut_tri_face.extrude(edge_vec))
     except Exception as e:
         App.Console.PrintWarning(f"ShaperMiter: failed to build wedge: {e}\n")
