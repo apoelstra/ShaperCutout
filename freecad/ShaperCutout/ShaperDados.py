@@ -186,6 +186,9 @@ class ShaperDados:
         obj.setPropertyStatus('Face', 2)
 
     def onChanged(self, obj, prop):
+        if not hasattr(obj, 'DadoPlane'):
+            return
+
         if prop == 'MaxHolesPerLine':
             if getattr(obj, 'MaxHolesPerLine', 0) < 0:
                 obj.MaxHolesPerLine = 0
