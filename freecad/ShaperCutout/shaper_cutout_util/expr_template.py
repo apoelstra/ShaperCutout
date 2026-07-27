@@ -3,6 +3,7 @@
 import FreeCAD as App
 import FreeCADGui as Gui
 
+
 class _ExprTemplate:
     def __init__(self, obj, prop_dict):
         obj.Proxy = self
@@ -32,10 +33,16 @@ class _ExprTemplate:
                 setattr(self._template, prop, default)
             return
 
-        setattr(self._template, prop, getattr(obj, prop))
+        value = getattr(obj, prop)
+        widget = self._widgets.get(prop)
+        if widget is not None:
+            widget.lineEdit().setText(f"{value}")
+        setattr(self._template, prop, value)
         for obj_prop, obj_expr in obj.ExpressionEngine:
             if obj_prop == prop:
                 self._template.setExpression(prop, obj_expr)
+                if widget is not None:
+                    widget.lineEdit().setText(f"{self._template.evalExpression(obj_expr)}")
                 return
         self._template.clearExpression(prop)
 

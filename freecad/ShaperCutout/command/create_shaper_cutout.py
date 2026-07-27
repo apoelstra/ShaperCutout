@@ -136,7 +136,9 @@ class ShaperCutoutTaskPanel:
         self.sketch_combo = QtWidgets.QComboBox()
         self.sketch_combo.addItem('(No outline sketch)', None)
 
-        # Set initial widget values
+        # Open transaction and create/reference cutout
+        print("start transaction")
+        self._doc.openTransaction(f"{action} Shaper Cutout")
         current_sel = Gui.Selection.getSelection()[0]
         if self._edit_mode:
             self._cutout = cutout
@@ -161,8 +163,6 @@ class ShaperCutoutTaskPanel:
         layout.addRow("Outline Sketch:", self.sketch_combo)
         self.label_edit.setText(self._cutout.Label)
 
-        # Open transaction and create/reference cutout
-        self._doc.openTransaction(f"{action} Shaper Cutout")
         self._template = make_expr_template({'Thickness': 'App::PropertyLength'})
         self._template.set_from_object(self._cutout, 'Thickness')
         self._template.bind(self.thickness_widget, 'Thickness')
@@ -180,10 +180,58 @@ class ShaperCutoutTaskPanel:
         self.sketch_combo.currentIndexChanged.connect(self._on_changed)
         self.thickness_widget.valueChanged.connect(self._on_thickness_changed)
 
+        self._own_front = None
+        self._own_back = None
+        self._on_plane_changed()
         self._on_changed()
 
     def _on_plane_changed(self):
-        self._cutout.CenterPlane = self.plane_combo.currentData()
+        print("Enter on_plane_changed")
+        # Setting CenterPlane will trigger an update to the computed planes, so we avoid doing
+        # that until we've set them ourselves. We want to do this because when editing from the
+        # dialog, we (a) want to implement the "if we use another cutout's center, we also use
+        # that cutout's front/back plane" logic, and (b) we want that when the user starts from
+        # uniquely-owned planes, switches to shared planes, then switches back, they recover the
+        # original uniquely-owned planes rather than having now ones be created. This only really
+        # makes sense within the dialog so we can't move this logic into ShaperCutout::onChanged.
+        new_plane = self.plane_combo.currentData()
+        # Record current planes if they're unique to us
+        print(f"len {self._cutout.FrontFace.Name} {len(_cutout_parents(self._cutout.FrontFace))}")
+        if len(_cutout_parents(self._cutout.FrontFace)) == 1:
+            self._own_front = self._cutout.FrontFace
+            print(f"hiding {self._own_front.Name}")
+            self._own_front.ViewObject.ShowInTree = False
+        if len(_cutout_parents(self._cutout.BackFace)) == 1:
+            self._own_back = self._cutout.BackFace
+            self._own_back.ViewObject.ShowInTree = False
+
+        # Disable thickness dialog if we are sharing a plane
+        parents = _cutout_parents(new_plane)
+        self.thickness_widget.setDisabled(False)
+        for par in parents:
+            if par == self._cutout:
+                continue
+            self._cutout.FrontFace = par.FrontFace
+            self._cutout.BackFace = par.BackFace
+            self.thickness_widget.setDisabled(True)
+            self._template.set_from_object(par, 'Thickness')
+            break
+
+        if self.thickness_widget.isEnabled():
+            self._cutout.FrontFace = None
+            self._cutout.BackFace = None
+            if self._own_front is not None:
+                print(f"setting front to cached {self._own_front.Name}")
+                self._cutout.FrontFace = self._own_front
+                self._own_front.ViewObject.ShowInTree = True
+                self._own_front = None
+            if self._own_back is not None:
+                self._cutout.BackFace = self._own_back
+                self._own_back.ViewObject.ShowInTree = True
+                self._own_back = None
+        self._cutout.CenterPlane = new_plane
+
+        # Update sketch combo
         selected_sketch = self.sketch_combo.currentData()
         self.sketch_combo.clear()
         self.sketch_combo.addItem('(No outline sketch)', None)
@@ -232,9 +280,14 @@ class ShaperCutoutTaskPanel:
             return
 
         self._on_changed()
+        if self._own_front:
+            self._doc.removeObject(self._own_front)
+        if self._own_back:
+            self._doc.removeObject(self._own_back)
 
         self._cutout.ViewObject.ShowInTree = True
         self._template.destroyTemplate()
+        print("commit transaction")
         self._doc.commitTransaction()
         # Note: if you swap the recompute and the closeDialog, you can get segfaults. I don't have
         # a FreeCAD build with debug symbols but I'd like to investigate this at some point. I
@@ -243,6 +296,7 @@ class ShaperCutoutTaskPanel:
         Gui.Control.closeDialog()
 
     def reject(self):
+        print("abort transaction")
         self._doc.abortTransaction()
         Gui.Control.closeDialog()
 

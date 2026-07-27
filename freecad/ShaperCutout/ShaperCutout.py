@@ -73,13 +73,9 @@ class ShaperCutout:
         if getattr(obj, 'Thickness', None) is None:
             return
 
-        # Create faces if they don't exist, re-place them, and mark them as updated.
+        # When updating the center plane or thickness, re-place computed faces.
         if prop in ('CenterPlane', 'Thickness'):
             self.ensure_front_face(obj)
-            self.ensure_back_face(obj)
-        elif obj.FrontFace is None:
-            self.ensure_front_face(obj)
-        elif obj.BackFace is None:
             self.ensure_back_face(obj)
 
     def execute(self, obj):
@@ -238,6 +234,7 @@ class ShaperCutout:
         """Recreate front face if missing or link broken."""
         if obj.FrontFace is None:
             obj.FrontFace = obj.Document.addObject('Part::DatumPlane', 'Front')
+            print(f"ensure_front_face: create {obj.FrontFace.Name}")
 
         half = obj.Thickness.Value / 2.0
         obj.FrontFace.AttachmentSupport = [(obj.CenterPlane)]
