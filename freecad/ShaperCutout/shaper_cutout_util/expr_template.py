@@ -71,14 +71,14 @@ class _ExprTemplate:
                 return
         widget.lineEdit().setText(f'{getattr(self._template, prop)}')
 
-    def widget_value(self, prop):
+    def widget_value(self, prop: str) -> App.Units.Quantity:
         for name, e in self._template.ExpressionEngine:
             if name == prop:
                 return self._template.evalExpression(e)
 
         widget = self._widgets.get(prop)
         if widget is not None:
-            return widget.text()
+            return App.Units.Quantity(widget.text())
         else:
             return getattr(self._template, prop)
 

@@ -357,6 +357,29 @@ class ShaperCutout:
         # Create the slot wire
         return Part.Wire(Part.makePolygon([surf0, surf1, top1, top0, surf0]))
 
+    def xyBoundBox(self, obj: App.DocumentObject) -> (App.Units.Quantity, App.Units.Quantity):
+        if not obj.OutlineSketch or obj.CutoutFace.isNull():
+            return (
+                App.Units.Quantity(0, App.Units.Length),
+                App.Units.Quantity(0, App.Units.Length),
+            )
+
+        xy_matrix = obj.OutlineSketch.getGlobalPlacement().toMatrix().inverse()
+        bound_box = obj.CutoutFace.transformed(xy_matrix).BoundBox
+        return (
+            App.Units.Quantity(bound_box.XLength, App.Units.Length),
+            App.Units.Quantity(bound_box.YLength, App.Units.Length),
+        )
+
+    def faceSurfaceArea(self, obj: App.DocumentObject) -> App.Units.Quantity:
+        if hasattr(obj, 'CutoutFace') and not obj.CutoutFace.isNull():
+            return App.Units.Quantity(
+                sum(s.Area for s in obj.CutoutFace.Faces),
+                App.Units.Area,
+            )
+        else:
+            return App.Units.Quantity(0.0, App.Units.Area)
+
 
 class _DropChoiceDialog(QtWidgets.QDialog):
     def __init__(self, old_label, new_label, parent=None):

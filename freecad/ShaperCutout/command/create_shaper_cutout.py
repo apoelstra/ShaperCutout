@@ -287,7 +287,6 @@ class ShaperCutoutTaskPanel:
 
         self._cutout.ViewObject.ShowInTree = True
         self._template.destroyTemplate()
-        print("commit transaction")
         self._doc.commitTransaction()
         # Note: if you swap the recompute and the closeDialog, you can get segfaults. I don't have
         # a FreeCAD build with debug symbols but I'd like to investigate this at some point. I
@@ -296,7 +295,6 @@ class ShaperCutoutTaskPanel:
         Gui.Control.closeDialog()
 
     def reject(self):
-        print("abort transaction")
         self._doc.abortTransaction()
         Gui.Control.closeDialog()
 
