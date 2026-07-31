@@ -7,11 +7,10 @@ import FreeCADGui as Gui
 import Part
 import TechDraw
 
-from draftgeoutils import faces
 from draftfunctions.svgshapes import get_path
 from PySide import QtWidgets
 
-from shaper_cutout_util import _ICON_ROOT, are_exclusively_selected, global_normal
+from shaper_cutout_util import _ICON_ROOT, are_exclusively_selected, cleanFaces, global_normal
 from ShaperDados import ZERO_DEPTH_TOLERANCE, _wire_to_pipes
 
 
@@ -88,71 +87,17 @@ def _wire_to_d(wire):
 # Miter rectangle helpers
 # ---------------------------------------------------------------------------
 
-def _miter_rectangles(cutout, xy_matrix):
+def _miter_rectangles(cutout: App.DocumentObject, xy_matrix: App.Matrix) -> [Part.Wire]:
     """Compute miter rectangles in projected (XY) space. Returns a list of wires,
     one per rectangle."""
-    import math as _math
-
     thickness = cutout.Thickness.Value
     normal_3d = global_normal(cutout.CenterPlane)
 
     ret_wires = []
-
     for member in cutout.Miters:
-        if not member.Edges or member.Angle is None:
-            continue
-        angle_deg = member.Angle.Value
-        if angle_deg == 0:
-            continue
-        if angle_deg <= -90 or angle_deg >= 90:
-            continue
-        miter_axis = member.MiterAxis
-
-        for (linked_obj, subnames) in member.Edges:
-            for subname in subnames:
-                if not subname.startswith('Edge'):
-                    continue
-                try:
-                    edge_shape = linked_obj.Shape.getElement(subname)
-                except Exception:
-                    continue
-                if not isinstance(edge_shape.Curve, Part.Line):
-                    continue
-
-                p0_3d = edge_shape.Vertexes[0].Point
-                p1_3d = edge_shape.Vertexes[1].Point
-                edge_vec_3d = p1_3d - p0_3d
-                face_normal_3d = edge_vec_3d.cross(normal_3d).normalize()
-
-                far_dist = _math.tan(_math.radians(angle_deg)) * thickness
-                far_vec_3d = far_dist * face_normal_3d
-
-                if miter_axis == 'Front':
-                    offset_vec_3d = App.Vector(0, 0, 0)
-                elif miter_axis == 'Center':
-                    offset_vec_3d = -far_vec_3d / 2
-                else:  # Back
-                    offset_vec_3d = -far_vec_3d
-
-                # The 4 corners of the miter rectangle in 3D (on the center plane)
-                # near_a/near_b are the edge endpoints offset to the center plane,
-                # far_a/far_b are the far corners.
-                near_a_3d = p0_3d + offset_vec_3d
-                near_b_3d = p1_3d + offset_vec_3d
-                far_a_3d = near_a_3d + far_vec_3d
-                far_b_3d = near_b_3d + far_vec_3d
-
-                # Project all 4 corners onto XY plane
-                na = xy_matrix.multVec(near_a_3d)
-                nb = xy_matrix.multVec(near_b_3d)
-                fa = xy_matrix.multVec(far_a_3d)
-                fb = xy_matrix.multVec(far_b_3d)
-
-                try:
-                    wire = Part.makePolygon([na, nb, fb, fa, na])
-                    ret_wires.append(wire)
-                except Exception as e:
-                    App.Console.PrintWarning(f"export_shaper_svg: miter rect failed: {e}\n")
+        new_wires = member.Proxy.rectangles(member, normal_3d, thickness)
+        for wire in new_wires:
+            ret_wires.append(wire.transformed(xy_matrix))
 
     return ret_wires
 
@@ -258,7 +203,7 @@ def _find_anchor_corner(outline_wires):
 
 def _collect_paths(cutout, dado_groups, drill_holes, mirror=False, addAnchor=True):
     """Return list of SVG path element strings (no <svg> wrapper)."""
-    if cutout.OutlineSketch.Shape.isNull():
+    if cutout.CutoutFace.isNull():
         return [], App.BoundBox(0)
 
     # The projection logic of Draft importSVG seems quite broken. I cannot directly export
@@ -273,6 +218,9 @@ def _collect_paths(cutout, dado_groups, drill_holes, mirror=False, addAnchor=Tru
     # that. This also lets us directly compute bounding boxes, set the anchor, etc.,
     # without trying to extract data from the stringly-typed get_path output.
 
+    # This matrix will map the sketch onto the XY plane (z = 0). Anything that is parallel
+    # to the sketch will get mapped to a parallel plane. If we always ignore the z coordinate
+    # then the same matrix works for everything.
     xy_matrix = cutout.OutlineSketch.getGlobalPlacement().toMatrix().inverse()
     if mirror:
         # Rather than mirroring (which would require a non-unitary matrix, and cause
@@ -286,34 +234,10 @@ def _collect_paths(cutout, dado_groups, drill_holes, mirror=False, addAnchor=Tru
         xy_matrix.A32 *= -1
         xy_matrix.A33 *= -1
 
-    outline_shape = cutout.OutlineSketch.Shape.transformed(xy_matrix)
+    outline_shape = cutout.CutoutFace.transformed(xy_matrix)
     outline_wires = outline_shape.Wires
 
-    # First compute the miter rectangles, which are linked to pre-slot edges
-    rect_wires = _miter_rectangles(cutout, xy_matrix)
     outer_wires, inner_wires = _classify_wires(outline_wires)
-    outer_wires, inner_wires = _apply_miter_to_wires(outer_wires, inner_wires, rect_wires)
-    # Then cut any slots, which would relabel the edges, but we don't need the labels anymore.
-    if cutout.Slots:
-        face = Part.makeFace(outer_wires + inner_wires)
-        for slot in cutout.Slots:
-            # Our xy matrix above is relative to the outline sketch's placement. But the slot
-            # wires are computed on the center plane. These might be arbitrarily offset from
-            # each other.
-            center_to_sketch = cutout.OutlineSketch.getGlobalPlacement().Base \
-                - cutout.CenterPlane.getGlobalPlacement().Base
-
-            slot_wire = cutout.Proxy._compute_slot_wire(cutout, slot)
-            if slot_wire is None:
-                continue
-            slot_face = Part.Face(slot_wire.translated(center_to_sketch).transformed(xy_matrix))
-
-            face = face.cut(slot_face)
-
-        outline_wires = face.Wires
-        # Then re-classify the wires as inner/outer, since the slots might've broken stuff
-        outer_wires, inner_wires = _classify_wires(outline_wires)
-
     path_elements = []
 
     for w in outer_wires:
@@ -346,7 +270,7 @@ def _collect_paths(cutout, dado_groups, drill_holes, mirror=False, addAnchor=Tru
             f'fill="white" stroke="black" stroke-width="1" '
             f'shaper:cutType="inside"/>')
 
-    for w in rect_wires:
+    for w in _miter_rectangles(cutout, xy_matrix):
         d = _wire_to_d(w)
         if d:
             path_elements.append(
@@ -391,55 +315,6 @@ def _build_svg(path_elements, bb):
 # ---------------------------------------------------------------------------
 # Export orchestration
 # ---------------------------------------------------------------------------
-
-def _safe_for_cleanFaces(shape):
-    # TODO file a bug about this. This is literally just a copy of cleanFaces
-    #  up until an unguarded call to hfaces.pop(), which will fail if you have
-    #  some number of single disjoint faces.
-    faceset = shape.Faces
-
-    def find(hc):
-        """Find a face with the given hashcode."""
-        for f in faceset:
-            if f.hashCode() == hc:
-                return f
-
-    # build lookup table
-    lut = {}
-    for face in faceset:
-        for edge in face.Edges:
-            if edge.hashCode() in lut:
-                lut[edge.hashCode()].append(face.hashCode())
-            else:
-                lut[edge.hashCode()] = [face.hashCode()]
-
-    # print("lut:",lut)
-    # take edges shared by 2 faces
-    sharedhedges = []
-    for k, v in lut.items():
-        if len(v) == 2:
-            sharedhedges.append(k)
-
-    # print(len(sharedhedges)," shared edges:",sharedhedges)
-    # find those with same normals
-    targethedges = []
-    for hedge in sharedhedges:
-        faces = lut[hedge]
-        n1 = find(faces[0]).normalAt(0.5, 0.5)
-        n2 = find(faces[1]).normalAt(0.5, 0.5)
-        if n1 == n2:
-            targethedges.append(hedge)
-
-    # print(len(targethedges)," target edges:",targethedges)
-    # get target faces
-    hfaces = []
-    for hedge in targethedges:
-        for f in lut[hedge]:
-            if f not in hfaces:
-                hfaces.append(f)
-
-    return len(hfaces) > 0
-
 
 def _collect_dado_groups(cutout, exportFront):
     """Return (dados, drill_holes).
@@ -493,8 +368,7 @@ def _collect_dado_groups(cutout, exportFront):
                 for pipe in pipes[1:]:
                     fuse = fuse.fuse(pipe)
 
-                if _safe_for_cleanFaces(fuse):
-                    fuse = faces.cleanFaces(fuse)
+                fuse = cleanFaces(fuse)
                 wires.extend(fuse.Wires)
             pipes = []
 

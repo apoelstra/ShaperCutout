@@ -5,9 +5,9 @@ import FreeCAD as App
 import Part
 from PySide import QtGui, QtWidgets, QtCore
 
-from ShaperMiter import miter_edges
 from command import open_cutout_task_panel
-from shaper_cutout_util import _ICON_ROOT, global_normal, is_sketch, objects_are_parallel
+from shaper_cutout_util import _ICON_ROOT, cleanFaces, global_normal, is_sketch, \
+    objects_are_parallel
 
 
 def create_uninitialized(name=None):
@@ -37,12 +37,9 @@ class ShaperCutout:
                         'Front (positive z offset) plane of the sheet.')
         obj.addProperty('App::PropertyLink', 'BackFace', 'Internal',
                         'Back (negative z offset) plane of the sheet.')
-        obj.addProperty('App::PropertyLinkList', 'Dados', 'Internal',
-                        'The dado sets associated with this cutout.')
-        obj.addProperty('App::PropertyLinkList', 'Miters', 'Internal',
-                        'The miters associated with this cutout.')
-        obj.addProperty('App::PropertyLinkList', 'Slots', 'Internal',
-                        'The slots associated with this cutout.')
+
+        self.addListProperties(obj)
+        self.addReportProperties(obj)
 
         obj.Type = "ShaperCutout"
         obj.setPropertyStatus('OutlineSketch', 2)
@@ -50,9 +47,6 @@ class ShaperCutout:
         obj.setEditorMode('Type', 2)
         obj.setEditorMode('FrontFace', 2)
         obj.setEditorMode('BackFace', 2)
-        obj.setEditorMode('Dados', 2)
-        obj.setEditorMode('Miters', 2)
-        obj.setEditorMode('Slots', 2)
 
     def getSubObjects(self, obj, reason):
         # The FreeCAD STEP exporter, in App/ExportOCAF2.cpp line 476, calls this
@@ -116,6 +110,7 @@ class ShaperCutout:
         # through the wires and fusing them. We may want to provide an option,
         # eventually.
         face = Part.makeFace(wires)
+        cutout_face = face.copy()
         face.translate(offset_vec)
         shape = face.extrude(extrude_vec)
 
@@ -124,13 +119,17 @@ class ShaperCutout:
             if not member.Edges or member.Angle is None:
                 # Skip uninitialized/null/broken miters
                 continue
-            shape = miter_edges(shape, member, obj.CenterPlane, thickness)
+            shape = member.Proxy.apply_miter_to_shape(member, shape, obj.CenterPlane, thickness)
+
+            for rect_wire in member.Proxy.rectangles(member, normal, thickness):
+                cutout_face = cutout_face.fuse(Part.Face(rect_wire))
 
         # Cut slots
         for slot in obj.Slots:
             slot_wire = self._compute_slot_wire(obj, slot)
             if slot_wire is None:
                 continue
+            cutout_face = cutout_face.cut(Part.Face(slot_wire))
 
             # Create a face from the wire and cut it from the shape
             try:
@@ -162,6 +161,11 @@ class ShaperCutout:
                 pocket = faces.extrude(drill_vec)
                 shape = shape.cut(pocket)
 
+        # removeSplitter does some geometric analysis and removes edges which represent
+        # the border between two edges. cleanFaces does a much dumber thing and looks
+        # for edges (identified by edge.hashCode()) that literally appear in multiple
+        # faces' edge sets. For some reason we need both here.
+        obj.CutoutFace = Part.Shape(cleanFaces(cutout_face.removeSplitter()))
         obj.Shape = shape
 
     def dumps(self):
@@ -170,8 +174,7 @@ class ShaperCutout:
     def loads(self, state):
         return None
 
-    def onDocumentRestored(self, obj):
-        # Add missing lists
+    def addListProperties(self, obj):
         if not hasattr(obj, 'Dados'):
             obj.addProperty('App::PropertyLinkList', 'Dados', 'Internal',
                             'The dado sets associated with this cutout.')
@@ -186,6 +189,19 @@ class ShaperCutout:
             obj.addProperty('App::PropertyLinkList', 'Slots', 'Internal',
                             'The slots associated with this cutout.')
             obj.setEditorMode('Slots', 2)
+
+    def addReportProperties(self, obj):
+        if not hasattr(obj, 'CutoutFace'):
+            obj.addProperty('Part::PropertyPartShape', 'CutoutFace', 'Derived',
+                            'Computed face to be cut out by Shaper -- includes slots and maximum '
+                            'extent of miters, but ignores dados')
+            obj.setPropertyStatus('CutoutFace', 'Output')
+            obj.setEditorMode('CutoutFace', 2)
+
+    def onDocumentRestored(self, obj):
+        # Add properties that we added in later versions of the workbench.
+        self.addListProperties(obj)
+        self.addReportProperties(obj)
 
         # We need the group extension for drag/drop to work, but we leave the actual Group empty.
         # Old versions of the extension put stuff in Group, so empty it out here and put stuff

@@ -89,29 +89,6 @@ def _miter_edge(shape, edge_shape, angle_deg, miter_axis, center_plane, thicknes
     return shape
 
 
-def miter_edges(shape, miter, center_plane, thickness):
-    if not miter.Edges or miter.Angle is None:
-        # Skip uninitialized/null/broken miters. (Should we warn here?)
-        return
-
-    for (linked_obj, subnames) in miter.Edges:
-        for subname in subnames:
-            if not subname.startswith('Edge'):
-                App.Console.PrintWarning(
-                    f"ShaperMiter: sub-element '{subname}' is not an edge, skipping.\n")
-                continue
-            try:
-                edge = linked_obj.Shape.getElement(subname)
-            except Exception as e:
-                App.Console.PrintWarning(
-                    f"ShaperMiter: could not get edge '{subname}': {e}\n")
-                continue
-
-            shape = _miter_edge(shape, edge, miter.Angle, miter.MiterAxis, center_plane, thickness)
-
-    return shape
-
-
 class ShaperMiter:
     def __init__(self, obj):
         obj.Proxy = self
@@ -143,6 +120,93 @@ class ShaperMiter:
 
     def loads(self, state):
         return None
+
+    def rectangles(
+        self,
+        miter: App.DocumentObject,
+        plane_normal: App.Vector,
+        thickness: App.Units.Quantity,
+    ) -> [Part.Wire]:
+        """Given the 3D normal vector and thickness of the cutout the miter applies to, and
+        a matrix which projects the cutout into XY space, return its rectangles in XY space."""
+        if not miter.Edges or not miter.Angle:
+            return []  # cannot compute the miter
+        angle_deg = miter.Angle.Value
+        if angle_deg == 0:
+            return []  # miter is a nop
+        if angle_deg <= -90 or angle_deg >= 90:
+            return []  # cannot compute the miter
+        miter_axis = miter.MiterAxis
+
+        import math as _math
+
+        ret_wires = []
+        for (linked_obj, subnames) in miter.Edges:
+            for subname in subnames:
+                if not subname.startswith('Edge'):
+                    continue
+                try:
+                    edge_shape = linked_obj.Shape.getElement(subname)
+                except Exception:
+                    continue
+                if not isinstance(edge_shape.Curve, Part.Line):
+                    continue
+
+                p0_3d = edge_shape.Vertexes[0].Point
+                p1_3d = edge_shape.Vertexes[1].Point
+                edge_vec_3d = p1_3d - p0_3d
+                face_normal_3d = edge_vec_3d.cross(plane_normal).normalize()
+
+                far_dist = _math.tan(_math.radians(angle_deg)) * thickness
+                far_vec_3d = far_dist * face_normal_3d
+
+                if miter_axis == 'Front':
+                    offset_vec_3d = App.Vector(0, 0, 0)
+                elif miter_axis == 'Center':
+                    offset_vec_3d = -far_vec_3d / 2
+                else:  # Back
+                    offset_vec_3d = -far_vec_3d
+
+                # The 4 corners of the miter rectangle in 3D (on the center plane)
+                near_a = p0_3d + offset_vec_3d
+                near_b = p1_3d + offset_vec_3d
+                far_a = near_a + far_vec_3d
+                far_b = near_b + far_vec_3d
+
+                ret_wires.append(Part.makePolygon([near_a, near_b, far_b, far_a, near_a]))
+
+        return ret_wires
+
+    def apply_miter_to_shape(
+        self,
+        miter: App.DocumentObject,
+        shape: Part.Shape,
+        center_plane: App.DocumentObject,
+        thickness: App.Units.Quantity,
+    ) -> Part.Shape:
+        """Given a 3D cutout shape extruded from an outline sketch, apply the miters to it."""
+        if not miter.Edges or miter.Angle is None:
+            # Skip uninitialized/null/broken miters. (Should we warn here?)
+            return
+
+        for (linked_obj, subnames) in miter.Edges:
+            for subname in subnames:
+                if not subname.startswith('Edge'):
+                    App.Console.PrintWarning(
+                        f"ShaperMiter: sub-element '{subname}' is not an edge, skipping.\n")
+                    continue
+                try:
+                    edge = linked_obj.Shape.getElement(subname)
+                except Exception as e:
+                    App.Console.PrintWarning(
+                        f"ShaperMiter: could not get edge '{subname}': {e}\n")
+                    continue
+
+                shape = _miter_edge(shape, edge, miter.Angle, miter.MiterAxis, center_plane, thickness)
+
+        return shape
+
+
 
 
 class ViewProviderShaperMiter:
