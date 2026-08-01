@@ -47,7 +47,7 @@ class ShaperCutoutWorkbench(Gui.Workbench):
         # Import all commands.
         from command import CreateShaperCutoutCmd, CreateShaperDadosCmd, CreateShaperMiterCmd, \
             ExportShaperSVGCmd, CreateShaperSvgPageCmd, ExportShaperSvgPageCmd, \
-            CheckCollisionsCmd, CreateShaperSlotCmd, ReportViewCmd
+            CreateShaperSlotCmd, ReportViewCmd
 
         Gui.addCommand('ShaperCutout_createCutout', CreateShaperCutoutCmd())
         Gui.addCommand('ShaperCutout_createDados', CreateShaperDadosCmd())
@@ -56,7 +56,6 @@ class ShaperCutoutWorkbench(Gui.Workbench):
         Gui.addCommand('ShaperCutout_exportBackSVG', ExportShaperSVGCmd(False))
         Gui.addCommand('ShaperCutout_createSvgPage', CreateShaperSvgPageCmd())
         Gui.addCommand('ShaperCutout_exportSvgPage', ExportShaperSvgPageCmd())
-        Gui.addCommand('ShaperCutout_checkCollisions', CheckCollisionsCmd())
         Gui.addCommand('ShaperCutout_createSlot', CreateShaperSlotCmd())
         Gui.addCommand('ShaperCutout_reportView', ReportViewCmd())
 
@@ -71,7 +70,6 @@ class ShaperCutoutWorkbench(Gui.Workbench):
                 "ShaperCutout_exportSvgPage",
                 "ShaperCutout_exportFrontSVG",
                 "ShaperCutout_exportBackSVG",
-                "ShaperCutout_checkCollisions",
                 "ShaperCutout_reportView",
                 "Separator",
                 "Part_CoordinateSystem",
@@ -89,7 +87,6 @@ class ShaperCutoutWorkbench(Gui.Workbench):
                 "ShaperCutout_createSvgPage",
                 "ShaperCutout_exportFrontSVG",
                 "ShaperCutout_exportBackSVG",
-                "ShaperCutout_checkCollisions",
                 "ShaperCutout_reportView",
                 "Separator",
                 "Part_CoordinateSystem",
