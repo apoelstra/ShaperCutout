@@ -10,6 +10,7 @@ import FreeCADGui as Gui
 from command.report_view.report import ReportViewReport
 from command.report_view.cutouts import ReportViewCutouts
 from command.report_view.dados import ReportViewDados
+from command.report_view.slots import ReportViewSlots
 from shaper_cutout_util import _ICON_ROOT
 
 
@@ -21,22 +22,26 @@ class ReportViewTaskPanel:
         self._report_section = ReportViewReport()
         self._cutouts_section = ReportViewCutouts(self._report_section)
         self._dados_section = ReportViewDados(self._report_section)
+        self._slots_section = ReportViewSlots(self._report_section)
 
         self.form = [
             self._report_section,
             self._cutouts_section,
             self._dados_section,
+            self._slots_section,
         ]
 
     def accept(self):
         self._cutouts_section.run_cleanup()
         self._dados_section.run_cleanup()
+        self._slots_section.run_cleanup()
         self._doc.commitTransaction()
         Gui.Control.closeDialog()
 
     def reject(self):
         self._cutouts_section.run_cleanup()
         self._dados_section.run_cleanup()
+        self._slots_section.run_cleanup()
         self._doc.abortTransaction()
         Gui.Control.closeDialog()
 

@@ -12,7 +12,7 @@ class DadosModel(ReportTableModel):
     def __init__(self, dados=None):
         super().__init__([
             ("Name", lambda dado: dado.Label),
-            ("Cutout", lambda dado: parent_cutout(dado).Label),
+            ("Cutout", lambda dado: parent_cutout(dado, 'Dados').Label),
             ("Width", lambda dado: dado.Width),
             ("Depth", lambda dado: dado.Depth),
             ("Tolerance", lambda dado: dado.Tolerance),

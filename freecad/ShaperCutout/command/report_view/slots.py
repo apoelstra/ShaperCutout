@@ -1,0 +1,128 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+import FreeCAD as App
+import FreeCADGui as Gui
+from PySide import QtCore, QtGui, QtWidgets
+
+from command.report_view.model import ReportTableModel, ReportTableWidget
+from shaper_cutout_util import make_expr_template, parent_cutout
+
+
+class SlotModel(ReportTableModel):
+    def __init__(self, slots=None):
+        super().__init__([
+            ("Name", lambda slot: slot.Label),
+            ("Cutout", lambda slot: parent_cutout(slot, 'Slots').Label),
+            ("Length Tolerance", lambda slot: slot.LengthTolerance),
+            ("Width Tolerance", lambda slot: slot.WidthTolerance),
+        ])
+
+
+class ReportViewSlots(QtGui.QWidget):
+    def __init__(self, report_section):
+        self._doc = App.ActiveDocument
+        self._report_section = report_section
+
+        super().__init__()
+        self.initUi()
+
+    def initUi(self):
+        self.setWindowTitle("Slots")
+        layout = QtWidgets.QVBoxLayout(self)
+
+        # Slots section
+        self._table = ReportTableWidget(SlotModel())
+
+        # Buttons
+        button_layout = QtWidgets.QVBoxLayout()
+
+        # Update data row
+        self.length_tolerance_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
+        self.length_tolerance_widget.setProperty('unit', 'mm')
+        self.length_tolerance_widget.setEnabled(False)
+        self.width_tolerance_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
+        self.width_tolerance_widget.setProperty('unit', 'mm')
+        self.width_tolerance_widget.setEnabled(False)
+        self._template = make_expr_template({
+            'LengthTolerance': 'App::PropertyLength',
+            'WidthTolerance': 'App::PropertyLength',
+        })
+        self._template.bind(self.length_tolerance_widget, 'LengthTolerance')
+        self._template.bind(self.width_tolerance_widget, 'WidthTolerance')
+
+        # Length Tolerance row
+        self.length_tolerance_apply_btn = QtWidgets.QPushButton("Update Length Tolerance")
+        self.length_tolerance_apply_btn.clicked.connect(self._on_apply_length_tolerance)
+        self.length_tolerance_apply_btn.setEnabled(False)
+        length_tolerance_input_layout = QtWidgets.QVBoxLayout()
+        length_tolerance_input_layout.addWidget(self.length_tolerance_widget)
+        length_tolerance_input_layout.addWidget(self.length_tolerance_apply_btn)
+
+        # Width Tolerance row
+        self.width_tolerance_apply_btn = QtWidgets.QPushButton("Update Width Tolerance")
+        self.width_tolerance_apply_btn.clicked.connect(self._on_apply_width_tolerance)
+        self.width_tolerance_apply_btn.setEnabled(False)
+        width_tolerance_input_layout = QtWidgets.QVBoxLayout()
+        width_tolerance_input_layout.addWidget(self.width_tolerance_widget)
+        width_tolerance_input_layout.addWidget(self.width_tolerance_apply_btn)
+
+        update_data_layout = QtWidgets.QFormLayout()
+        update_data_layout.setFormAlignment(QtCore.Qt.AlignCenter)
+        update_data_layout.setLabelAlignment(
+            QtCore.Qt.AlignRight | QtCore.Qt.AlignTrailing | QtCore.Qt.AlignVCenter)
+        update_data_layout.addRow("Length Tolerance:", length_tolerance_input_layout)
+        update_data_layout.addRow("Width Tolerance:", width_tolerance_input_layout)
+        button_layout.addLayout(update_data_layout)
+
+        layout.addWidget(self._table)
+        layout.addLayout(button_layout)
+
+        # Populate table
+        slots = [obj for obj in self._doc.Objects
+                 if getattr(obj, 'Type', '') == 'ShaperSlot']
+        self._table.populate(slots)
+
+        # Connect signals
+        self._table.checkedStateChanged.connect(self._on_table_checked_state_changed)
+        self.length_tolerance_widget.valueChanged.connect(self._on_value_changed)
+        self.width_tolerance_widget.valueChanged.connect(self._on_value_changed)
+
+    def run_cleanup(self):
+        self._template.destroyTemplate()
+
+    def _on_table_checked_state_changed(self, checked: [App.DocumentObject]):
+        has_selection = len(checked) > 0
+        self.length_tolerance_widget.setEnabled(has_selection)
+        self.width_tolerance_widget.setEnabled(has_selection)
+        if has_selection:
+            self._on_value_changed()
+
+    def _on_value_changed(self):
+        length_tolerance_qty = self._template.widget_value('LengthTolerance')
+        width_tolerance_qty = self._template.widget_value('WidthTolerance')
+
+        if length_tolerance_qty.Value < 0.0:
+            self.length_tolerance_widget.lineEdit().setText("0.0")
+        if width_tolerance_qty.Value < 0.0:
+            self.width_tolerance_widget.lineEdit().setText("0.0")
+
+        self.length_tolerance_apply_btn.setEnabled(length_tolerance_qty.Value >= 0.0)
+        self.width_tolerance_apply_btn.setEnabled(width_tolerance_qty.Value >= 0.0)
+
+    def _on_apply_length_tolerance(self):
+        selected = self._get_selected_slots()
+        n = len(selected)
+        for slot in selected:
+            self._template.update_object(slot, 'LengthTolerance')
+            slot.recompute()
+        self._report_section.replace_text(f"Updated length tolerance on {n} selected slots."
+                                          "\n(Clicking 'Cancel' will undo this.)")
+
+    def _on_apply_width_tolerance(self):
+        selected = self._get_selected_slots()
+        n = len(selected)
+        for slot in selected:
+            self._template.update_object(slot, 'WidthTolerance')
+            slot.recompute()
+        self._report_section.replace_text(f"Updated width tolerance on {n} selected slots."
+                                          "\n(Clicking 'Cancel' will undo this.)")
