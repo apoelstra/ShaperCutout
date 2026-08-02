@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from typing import Optional
+
+import FreeCAD as App
 import FreeCADGui as Gui
 
 
@@ -29,3 +32,10 @@ def is_single_selected(type_attr):
 def are_exclusively_selected(type_attr):
     sel = Gui.Selection.getSelection()
     return len(sel) > 0 and all(__check_selection(sel, type_attr) for sel in sel)
+
+
+def parent_cutout(obj: App.DocumentObject, list_prop: str) -> Optional[App.DocumentObject]:
+    for o in obj.InList:
+        if (getattr(o, 'Type', None) == 'ShaperCutout' and obj in getattr(o, list_prop, [])):
+            return o
+    return None

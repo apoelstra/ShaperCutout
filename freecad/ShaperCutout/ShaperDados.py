@@ -7,7 +7,8 @@ import Part
 from PySide import QtGui
 
 from command.create_shaper_dados import open_dados_task_panel
-from shaper_cutout_util import _ICON_ROOT, global_normal, is_sketch, objects_are_parallel
+from shaper_cutout_util import _ICON_ROOT, global_normal, is_sketch, objects_are_parallel, \
+    parent_cutout
 
 ZERO_DEPTH_TOLERANCE = 1e-5
 
@@ -26,13 +27,6 @@ def create_uninitialized(cutout, name):
     cutout.Dados = dados
 
     return obj
-
-
-def _parent_cutout(dados):
-    for o in dados.InList:
-        if (getattr(o, 'Type', None) == 'ShaperCutout' and dados in o.Dados):
-            return o
-    return None
 
 
 def _wire_to_pipes(wire, normal, tol, width):
@@ -417,7 +411,7 @@ class ViewProviderShaperDados:
         return True
 
     def doubleClicked(self, vobj):
-        parent = _parent_cutout(vobj.Object)
+        parent = parent_cutout(vobj.Object, 'Dados')
         if parent is not None:
             open_dados_task_panel(parent, vobj.Object)
         return True
@@ -425,7 +419,7 @@ class ViewProviderShaperDados:
     def setupContextMenu(self, vobj, menu):
         edit_action = QtGui.QAction("Edit Dados", menu)
         edit_action.triggered.connect(lambda: open_dados_task_panel(
-            _parent_cutout(vobj.Object), vobj.Object))
+            parent_cutout(vobj.Object, 'Dados'), vobj.Object))
         menu.addAction(edit_action)
 
     def dumps(self):
