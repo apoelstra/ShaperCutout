@@ -90,10 +90,10 @@ def create_uninitialized(cutout1, cutout2, interface_plane, name="ShaperSlot"):
         ViewProviderShaperSlot(obj.ViewObject)
 
     # Set properties
-    obj.Cutout1Front = cutout1.FrontFace
-    obj.Cutout2Front = cutout2.FrontFace
-    obj.Cutout1Back = cutout1.BackFace
-    obj.Cutout2Back = cutout2.BackFace
+    obj.Cutout1_Front = cutout1.FrontFace
+    obj.Cutout2_Front = cutout2.FrontFace
+    obj.Cutout1_Back = cutout1.BackFace
+    obj.Cutout2_Back = cutout2.BackFace
     obj.InterfacePlane = interface_plane
 
     # Add to both cutouts' slot lists
