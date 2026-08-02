@@ -125,9 +125,11 @@ class ShaperCutout:
 
         # Cut slots
         for slot in obj.Slots:
-            slot_wire = self._compute_slot_wire(obj, slot)
-            if slot_wire is None:
+            slot_data = slot.Proxy.slot_data_for(slot, obj)
+            if slot_data is None:
                 continue
+
+            slot_wire = slot_data.slot_wire()
             cutout_face = cutout_face.cut(Part.Face(slot_wire))
 
             # Create a face from the wire and cut it from the shape
@@ -139,6 +141,17 @@ class ShaperCutout:
             except Exception as e:
                 App.Console.PrintWarning(
                     f"ShaperCutout '{obj.Label}': failed to cut slot: {e}\n")
+
+            # Compute dado
+            for dado_face in slot_data.dado_faces(cutout_face):
+                dado_face.translate(-extrude_vec / 2.0)
+                if slot_data.back_dado_depth > 0.0:
+                    dado_shape_2 = dado_face.extrude(slot_data.back_dado_depth * normal)
+                    shape = shape.cut(dado_shape_2)
+                dado_face.translate(extrude_vec)
+                if slot_data.front_dado_depth > 0.0:
+                    dado_shape_1 = dado_face.extrude(-slot_data.front_dado_depth * normal)
+                    shape = shape.cut(dado_shape_1)
 
         # Subtract dado pockets
         for member in obj.Dados:
@@ -264,97 +277,6 @@ class ShaperCutout:
         obj.FrontFace.setPropertyStatus('MapMode', 2)
 
         return obj.FrontFace
-
-    def _compute_slot_wire(self, obj, slot, warn=True):
-        if not slot.InterfacePlane:
-            return None
-
-        # Determine which cutout is this one, get face planes and normal of other.
-        if slot.Cutout1_Front == obj.FrontFace and slot.Cutout1_Back == obj.BackFace:
-            front_face = slot.Cutout2_Front
-            back_face = slot.Cutout2_Back
-        elif slot.Cutout2_Front == obj.FrontFace and slot.Cutout2_Back == obj.BackFace:
-            front_face = slot.Cutout1_Front
-            back_face = slot.Cutout1_Back
-        else:
-            return None
-
-        if not front_face or not back_face:
-            return None
-
-        our_normal = global_normal(obj.CenterPlane)
-        other_normal = global_normal(front_face)  # assume front and back have same normal
-        slot_dir = (-1.0 if slot.Invert else 1.0) * our_normal.cross(other_normal)
-        if 1.0 - slot_dir.Length > 1e-4:
-            if warn:
-                App.Console.PrintWarning(
-                    f"ShaperCutout '{obj.Label}' slot '{slot.Label}': the two cutouts are "
-                    "not orthogonal, so the slot would require miter cuts for the sides. "
-                    "This is not implemented and hard to manufacture. Skipping.\n")
-            return None
-
-        # The slot rectangle is defined by:
-        # - The sides: two boundary lines from other cutout's front/back faces
-        # - The surface: a boundary line orthogonal to these, centered on interface plane
-        # - Another boundary line outside the extent of the sketch's bounding box.
-
-        # Get the center point where the three planes meet, by taking the two endpoints
-        # and averaging them. This center point is the only one that we fix to: we need
-        # both slots to be rectangles (all angles 90) and both slots' sides to lie along
-        # to the opposing cutouts' face planes. Which leaves us only one degree of freedom,
-        # which we fix by having the two slots touch at one point, their mutual center.
-        #
-        # We do *not* attempt to make the slot surface parallel to the intersection plane.
-        # In general, this would require at least one of the two slot *surfaces* to be a
-        # miter cut which is basically impossible with the tools I have, and anyway is never
-        # necessary (even if we later allow the sides to be miters).
-        front_wall = front_face.Shape.Surface.intersect(obj.CenterPlane.Shape.Surface)
-        back_wall = back_face.Shape.Surface.intersect(obj.CenterPlane.Shape.Surface)
-        if not front_wall or not back_wall:
-            if warn:
-                App.Console.PrintWarning(
-                    f"ShaperCutout '{obj.Label}' slot '{slot.Label}': could not find "
-                    "intersection between center plane and other cutout's side.\n")
-            return None
-        front_wall = front_wall[0]
-        back_wall = back_wall[0]
-        front_intersect = slot.InterfacePlane.Shape.Surface.intersect(front_wall)
-        back_intersect = slot.InterfacePlane.Shape.Surface.intersect(back_wall)
-        if not front_intersect or not front_intersect[0] \
-                or not back_intersect or not back_intersect[0]:
-            if warn:
-                App.Console.PrintWarning(
-                    f"ShaperCutout '{obj.Label}' slot '{slot.Label}': could not find "
-                    f"intersection between side and interface '{slot.InterfacePlane.Label}.\n")
-            return None
-        front_intersect = App.Vector(
-            front_intersect[0][0].X,
-            front_intersect[0][0].Y,
-            front_intersect[0][0].Z,
-        )
-        back_intersect = App.Vector(
-            back_intersect[0][0].X,
-            back_intersect[0][0].Y,
-            back_intersect[0][0].Z,
-        )
-        intersect = (front_intersect + back_intersect) / 2.0
-
-        # Calculate the slot rectangle vertices
-        surf0 = front_wall.projectPoint(intersect) - slot.LengthTolerance.Value * slot_dir
-        surf1 = back_wall.projectPoint(intersect) - slot.LengthTolerance.Value * slot_dir
-        tolerance_v = slot.WidthTolerance.Value * (surf1 - surf0).normalize()
-        surf0 -= tolerance_v
-        surf1 += tolerance_v
-
-        surface_line = Part.makeLine(surf0, surf1)
-        full_bound_box = obj.OutlineSketch.Shape.BoundBox.united(surface_line.BoundBox)
-        # side_length inspired by `ProfileBased::getThroughAllLength` in the PartDesign source
-        side_length = full_bound_box.DiagonalLength * 1.01
-        top0 = surf0 + side_length * slot_dir
-        top1 = surf1 + side_length * slot_dir
-
-        # Create the slot wire
-        return Part.Wire(Part.makePolygon([surf0, surf1, top1, top0, surf0]))
 
     def xyBoundBox(self, obj: App.DocumentObject) -> (App.Units.Quantity, App.Units.Quantity):
         if not obj.OutlineSketch or obj.CutoutFace.isNull():

@@ -174,12 +174,12 @@ def _find_anchor_corner(outline_wires):
                 best_score = score
                 # Shorter leg = X, longer = Y per Shaper spec
                 short_dir = d1 if e1.Length <= e2.Length else d2
-                long_dir  = d2 if e1.Length <= e2.Length else d1
+                long_dir = d2 if e1.Length <= e2.Length else d1
                 size_short = 15.0
-                size_long  = 30.0
+                size_long = 30.0
                 p0 = shared_pt
                 p1 = shared_pt + short_dir * size_short
-                p2 = shared_pt + long_dir  * size_long
+                p2 = shared_pt + long_dir * size_long
                 best = (p0, p1, p2)
 
     if best is None:
@@ -367,6 +367,16 @@ def _collect_dado_groups(
                                                 member.EndDistance.Value, member.MaxHolesPerLine)
                     for center in cylinders:
                         drill_holes.append((center, member.HoleDiameter.Value))
+
+    for slot in cutout.Slots:
+        slot_data = slot.Proxy.slot_data_for(slot, cutout)
+        if slot_data is None:
+            continue
+        for face in slot_data.dado_faces(cutout.CutoutFace):
+            if slot_data.front_dado_depth > ZERO_DEPTH_TOLERANCE:
+                insert_or_fuse(cutout.FrontFace, slot_data.front_dado_depth, face)
+            if slot_data.back_dado_depth > ZERO_DEPTH_TOLERANCE:
+                insert_or_fuse(cutout.BackFace, slot_data.back_dado_depth, face)
 
     # Then for each fused face, clean it up and turn it into a dado wire
     dados = []
