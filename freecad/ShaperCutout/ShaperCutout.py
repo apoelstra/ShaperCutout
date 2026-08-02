@@ -81,15 +81,13 @@ class ShaperCutout:
             return
 
         # Compute data
-        plane_origin = obj.CenterPlane.Placement.Base
+        plane_origin = obj.CenterPlane.getGlobalPlacement().Base
         thickness = obj.Thickness.Value
         normal = global_normal(obj.CenterPlane)
-        half = thickness / 2.0
-        extrude_vec = (half * 2) * normal
+        extrude_vec = thickness * normal
 
-        sketch_origin = obj.OutlineSketch.Shape.CenterOfGravity
+        sketch_origin = obj.OutlineSketch.getGlobalPlacement().Base
         dist = (plane_origin - sketch_origin).dot(normal)
-        offset_vec = (-half + dist) * normal
 
         # Create shape
         sketch_normal = global_normal(obj.OutlineSketch)
@@ -110,8 +108,9 @@ class ShaperCutout:
         # through the wires and fusing them. We may want to provide an option,
         # eventually.
         face = Part.makeFace(wires)
+        face.translate(dist * normal)
         cutout_face = face.copy()
-        face.translate(offset_vec)
+        face.translate(-extrude_vec / 2.0)
         shape = face.extrude(extrude_vec)
 
         # Add/subtract miters
