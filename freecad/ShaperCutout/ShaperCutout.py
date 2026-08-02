@@ -271,12 +271,12 @@ class ShaperCutout:
             return None
 
         # Determine which cutout is this one, get face planes and normal of other.
-        if slot.Cutout1Front == obj.FrontFace and slot.Cutout1Back == obj.BackFace:
-            front_face = slot.Cutout2Front
-            back_face = slot.Cutout2Back
-        elif slot.Cutout2Front == obj.FrontFace and slot.Cutout2Back == obj.BackFace:
-            front_face = slot.Cutout1Front
-            back_face = slot.Cutout1Back
+        if slot.Cutout1_Front == obj.FrontFace and slot.Cutout1_Back == obj.BackFace:
+            front_face = slot.Cutout2_Front
+            back_face = slot.Cutout2_Back
+        elif slot.Cutout2_Front == obj.FrontFace and slot.Cutout2_Back == obj.BackFace:
+            front_face = slot.Cutout1_Front
+            back_face = slot.Cutout1_Back
         else:
             return None
 
