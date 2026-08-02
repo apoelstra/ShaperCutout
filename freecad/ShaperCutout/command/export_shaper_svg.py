@@ -316,23 +316,28 @@ def _build_svg(path_elements, bb):
 # Export orchestration
 # ---------------------------------------------------------------------------
 
-def _collect_dado_groups(cutout, exportFront):
+def _collect_dado_groups(
+    cutout: App.DocumentObject,
+    exportFront: bool,
+) -> ([(float, [Part.Wire])], [(Part.Point, float)]):
     """Return (dados, drill_holes).
     dados      -- list of (depth_mm, [wires])
     drill_holes -- list of (center_3d, radius)
     """
     from ShaperDados import autodrill_holes
 
-    dados_objs = sorted(cutout.Dados, key=lambda x: x.Depth.Value)
-    pipes = []
-    dados = []
-    drill_holes = []
+    depth_faces = {}
 
-    for i in range(len(dados_objs)):
-        member = dados_objs[i]
-        face = member.Face
+    def insert_or_fuse(cutout_face, depth_mm, new_object):
+        if (cutout_face, depth_mm) in depth_faces:
+            new_object = depth_faces[(cutout_face, depth_mm)].fuse(new_object)
+        depth_faces[(cutout_face, depth_mm)] = new_object
+
+    drill_holes = []
+    # For each depth, fuse together all the faces of the dado cutouts.
+    for member in cutout.Dados:
+        cutout_face = member.Face
         depth_mm = member.Depth.Value
-        wires = []
         for sketch in (member.Sketches or []):
             if sketch is None:
                 continue
@@ -345,14 +350,15 @@ def _collect_dado_groups(cutout, exportFront):
             for w in source.Shape.Wires:
                 if w.isClosed():
                     if depth_mm > ZERO_DEPTH_TOLERANCE:
-                        wires.append(w)
+                        insert_or_fuse(cutout_face, depth_mm, Part.Face(w))
                 else:
                     tol = member.Tolerance.Value
                     width = member.Width.Value / 2.0
                     if depth_mm > ZERO_DEPTH_TOLERANCE:
-                        pipes.extend(_wire_to_pipes(w, normal, tol, width))
+                        for pipe in _wire_to_pipes(w, normal, tol, width):
+                            insert_or_fuse(cutout_face, depth_mm, pipe)
 
-                    # Collect autodrill holes
+                    # While we're here, also collect autodrill holes
                     hole_radius = member.HoleDiameter.Value / 2.0
                     if member.MaxHolesPerLine == 0 or hole_radius == 0.0:
                         continue
@@ -362,28 +368,24 @@ def _collect_dado_groups(cutout, exportFront):
                     for center in cylinders:
                         drill_holes.append((center, member.HoleDiameter.Value))
 
-        if i == len(dados_objs) - 1 or dados_objs[i].Depth.Value != dados_objs[i + 1].Depth.Value:
-            if len(pipes) > 0:
-                fuse = pipes[0]
-                for pipe in pipes[1:]:
-                    fuse = fuse.fuse(pipe)
-
-                fuse = cleanFaces(fuse)
-                wires.extend(fuse.Wires)
-            pipes = []
-
-        if face is cutout.FrontFace:
-            if len(wires) > 0 and exportFront:
-                dados.append((depth_mm, wires))
-        elif face is cutout.BackFace:
-            if len(wires) > 0 and not exportFront:
-                dados.append((depth_mm, wires))
+    # Then for each fused face, clean it up and turn it into a dado wire
+    dados = []
+    for cutout_face, depth_mm in depth_faces:
+        if cutout_face == cutout.FrontFace:
+            if exportFront:
+                fused = cleanFaces(depth_faces[(cutout_face, depth_mm)])
+                dados.append((depth_mm, fused.Wires))
+        elif cutout_face == cutout.BackFace:
+            if not exportFront:
+                fused = cleanFaces(depth_faces[(cutout_face, depth_mm)])
+                dados.append((depth_mm, fused.Wires))
         else:
             App.Console.PrintWarning(
-                f"export_shaper_svg: ShaperDados '{member.Label}' face is neither "
+                f"export_shaper_svg: ShaperDados face '{cutout_face.Label}' is neither "
                 f"FrontFace nor BackFace of '{cutout.Label}'; skipping\n")
             continue
 
+    # Then sort by depth and return
     return sorted(dados, key=lambda d: d[0]), drill_holes
 
 
