@@ -10,9 +10,13 @@ from shaper_cutout_util import make_expr_template, parent_cutout
 
 class SlotModel(ReportTableModel):
     def __init__(self, slots=None):
+        def parent_label(slot):
+            parent = parent_cutout(slot, 'Slots')
+            return parent.Label if parent else '<no parent>'
+
         super().__init__([
             ("Name", lambda slot: slot.Label),
-            ("Cutout", lambda slot: parent_cutout(slot, 'Slots').Label),
+            ("Cutout", parent_label),
             ("Length Tolerance", lambda slot: slot.LengthTolerance),
             ("Width Tolerance", lambda slot: slot.WidthTolerance),
         ])

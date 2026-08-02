@@ -11,7 +11,7 @@ class ReportTableModel(QtCore.QAbstractTableModel):
         self,
         data_columns: [(
             str,
-            Callable[[App.DocumentObject], str | App.Units.Quantity],
+            Callable[[App.DocumentObject], str | int | App.Units.Quantity],
         )] = []
     ):
         super().__init__()
@@ -42,7 +42,7 @@ class ReportTableModel(QtCore.QAbstractTableModel):
             else:
                 _, computefn = self._data_columns[col - 1]
                 data = computefn(obj)
-                if isinstance(data, str):
+                if isinstance(data, str) or isinstance(data, int):
                     return data
                 else:
                     schema = App.Units.getSchema()
@@ -51,7 +51,11 @@ class ReportTableModel(QtCore.QAbstractTableModel):
             if col == 0:
                 return self._check_states.get(obj, QtCore.Qt.Unchecked)
         elif role == QtCore.Qt.TextAlignmentRole:
-            return QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
+            if col > 0:
+                _, computefn = self._data_columns[col - 1]
+                if isinstance(computefn(obj), str):
+                    return QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
+            return QtCore.Qt.AlignCenter | QtCore.Qt.AlignVCenter
 
         return None
 
@@ -92,6 +96,8 @@ class ReportTableModel(QtCore.QAbstractTableModel):
                 data = computefn(obj)
                 if isinstance(data, str):
                     return data.lower()
+                elif isinstance(data, int):
+                    return data
                 else:
                     return data.Value
             return ""

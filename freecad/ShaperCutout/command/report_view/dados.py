@@ -10,9 +10,13 @@ from shaper_cutout_util import make_expr_template, parent_cutout
 
 class DadosModel(ReportTableModel):
     def __init__(self, dados=None):
+        def parent_label(dados):
+            parent = parent_cutout(dados, 'Dados')
+            return parent.Label if parent else '<no parent>'
+
         super().__init__([
             ("Name", lambda dado: dado.Label),
-            ("Cutout", lambda dado: parent_cutout(dado, 'Dados').Label),
+            ("Cutout", parent_label),
             ("Width", lambda dado: dado.Width),
             ("Depth", lambda dado: dado.Depth),
             ("Tolerance", lambda dado: dado.Tolerance),
