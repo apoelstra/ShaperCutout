@@ -21,6 +21,8 @@ class SlotData:
         slot_direction: App.Vector,
         width_tolerance: App.Units.Quantity,
         length_tolerance: App.Units.Quantity,
+        max_cut_length: App.Units.Quantity,
+        max_dado_length: App.Units.Quantity,
         sketch_bound_box: App.BoundBox,
         front_dado_depth: App.Units.Quantity,
         back_dado_depth: App.Units.Quantity,
@@ -33,6 +35,8 @@ class SlotData:
         self.slot_direction = slot_direction
         self.width_tolerance = width_tolerance.Value
         self.length_tolerance = length_tolerance.Value
+        self.max_cut_length = max_cut_length.Value
+        self.max_dado_length = max_dado_length.Value
         self.sketch_bound_box = sketch_bound_box
         self.front_dado_depth = front_dado_depth.Value
         self.back_dado_depth = back_dado_depth.Value
@@ -49,6 +53,8 @@ class SlotData:
         full_bound_box = self.sketch_bound_box.united(surface_line.BoundBox)
         # side_length inspired by `ProfileBased::getThroughAllLength` in the PartDesign source
         side_length = full_bound_box.DiagonalLength * 1.01
+        if self.max_cut_length > 0.0 and self.max_cut_length < side_length:
+            side_length = self.max_cut_length
         top0 = surf0 + side_length * self.slot_direction
         top1 = surf1 + side_length * self.slot_direction
 
@@ -72,6 +78,8 @@ class SlotData:
         full_bound_box = self.sketch_bound_box.united(surface_line.BoundBox)
         # side_length inspired by `ProfileBased::getThroughAllLength` in the PartDesign source
         side_length = full_bound_box.DiagonalLength * 1.01
+        if self.max_dado_length > 0.0 and self.max_dado_length < side_length:
+            side_length = self.max_dado_length
         top0 = surf0 - side_length * self.slot_direction
         top1 = surf1 - side_length * self.slot_direction
         wire = Part.Wire(Part.makePolygon([surf0, surf1, top1, top0, surf0]))
@@ -133,6 +141,7 @@ class ShaperSlot:
         obj.addProperty('App::PropertyLink', 'Cutout2_Back', 'Cutout2',
                         'Back face plane of second ShaperCutout')
         self.addDadoProperties(obj)
+        self.addLengthLimitProperties(obj)
 
         obj.Type = 'ShaperSlot'
         obj.Invert = False
@@ -147,6 +156,20 @@ class ShaperSlot:
 
     def loads(self, state):
         return None
+
+    def addLengthLimitProperties(self, obj):
+        if not hasattr(obj, 'Cutout1_MaximumCutLength'):
+            obj.addProperty('App::PropertyLength', 'Cutout1_MaximumCutLength', 'Cutout1',
+                            "Maximum length of cut through cutout 1 (0 to go through whole object)")
+        if not hasattr(obj, 'Cutout1_MaximumDadoLength'):
+            obj.addProperty('App::PropertyLength', 'Cutout1_MaximumDadoLength', 'Cutout1',
+                            "Maximum length of dado through cutout 1 (0 to go through whole object)")
+        if not hasattr(obj, 'Cutout2_MaximumCutLength'):
+            obj.addProperty('App::PropertyLength', 'Cutout2_MaximumCutLength', 'Cutout2',
+                            "Maximum length of cut through cutout 2 (0 to go through whole object)")
+        if not hasattr(obj, 'Cutout2_MaximumDadoLength'):
+            obj.addProperty('App::PropertyLength', 'Cutout2_MaximumDadoLength', 'Cutout2',
+                            "Maximum length of dado through cutout 2 (0 to go through whole object)")
 
     def addDadoProperties(self, obj):
         if not hasattr(obj, 'Cutout1_FrontDadoDepth'):
@@ -164,6 +187,7 @@ class ShaperSlot:
 
     def onDocumentRestored(self, obj):
         self.addDadoProperties(obj)
+        self.addLengthLimitProperties(obj)
 
         if hasattr(obj, 'Cutout1Front') and not hasattr(obj, 'Cutout1_Front'):
             obj.addProperty('App::PropertyLink', 'Cutout1_Front', 'Cutout1',
@@ -216,6 +240,8 @@ class ShaperSlot:
             back_dado_depth = slot.Cutout1_BackDadoDepth
             other_front_dado_depth = slot.Cutout2_FrontDadoDepth
             other_back_dado_depth = slot.Cutout2_BackDadoDepth
+            max_cut_length = slot.Cutout1_MaximumCutLength
+            max_dado_length = slot.Cutout1_MaximumDadoLength
         elif slot.Cutout2_Front == cutout.FrontFace and slot.Cutout2_Back == cutout.BackFace:
             slot_index = 2
             front_face = slot.Cutout1_Front
@@ -224,6 +250,8 @@ class ShaperSlot:
             back_dado_depth = slot.Cutout2_BackDadoDepth
             other_front_dado_depth = slot.Cutout1_FrontDadoDepth
             other_back_dado_depth = slot.Cutout1_BackDadoDepth
+            max_cut_length = slot.Cutout2_MaximumCutLength
+            max_dado_length = slot.Cutout2_MaximumDadoLength
         else:
             return None
 
@@ -294,7 +322,8 @@ class ShaperSlot:
 
         return SlotData(
             slot_index, edge_p0, edge_p1, slot_dir,
-            slot.WidthTolerance, slot.LengthTolerance, sketch_bound_box,
+            slot.WidthTolerance, slot.LengthTolerance, max_cut_length, max_dado_length,
+            sketch_bound_box,
             front_dado_depth, back_dado_depth, other_front_dado_depth, other_back_dado_depth,
         )
 
