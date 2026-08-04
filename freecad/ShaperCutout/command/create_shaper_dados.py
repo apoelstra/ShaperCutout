@@ -6,7 +6,8 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtCore, QtWidgets
 
-from shaper_cutout_util import _ICON_ROOT, make_expr_template, is_single_selected
+from .task_panel import ShaperTaskPanel
+from shaper_cutout_util import _ICON_ROOT, is_single_selected
 
 
 def _is_sketch(obj):
@@ -31,47 +32,46 @@ def open_dados_task_panel(cutout, dados=None, initial_sketches=[]):
     Gui.Control.showDialog(panel)
 
 
-class ShaperDadosTaskPanel:
+class ShaperDadosTaskPanel(ShaperTaskPanel):
     def __init__(self, cutout, dados=None, initial_sketches=[]):
-        from ShaperDados import create_uninitialized
-
+        self._initialized = False
         self._cutout = cutout
-        self._doc = cutout.Document
-
-        self.form = QtWidgets.QWidget()
-        self.form.setWindowTitle("Edit Dados" if dados is not None else "Create Dados")
-        layout = QtWidgets.QFormLayout(self.form)
-
-        # Label
-        self.label_edit = QtWidgets.QLineEdit()
-        layout.addRow("Label:", self.label_edit)
+        super().__init__("Dado Set", dados)
 
         # Plywood plane (face selector)
-        pp = cutout
         self.face_combo = QtWidgets.QComboBox()
-        front = pp.FrontFace
-        back = pp.BackFace
+        front = cutout.FrontFace
+        back = cutout.BackFace
         if front:
             self.face_combo.addItem(front.Label + " (Front)", (front, True))
         if back:
             self.face_combo.addItem(back.Label + " (Back)", (back, False))
-        layout.addRow("Face:", self.face_combo)
+        self._main_layout.addRow("Face:", self.face_combo)
+
+        # Set face combo from existing dados
+        if self._edit_mode:
+            for i in range(self.face_combo.count()):
+                (f, inv) = self.face_combo.itemData(i)
+                if f is self._object.Face and inv == self._object.Invert:
+                    self.face_combo.setCurrentIndex(i)
+                    break
+        else:
+            face_data = self.face_combo.currentData()
+            (face, invert) = face_data if face_data else (None, False)
 
         # Depth / Width / Tolerance
-        depth_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
-        depth_widget.setProperty('unit', 'mm')
-        layout.addRow("Depth:", depth_widget)
-        self._depth_widget = depth_widget
-
-        width_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
-        width_widget.setProperty('unit', 'mm')
-        layout.addRow("Width:", width_widget)
-        self._width_widget = width_widget
-
-        tolerance_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
-        tolerance_widget.setProperty('unit', 'mm')
-        layout.addRow("Tolerance:", tolerance_widget)
-        self._tolerance_widget = tolerance_widget
+        self._main_layout.addRow(
+            "Depth:",
+            self._quantity_widget('Depth', minimum=0),
+        )
+        self._main_layout.addRow(
+            "Width:",
+            self._quantity_widget('Width', minimum=1e-7),
+        )
+        self._main_layout.addRow(
+            "Tolerance:",
+            self._quantity_widget('Tolerance', minimum=0),
+        )
 
         # Sketch list with Add/Remove
         self.sketch_list = QtWidgets.QListWidget()
@@ -84,52 +84,31 @@ class ShaperDadosTaskPanel:
         sketch_buttons.addWidget(self.add_btn)
         sketch_buttons.addWidget(self.remove_btn)
 
-        layout.addRow("Sketches:", self.sketch_list)
-        layout.addRow("", sketch_buttons)
-
-        # Open transaction, setup expression template and populate dialog
-        self._doc.openTransaction("Edit Dados" if dados is not None else "Create Dados")
-        self._dados = dados
-        if self._dados is None:
-            face_data = self.face_combo.currentData()
-            (face, invert) = face_data if face_data else (None, False)
-            self._dados = create_uninitialized(cutout, "Dados")
-
-        self._template = make_expr_template({
-            'Depth': 'App::PropertyLength',
-            'Width': 'App::PropertyLength',
-            'Tolerance': 'App::PropertyLength',
-        })
-        self._template.set_from_object(self._dados, 'Depth', 1.0)
-        self._template.set_from_object(self._dados, 'Width', 8.0)
-        self._template.set_from_object(self._dados, 'Tolerance', 0.0)
-        self._template.bind(depth_widget, 'Depth')
-        self._template.bind(width_widget, 'Width')
-        self._template.bind(tolerance_widget, 'Tolerance')
-        self.label_edit.setText(self._dados.Label)
-
-        # Set face combo from existing dados
-        if dados is not None:
-            for i in range(self.face_combo.count()):
-                (f, inv) = self.face_combo.itemData(i)
-                if f is self._dados.Face and inv == self._dados.Invert:
-                    self.face_combo.setCurrentIndex(i)
-                    break
+        self._main_layout.addRow("Sketches:", self.sketch_list)
+        self._main_layout.addRow("", sketch_buttons)
 
         # Populate sketch list
-        for sk in (self._dados.Sketches or []):
+        for sk in (self._object.Sketches or []):
             self.sketch_list.addItem(self._make_item(sk))
         for sk in initial_sketches:
             self.sketch_list.addItem(self._make_item(sk))
 
         # Connect signals AFTER populating
-        self.label_edit.textChanged.connect(self._on_changed)
+        self.label_edit.textChanged.connect(self._on_label_changed)
         self.face_combo.currentIndexChanged.connect(self._on_changed)
-        self._depth_widget.valueChanged.connect(self._on_changed)
-        self._width_widget.valueChanged.connect(self._on_changed)
-        self._tolerance_widget.valueChanged.connect(self._on_changed)
         self.add_btn.clicked.connect(self._on_add)
         self.remove_btn.clicked.connect(self._on_remove)
+
+        self._initialized = True
+
+    def create_uninitialized_object(self) -> App.DocumentObject:
+        from ShaperDados import create_uninitialized
+        return create_uninitialized(self._cutout, "Dados")
+
+    def recompute_objects(self, updated_prop_name: str):
+        if self._initialized:
+            self._object.recompute()
+            self._cutout.recompute()
 
     def _make_item(self, sketch):
         item = QtWidgets.QListWidgetItem(sketch.Label)
@@ -161,39 +140,21 @@ class ShaperDadosTaskPanel:
         self._on_changed()
 
     def _on_changed(self):
-        self._dados.Label = self.label_edit.text().strip() or "Dados"
         face_data = self.face_combo.currentData()
         if face_data:
             (face, invert) = face_data
-            self._dados.Face = face
-            self._dados.Invert = invert
-        self._dados.Sketches = self._current_sketches()
-        self._template.update_object(self._dados, 'Depth')
-        self._template.update_object(self._dados, 'Width')
-        self._template.update_object(self._dados, 'Tolerance')
-
-        self._dados.recompute()
-        self._cutout.recompute()
+            self._object.Face = face
+            self._object.Invert = invert
+        self._object.Sketches = self._current_sketches()
+        self.recompute_objects(None)
 
     def accept(self):
-        if self._template.widget_value('Depth') == 0:
-            QtWidgets.QMessageBox.warning(
-                self.form, "Invalid Depth", "Depth must not be zero.")
-            return
         if not self._current_sketches():
             QtWidgets.QMessageBox.warning(
                 self.form, "No Sketches", "Please add at least one sketch.")
             return
-        self._on_changed()
 
-        self._dados.Sketches = self._current_sketches()
-        self._template.destroyTemplate()
-        self._doc.commitTransaction()
-        Gui.Control.closeDialog()
-
-    def reject(self):
-        self._doc.abortTransaction()
-        Gui.Control.closeDialog()
+        super().accept()
 
 
 class CreateShaperDadosCmd:
