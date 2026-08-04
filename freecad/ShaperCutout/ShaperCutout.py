@@ -6,7 +6,7 @@ import Part
 from PySide import QtGui, QtWidgets, QtCore
 
 from command import open_cutout_task_panel
-from shaper_cutout_util import _ICON_ROOT, cleanFaces, global_normal, is_sketch, \
+from shaper_cutout_util import _ICON_ROOT, cleanFaces, copy_property, global_normal, is_sketch, \
     objects_are_parallel
 
 
@@ -71,6 +71,26 @@ class ShaperCutout:
         if prop in ('CenterPlane', 'Thickness'):
             self.ensure_front_face(obj)
             self.ensure_back_face(obj)
+
+        # When thickness changes, propagate to all cutouts sharing the same center plane.
+        if prop == 'Thickness':
+            self._propagate_thickness(obj)
+
+    def _propagate_thickness(self, obj):
+        """Propagate thickness changes to all cutouts sharing the same center plane."""
+        center_plane = obj.CenterPlane
+        if center_plane is None:
+            return
+
+        for parent in center_plane.InList:
+            if getattr(parent, 'Type', '') != 'ShaperCutout':
+                continue
+            if parent.CenterPlane != center_plane:
+                continue
+            # guard against circular updates
+            if parent.Thickness.Value == obj.Thickness.Value:
+                continue
+            copy_property(obj, parent, 'Thickness')
 
     def execute(self, obj):
         if not obj.CenterPlane or not obj.Thickness:
@@ -262,7 +282,6 @@ class ShaperCutout:
         """Recreate front face if missing or link broken."""
         if obj.FrontFace is None:
             obj.FrontFace = obj.Document.addObject('Part::DatumPlane', 'Front')
-            print(f"ensure_front_face: create {obj.FrontFace.Name}")
 
         half = obj.Thickness.Value / 2.0
         obj.FrontFace.AttachmentSupport = [(obj.CenterPlane)]
