@@ -6,7 +6,7 @@ import FreeCAD as App
 import Part
 from PySide import QtGui
 
-from command.create_shaper_dados import open_dados_task_panel
+from shaper_cutout_command.create_shaper_dados import open_dados_task_panel
 from shaper_cutout_util import _ICON_ROOT, global_normal, is_sketch, objects_are_parallel, \
     parent_cutout
 

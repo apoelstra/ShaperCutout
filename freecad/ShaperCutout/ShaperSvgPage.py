@@ -81,7 +81,7 @@ class ShaperSvgPage:
             obj.removeProperty('Svg')
 
     def _recompute_svg(self, obj):
-        from command.export_shaper_svg import _collect_paths, _collect_dado_groups
+        from shaper_cutout_command.export_shaper_svg import _collect_paths, _collect_dado_groups
 
         if not hasattr(obj, 'zzSvg') or not hasattr(obj, 'Width') or not hasattr(obj, 'Height'):
             return
@@ -269,7 +269,7 @@ class ViewProviderShaperSvgPage:
         pass
 
     def setupContextMenu(self, vobj, menu):
-        from command.export_shaper_svg_page import export
+        from shaper_cutout_command.export_shaper_svg_page import export
         action = menu.addAction("Export SVG Page")
         action.triggered.connect(lambda: export(vobj.Object))
 

@@ -219,7 +219,7 @@ class ViewProviderShaperMiter:
         pass
 
     def doubleClicked(self, vobj):
-        from command.create_shaper_miter import open_miter_task_panel
+        from shaper_cutout_command.create_shaper_miter import open_miter_task_panel
         miter = vobj.Object
         cutout = next(
             (p for p in miter.InList if getattr(p, 'Type', None) == 'ShaperCutout'),

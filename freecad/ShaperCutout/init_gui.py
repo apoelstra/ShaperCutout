@@ -45,7 +45,8 @@ class ShaperCutoutWorkbench(Gui.Workbench):
         import ShaperSvgImage  # noqa: F401
 
         # Import all commands.
-        from command import CreateShaperCutoutCmd, CreateShaperDadosCmd, CreateShaperMiterCmd, \
+        from shaper_cutout_command import CreateShaperCutoutCmd, CreateShaperDadosCmd, \
+            CreateShaperMiterCmd, \
             ExportShaperSVGCmd, CreateShaperSvgPageCmd, ExportShaperSvgPageCmd, \
             CreateShaperSlotCmd, ReportViewCmd
 

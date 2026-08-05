@@ -4,7 +4,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtCore, QtGui, QtWidgets
 
-from command.report_view.model import ReportTableModel, ReportTableWidget
+from .model import ReportTableModel, ReportTableWidget
 from shaper_cutout_util import make_expr_template, parent_cutout
 
 

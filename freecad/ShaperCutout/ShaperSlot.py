@@ -343,12 +343,12 @@ class ViewProviderShaperSlot:
         return []
 
     def doubleClicked(self, vobj):
-        from command.create_shaper_slot import open_slot_task_panel
+        from shaper_cutout_command.create_shaper_slot import open_slot_task_panel
         open_slot_task_panel(vobj.Object)
         return True
 
     def setupContextMenu(self, vobj, menu):
-        from command.create_shaper_slot import open_slot_task_panel
+        from shaper_cutout_command.create_shaper_slot import open_slot_task_panel
         edit_action = QtGui.QAction("Edit Slot", menu)
         edit_action.triggered.connect(lambda: open_slot_task_panel(vobj.Object))
         menu.addAction(edit_action)

@@ -7,11 +7,11 @@ import os
 import FreeCAD as App
 import FreeCADGui as Gui
 
-from command.report_view.report import ReportViewReport
-from command.report_view.cutouts import ReportViewCutouts
-from command.report_view.dados import ReportViewDados
-from command.report_view.miters import ReportViewMiter
-from command.report_view.slots import ReportViewSlots
+from .report import ReportViewReport
+from .cutouts import ReportViewCutouts
+from .dados import ReportViewDados
+from .miters import ReportViewMiter
+from .slots import ReportViewSlots
 from shaper_cutout_util import _ICON_ROOT
 
 

@@ -5,7 +5,7 @@ import FreeCAD as App
 import Part
 from PySide import QtGui, QtWidgets, QtCore
 
-from command import open_cutout_task_panel
+from shaper_cutout_command import open_cutout_task_panel
 from shaper_cutout_util import _ICON_ROOT, cleanFaces, copy_property, global_normal, is_sketch, \
     objects_are_parallel
 
@@ -440,7 +440,7 @@ class ViewProviderShaperCutout:
                 self.Object.recompute()
                 self.Object.Document.commitTransaction()
             elif choice == 'dado':
-                from command.create_shaper_dados import open_dados_task_panel
+                from shaper_cutout_command.create_shaper_dados import open_dados_task_panel
                 open_dados_task_panel(self.Object, initial_sketches=[child])
             # 'cancel' — do nothing
 
@@ -449,7 +449,7 @@ class ViewProviderShaperCutout:
         return True
 
     def setupContextMenu(self, vobj, menu):
-        from command.export_shaper_svg import export
+        from shaper_cutout_command.export_shaper_svg import export
         edit_action = QtGui.QAction("Edit Shaper Cutout", menu)
         edit_action.triggered.connect(lambda: open_cutout_task_panel(vobj.Object))
         menu.addAction(edit_action)
