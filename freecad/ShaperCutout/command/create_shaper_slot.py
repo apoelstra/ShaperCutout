@@ -5,6 +5,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtWidgets
 
+from .task_panel import ShaperTaskPanel
 from shaper_cutout_util import _ICON_ROOT, global_normal, objects_are_parallel
 import ShaperSlot
 
@@ -63,118 +64,129 @@ def open_slot_task_panel(slot=None):
     Gui.Control.showDialog(panel)
 
 
-class ShaperSlotTaskPanel:
+class ShaperSlotTaskPanel(ShaperTaskPanel):
     def __init__(self, slot=None):
-        self._doc = App.ActiveDocument
-        self._edit_mode = slot is not None
+        super().__init__("Slot", slot)
 
-        # Build UI
-        action = "Edit" if self._edit_mode else "Create"
-        self.form = QtWidgets.QWidget()
-        self.form.setWindowTitle(f"{action} Slot")
-        layout = QtWidgets.QFormLayout(self.form)
-
-        # Label
-        self.label_edit = QtWidgets.QLineEdit()
-        self.label_edit.setEnabled(not self._edit_mode)
-        layout.addRow("Label:", self.label_edit)
+        # Get selection or existing slot data. These variables are alternately set in
+        # create_uninitialized_object.
+        if self._edit_mode:
+            self._cutout1 = self._object.Proxy.find_cutout1(self._object)
+            self._cutout2 = self._object.Proxy.find_cutout2(self._object)
+            self._interface_plane = self._object.InterfacePlane
 
         # Invert checkbox
         self.invert_checkbox = QtWidgets.QCheckBox()
-        layout.addRow("Invert:", self.invert_checkbox)
+        self.invert_checkbox.setChecked(self._object.Invert)
+        self._main_layout.addRow("Invert:", self.invert_checkbox)
 
-        # Get selection or existing slot data
-        if self._edit_mode:
-            self._slot = slot
-            self._cutout1 = slot.Proxy.find_cutout1(slot)
-            self._cutout2 = slot.Proxy.find_cutout2(slot)
-            self._interface_plane = slot.InterfacePlane
-            self.label_edit.setText(slot.Label)
-            self.invert_checkbox.setChecked(slot.Invert)
-        else:
-            selection = _selected_cutouts_and_plane()
-            if selection is None:
-                QtWidgets.QMessageBox.warning(
-                    None, "Invalid Selection",
-                    "Please select exactly two ShaperCutouts and one interface plane.")
-                Gui.Control.closeDialog()
-                return
+        # Global section
+        global_group = QtWidgets.QGroupBox("Global")
+        global_layout = QtWidgets.QFormLayout(global_group)
+        global_layout.addRow(
+            "Length Tolerance:",
+            self._quantity_widget('LengthTolerance', minimum=0),
+        )
+        global_layout.addRow(
+            "Width Tolerance:",
+            self._quantity_widget('WidthTolerance', minimum=0),
+        )
+        self._main_layout.addRow(global_group)
 
-            cutout_a, cutout_b, interface_plane = selection
-
-            # Validate cutouts
-            if not _validate_cutout(cutout_a) or not _validate_cutout(cutout_b):
-                QtWidgets.QMessageBox.warning(
-                    None, "Invalid Cutout",
-                    "Both cutouts must have an outline sketch and front/back faces.")
-                Gui.Control.closeDialog()
-                return
-
-            # Planes must be orthogonal. (Otherwise the slot sides would need to be miters, which
-            # (a) will require some complicated tooling to manufacture, and (b) would require some
-            # complicated geometry for us to represent in 3D and SVG. If there is demand for this
-            # we should add it later and gate it behind an "allow mitered slots" checkbox.
-            #
-            # Note that users can create a slot and then rotate their planes later, so this is
-            # just a sanity check -- will need to check again during execution.
-            norm_a = cutout_a.CenterPlane.Shape.Surface.normal(0, 0)
-            norm_b = cutout_b.CenterPlane.Shape.Surface.normal(0, 0)
-            if 1.0 - norm_a.cross(norm_b).Length > 1e-4:
-                QtWidgets.QMessageBox.warning(
-                    None, "Non-Orthogonal Cutouts",
-                    "Cutout planes are not orthogonal; cannot create slot.")
-                Gui.Control.closeDialog()
-                return
-
-            # If the interface plane is parallel to a cutout, the slot is ill-defined and there's
-            # nothing we can do about it even in principle. (Again, will need to check again during
-            # execution.)
-            if objects_are_parallel(cutout_a.CenterPlane, interface_plane) or \
-               objects_are_parallel(cutout_b.CenterPlane, interface_plane):
-                QtWidgets.QMessageBox.warning(
-                    None, "Parallel Plane",
-                    "Interface plane is parallel to a cutout center plane; cannot create slot.")
-                Gui.Control.closeDialog()
-                return
-
-            # Determine "first" cutout
-            self._cutout1 = _determine_first_cutout(cutout_a, cutout_b, interface_plane)
-            self._cutout2 = cutout_b if self._cutout1 == cutout_a else cutout_a
-            self._interface_plane = interface_plane
-
-            self._doc.openTransaction("Create Slot")
-            self._slot = ShaperSlot.create_uninitialized(
-                self._cutout1, self._cutout2, self._interface_plane, "Slot"
+        # Cutout sections
+        for group_name, prop_prefix in [("Cutout 1", "Cutout1_"), ("Cutout 2", "Cutout2_")]:
+            cutout_group = QtWidgets.QGroupBox(group_name)
+            cutout_layout = QtWidgets.QFormLayout(cutout_group)
+            cutout_layout.addRow(
+                "Front Dado Depth:",
+                self._quantity_widget(f'{prop_prefix}FrontDadoDepth', 0),
             )
-            self.label_edit.setText(self._slot.Label)
+            cutout_layout.addRow(
+                "Back Dado Depth:",
+                self._quantity_widget(f'{prop_prefix}BackDadoDepth', 0),
+            )
+            cutout_layout.addRow(
+                "Max Dado Length:",
+                self._quantity_widget(f'{prop_prefix}MaximumDadoLength', 1e-7),
+            )
+            cutout_layout.addRow(
+                "Max Cut Length:",
+                self._quantity_widget(f'{prop_prefix}MaximumCutLength', 1e-7),
+            )
+            self._main_layout.addRow(cutout_group)
 
         # Connect signals
-        self.label_edit.textChanged.connect(self._on_changed)
-        self.invert_checkbox.toggled.connect(self._on_changed)
+        self.label_edit.textChanged.connect(self._on_label_changed)
+        self.invert_checkbox.toggled.connect(self._on_invert_changed)
+        self._initialized = True
 
-        self._on_changed()
-
-    def _on_changed(self):
-        if self._slot is None:
+    def create_uninitialized_object(self) -> App.DocumentObject:
+        selection = _selected_cutouts_and_plane()
+        if selection is None:
+            QtWidgets.QMessageBox.warning(
+                None, "Invalid Selection",
+                "Please select exactly two ShaperCutouts and one interface plane.")
+            Gui.Control.closeDialog()
             return
 
-        if not self._edit_mode:
-            label = self.label_edit.text().strip()
-            self._slot.Label = label
+        cutout_a, cutout_b, interface_plane = selection
+
+        # Validate cutouts
+        if not _validate_cutout(cutout_a) or not _validate_cutout(cutout_b):
+            QtWidgets.QMessageBox.warning(
+                None, "Invalid Cutout",
+                "Both cutouts must have an outline sketch and front/back faces.")
+            Gui.Control.closeDialog()
+            return
+
+        # Planes must be orthogonal. (Otherwise the slot sides would need to be miters, which
+        # (a) will require some complicated tooling to manufacture, and (b) would require some
+        # complicated geometry for us to represent in 3D and SVG. If there is demand for this
+        # we should add it later and gate it behind an "allow mitered slots" checkbox.
+        #
+        # Note that users can create a slot and then rotate their planes later, so this is
+        # just a sanity check -- will need to check again during execution.
+        norm_a = cutout_a.CenterPlane.Shape.Surface.normal(0, 0)
+        norm_b = cutout_b.CenterPlane.Shape.Surface.normal(0, 0)
+        if 1.0 - norm_a.cross(norm_b).Length > 1e-4:
+            QtWidgets.QMessageBox.warning(
+                None, "Non-Orthogonal Cutouts",
+                "Cutout planes are not orthogonal; cannot create slot.")
+            Gui.Control.closeDialog()
+            return
+
+        # If the interface plane is parallel to a cutout, the slot is ill-defined and there's
+        # nothing we can do about it even in principle. (Again, will need to check again during
+        # execution.)
+        if objects_are_parallel(cutout_a.CenterPlane, interface_plane) or \
+           objects_are_parallel(cutout_b.CenterPlane, interface_plane):
+            QtWidgets.QMessageBox.warning(
+                None, "Parallel Plane",
+                "Interface plane is parallel to a cutout center plane; cannot create slot.")
+            Gui.Control.closeDialog()
+            return
+
+        # Determine "first" cutout
+        self._cutout1 = _determine_first_cutout(cutout_a, cutout_b, interface_plane)
+        self._cutout2 = cutout_b if self._cutout1 == cutout_a else cutout_a
+        self._interface_plane = interface_plane
+
+        return ShaperSlot.create_uninitialized(
+            self._cutout1, self._cutout2, self._interface_plane, "Slot"
+        )
+
+    def recompute_objects(self, updated_prop_name: str):
+        if self._initialized:
+            self._object.recompute()
+            self._cutout1.recompute()
+            self._cutout2.recompute()
+
+    def _on_invert_changed(self):
+        if self._object is None:
+            return
 
         self._slot.Invert = self.invert_checkbox.isChecked()
-        self._slot.recompute()
-        self._cutout1.recompute()
-        self._cutout2.recompute()
-
-    def accept(self):
-        self._on_changed()
-        self._doc.commitTransaction()
-        Gui.Control.closeDialog()
-
-    def reject(self):
-        self._doc.abortTransaction()
-        Gui.Control.closeDialog()
+        self.recompute_objects()
 
 
 class CreateShaperSlotCmd:
