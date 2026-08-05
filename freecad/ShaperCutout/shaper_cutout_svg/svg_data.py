@@ -157,12 +157,7 @@ class SvgData:
         # OpenSCAD workbench that maybe I could call. Anyway, for future work.
         self.bounding_box = outline_shape.BoundBox
 
-        for w in outer_wires:
-            d = wire_to_d(w)
-            if d:
-                self._svg_paths.append(
-                    f'  <path d="{d}" fill="black" stroke="black" stroke-width="1" '
-                    f'shaper:cutType="outside"/>')
+        self._svg_paths.extend(self._outer_wire_paths("black", 1, "black"))
 
         for w in inner_wires:
             d = wire_to_d(w)
@@ -201,6 +196,23 @@ class SvgData:
             d = wire_to_d(anchor_wire)
             if d:
                 self._anchor_path = f'  <path d="{d}" fill="red" stroke="none"/>'
+
+    def _outer_wire_paths(self, fill, stroke_width, color):
+        """Generate SVG path strings for outer wires with given stroke width and color."""
+        paths = []
+        outline_shape = self._cutout.CutoutFace.transformed(self._xy_matrix)
+        outer_wires, _ = classify_wires(outline_shape)
+        for w in outer_wires:
+            d = wire_to_d(w)
+            if d:
+                paths.append(
+                    f'  <path d="{d}" fill="{fill}" stroke="{color}" stroke-width="{stroke_width}" '
+                    f'shaper:cutType="outside"/>')
+        return paths
+
+    def outline_svg_path(self, color):
+        """Return SVG path strings for outer wires with stroke-width=2 and given color."""
+        return self._outer_wire_paths("none", 8, color)
 
     def svg_paths(self, include_anchor=False) -> str:
         paths_str = "\n".join(self._svg_paths)
