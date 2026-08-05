@@ -25,6 +25,7 @@ class _ExprTemplate:
         setattr(self._template, prop, initial_value)
         Gui.ExpressionBinding(widget).bind(self._template, prop)
         widget.setProperty('value', getattr(self._template, prop))
+        widget.destroyed.connect(lambda: self.destroyTemplate())
         QtCore.QObject.connect(
             widget,
             QtCore.SIGNAL("valueChanged(Base::Quantity)"),
@@ -35,7 +36,12 @@ class _ExprTemplate:
         setattr(self._template, prop_name, value)
 
     def destroyTemplate(self):
-        self._template.Document.removeObject(self._template)
+        # Need to wrap this in a try block because it'll get deleted racily from multiple
+        # widget destroyed signals at once.
+        try:
+            self._template.Document.removeObject(self._template)
+        except ReferenceError:
+            pass
 
 
 def make_expr_template(prop_dict):

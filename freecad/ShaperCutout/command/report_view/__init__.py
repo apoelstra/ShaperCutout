@@ -35,17 +35,10 @@ class ReportViewTaskPanel:
         ]
 
     def accept(self):
-        self._cutouts_section.run_cleanup()
-        self._dados_section.run_cleanup()
-        self._slots_section.run_cleanup()
-        self._miter_section.run_cleanup()
         self._doc.commitTransaction()
         Gui.Control.closeDialog()
 
     def reject(self):
-        self._cutouts_section.run_cleanup()
-        self._dados_section.run_cleanup()
-        self._slots_section.run_cleanup()
         self._doc.abortTransaction()
         Gui.Control.closeDialog()
 

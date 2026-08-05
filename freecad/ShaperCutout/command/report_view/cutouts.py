@@ -102,9 +102,6 @@ class ReportViewCutouts(QtGui.QWidget):
         # Connect signals
         self._table.checkedStateChanged.connect(self._on_table_checked_state_changed)
 
-    def run_cleanup(self):
-        self._template.destroyTemplate()
-
     def _on_table_checked_state_changed(self, checked: [App.DocumentObject]):
         has_selection = len(checked) > 0
         self.check_collisions_btn.setEnabled(has_selection)
