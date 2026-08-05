@@ -4,8 +4,9 @@ import os
 
 import FreeCAD as App
 import FreeCADGui as Gui
-from PySide import QtCore, QtWidgets
+from PySide import QtWidgets
 
+from .task_panel import ShaperTaskPanel
 from shaper_cutout_util import _ICON_ROOT, copy_property, is_single_selected, is_sketch, \
         force_combo_to_value, objects_are_parallel
 
@@ -62,27 +63,14 @@ def open_cutout_task_panel(cutout=None):
     Gui.Control.showDialog(panel)
 
 
-class ShaperCutoutTaskPanel:
+class ShaperCutoutTaskPanel(ShaperTaskPanel):
     def __init__(self, cutout=None):
-        from ShaperCutout import create_uninitialized
-
-        self._doc = App.ActiveDocument
-        self._edit_mode = cutout is not None
+        self._initialized = False
+        super().__init__("Cutout", cutout)
 
         # Collect available planes and sketches
         self._all_sketches = [o for o in self._doc.Objects
                               if is_sketch(o) and not _dado_parents(o)]
-
-        # Build UI
-        action = "Edit" if self._edit_mode else "Create"
-        self.form = QtWidgets.QWidget()
-        self.form.setWindowTitle(f"{action} Shaper Cutout")
-        layout = QtWidgets.QFormLayout(self.form)
-
-        # Label
-        self.label_edit = QtWidgets.QLineEdit()
-        self.label_edit.setEnabled(not self._edit_mode)
-        layout.addRow("Label:", self.label_edit)
 
         # Plane combo
         self.plane_combo = QtWidgets.QComboBox()
@@ -124,79 +112,77 @@ class ShaperCutoutTaskPanel:
             else:
                 self.plane_combo.addItem(f"{o.Label}{suffix}", o)
 
-        layout.addRow("Center Plane:", self.plane_combo)
+        force_combo_to_value(self.plane_combo, self._object.CenterPlane)
+        self._main_layout.addRow("Center Plane:", self.plane_combo)
 
         # Thickness
-        thickness_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
-        layout.addRow("Thickness:", thickness_widget)
-        self.thickness_widget = thickness_widget
+        self._main_layout.addRow(
+            "Thickness:",
+            self._quantity_widget('Thickness', minimum=1e-7),
+        )
 
         # Sketch combo
         self.sketch_combo = QtWidgets.QComboBox()
         self.sketch_combo.addItem('(No outline sketch)', None)
 
         # Open transaction and create/reference cutout
-        self._doc.openTransaction(f"{action} Shaper Cutout")
-        current_sel = Gui.Selection.getSelection()[0]
         if self._edit_mode:
-            self._cutout = cutout
-            if cutout.CenterPlane:
-                force_combo_to_value(self.plane_combo, cutout.CenterPlane)
-            if cutout.OutlineSketch:
-                force_combo_to_value(self.sketch_combo, cutout.OutlineSketch)
-        else:
-            self._cutout = create_uninitialized()
-            self._cutout.ViewObject.ShowInTree = False
-            if getattr(current_sel, 'Type', '') == 'ShaperCutout':
-                self._cutout.CenterPlane = current_sel.CenterPlane
-            else:
-                self._cutout.CenterPlane = current_sel
-            force_combo_to_value(self.plane_combo, self._cutout.CenterPlane)
+            if self._object.CenterPlane:
+                force_combo_to_value(self.plane_combo, self._object.CenterPlane)
+            if self._object.OutlineSketch:
+                force_combo_to_value(self.sketch_combo, self._object.OutlineSketch)
 
         for s in self._all_sketches:
             if objects_are_parallel(self.plane_combo.currentData(), s):
                 self.sketch_combo.addItem(s.Label, s)
-
-        # Label
-        layout.addRow("Outline Sketch:", self.sketch_combo)
-        self.label_edit.setText(self._cutout.Label)
-
-        # Bind thickness widget directly to the cutout's thickness property
-        if self._cutout.CenterPlane:
-            for parent in self._cutout.CenterPlane.InList:
-                if getattr(parent, 'Type', '') != 'ShaperCutout' or parent == self._cutout:
-                    continue
-                if parent.CenterPlane == self._cutout.CenterPlane:
-                    copy_property(parent, self._cutout, 'Thickness')
-                    print(f"copied property from {parent.Label}, {self._cutout.Thickness}")
-                    break
-
-        Gui.ExpressionBinding(self.thickness_widget).bind(self._cutout, 'Thickness')
-        self.thickness_widget.setProperty('minimum', 1e-7)  # prevent 0 or negative values
-        self.thickness_widget.setProperty('value', self._cutout.Thickness)
-
-        # Copy thickness from current selection, if we are making a new cutout from an
-        # existing one.
-        if not self._edit_mode and getattr(current_sel, 'Type', '') == 'ShaperCutout':
-            self._cutout.Thickness = current_sel.Thickness
+        self._main_layout.addRow("Outline Sketch:", self.sketch_combo)
 
         # Connect signals AFTER populating
-        self.label_edit.textChanged.connect(self._on_label_changed)
         self.plane_combo.currentIndexChanged.connect(self._on_plane_changed)
         self.sketch_combo.currentIndexChanged.connect(self._on_changed)
-        QtCore.QObject.connect(
-            self.thickness_widget,
-            QtCore.SIGNAL("valueChanged(Base::Quantity)"),
-            self._on_thickness_changed,
-        )
 
         self._own_front = None
         self._own_back = None
         self._on_plane_changed()
         self._on_changed()
+        self._initialized = True
+
+    def create_uninitialized_object(self) -> App.DocumentObject:
+        from ShaperCutout import create_uninitialized
+        current_sel = Gui.Selection.getSelection()[0]
+        _cutout = create_uninitialized()
+        if getattr(current_sel, 'Type', '') == 'ShaperCutout':
+            _cutout.CenterPlane = current_sel.CenterPlane
+        else:
+            _cutout.CenterPlane = current_sel
+
+        # Copy initial thickness from any cutouts that share this center plane.
+        for parent in _cutout.CenterPlane.InList:
+            if getattr(parent, 'Type', '') != 'ShaperCutout' or parent == _cutout:
+                continue
+            if parent.CenterPlane == _cutout.CenterPlane:
+                copy_property(parent, _cutout, 'Thickness')
+                break
+
+        return _cutout
+
+    def recompute_objects(self, updated_prop_name: str):
+        if not self._initialized:
+            return
+
+        # Recompute every cutout that shares this center plane when the thickness changes.
+        if updated_prop_name == 'Thickness':
+            for parent in self._object.CenterPlane.InList:
+                if getattr(parent, 'Type', '') != 'ShaperCutout':
+                    continue
+                if parent.CenterPlane != self._object.CenterPlane:
+                    continue
+                parent.recompute()
+        else:
+            self._object.recompute()
 
     def _on_plane_changed(self):
-        # Doing `self._cutout.CenterPlane = <X>` will trigger `ShaperCutout::onChanged` which will
+        # Doing `self._object.CenterPlane = <X>` will trigger `ShaperCutout::onChanged` which will
         # update an update the computed planes. We don't want this to happen until the end of this
         # function, so we need to be a bit careful.
         #
@@ -208,36 +194,36 @@ class ShaperCutoutTaskPanel:
         # makes sense within the dialog so we can't move this logic into ShaperCutout::onChanged.
         new_plane = self.plane_combo.currentData()
         # Record current planes if they're unique to us
-        if len(_cutout_parents(self._cutout.FrontFace)) == 1:
-            self._own_front = self._cutout.FrontFace
+        if len(_cutout_parents(self._object.FrontFace)) == 1:
+            self._own_front = self._object.FrontFace
             self._own_front.ViewObject.ShowInTree = False
-        if len(_cutout_parents(self._cutout.BackFace)) == 1:
-            self._own_back = self._cutout.BackFace
+        if len(_cutout_parents(self._object.BackFace)) == 1:
+            self._own_back = self._object.BackFace
             self._own_back.ViewObject.ShowInTree = False
 
         # Disable thickness dialog if we are sharing a plane
         sharing_center = False
         parents = _cutout_parents(new_plane)
         for par in parents:
-            if par == self._cutout:
+            if par == self._object or par.CenterPlane != new_plane:
                 continue
-            self._cutout.FrontFace = par.FrontFace
-            self._cutout.BackFace = par.BackFace
+            self._object.FrontFace = par.FrontFace
+            self._object.BackFace = par.BackFace
             sharing_center = True
             break
 
         if not sharing_center:
-            self._cutout.FrontFace = None
-            self._cutout.BackFace = None
+            self._object.FrontFace = None
+            self._object.BackFace = None
             if self._own_front is not None:
-                self._cutout.FrontFace = self._own_front
+                self._object.FrontFace = self._own_front
                 self._own_front.ViewObject.ShowInTree = True
                 self._own_front = None
             if self._own_back is not None:
-                self._cutout.BackFace = self._own_back
+                self._object.BackFace = self._own_back
                 self._own_back.ViewObject.ShowInTree = True
                 self._own_back = None
-        self._cutout.CenterPlane = new_plane
+        self._object.CenterPlane = new_plane
 
         # Update sketch combo
         selected_sketch = self.sketch_combo.currentData()
@@ -251,29 +237,9 @@ class ShaperCutoutTaskPanel:
                     self.sketch_combo.setCurrentIndex(idx)
                 idx += 1
 
-    def _on_label_changed(self):
-        label = self.label_edit.text().strip()
-        self._cutout.Label = label
-
-    def _on_thickness_changed(self, base_quantity_value):
-        self._cutout.Thickness = base_quantity_value
-        # Recompute every cutout that shares this center plane when the thickness changes.
-        for parent in self._cutout.CenterPlane.InList:
-            if getattr(parent, 'Type', '') != 'ShaperCutout':
-                continue
-            if parent.CenterPlane != self._cutout.CenterPlane:
-                continue
-            parent.recompute()
-
     def _on_changed(self):
-        if self._cutout is None:
-            return
-
-        if not self._edit_mode:
-            self._on_label_changed()
-
-        self._cutout.OutlineSketch = self.sketch_combo.currentData()
-        self._cutout.recompute()
+        self._object.OutlineSketch = self.sketch_combo.currentData()
+        self.recompute_objects('OutlineSketch')
 
     def accept(self):
         if self._own_front:
@@ -281,13 +247,7 @@ class ShaperCutoutTaskPanel:
         if self._own_back:
             self._doc.removeObject(self._own_back)
 
-        self._cutout.ViewObject.ShowInTree = True
-        self._doc.commitTransaction()
-        Gui.Control.closeDialog()
-
-    def reject(self):
-        self._doc.abortTransaction()
-        Gui.Control.closeDialog()
+        super().accept()
 
 
 class CreateShaperCutoutCmd:
