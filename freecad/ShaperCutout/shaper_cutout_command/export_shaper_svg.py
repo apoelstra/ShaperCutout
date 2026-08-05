@@ -5,7 +5,6 @@ import os
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
-import TechDraw
 
 from PySide import QtWidgets
 
@@ -31,29 +30,6 @@ def _miter_rectangles(cutout: App.DocumentObject, xy_matrix: App.Matrix) -> [Par
             ret_wires.append(wire.transformed(xy_matrix))
 
     return ret_wires
-
-
-def _apply_miter_to_wires(outer_wires, inner_wires, rect_wires):
-    """Fuse miter union into outer wire faces; cut from inner wire faces.
-    Returns updated (outer_wires, inner_wires)."""
-    new_outer = []
-    for w in outer_wires:
-        # For outer wires we need to invoke the TechDraw.findOuterWire algorithm to find
-        # the actual outline, since e.g. Part.fuse won't combine wires the way we want.
-        edges = w.Edges
-        for rw in rect_wires:
-            edges.extend(rw.Edges)
-        new_outer.append(TechDraw.findOuterWire(edges))
-
-    new_inner = []
-    for w in inner_wires:
-        # For inner wires we can use Part.cut, which *does* seem to do the right thing.
-        face = Part.Face(w)
-        for rw in rect_wires:
-            face = face.cut(Part.Face(rw))
-        new_inner.extend(face.Wires)
-
-    return new_outer, new_inner
 
 
 # ---------------------------------------------------------------------------
