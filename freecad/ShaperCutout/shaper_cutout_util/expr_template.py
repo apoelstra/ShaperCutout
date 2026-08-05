@@ -2,6 +2,9 @@
 
 import FreeCAD as App
 import FreeCADGui as Gui
+from PySide import QtCore
+
+from .misc import copy_property
 
 
 class _ExprTemplate:
@@ -19,57 +22,21 @@ class _ExprTemplate:
     def dumps(self): return None
     def loads(self, state): return None
 
-    def setExpression(self, prop, expr):
-        """Passthrough to the setExpression method on the underlying engine."""
-        self._template.setExpression(prop, expr)
-
-    def clearExpression(self, prop):
-        """Passthrough to the clearExpression method on the underlying engine."""
-        self._template.clearExpression(prop)
-
-    def set_from_object(self, obj, prop, default=None):
-        if obj is None:
-            if default is not None:
-                setattr(self._template, prop, default)
-            return
-
-        value = getattr(obj, prop)
-        widget = self._widgets.get(prop)
-        if widget is not None:
-            widget.lineEdit().setText(f"{value}")
-        setattr(self._template, prop, value)
-        for obj_prop, obj_expr in obj.ExpressionEngine:
-            if obj_prop == prop:
-                self._template.setExpression(prop, obj_expr)
-                if widget is not None:
-                    widget.lineEdit().setText(f"{self._template.evalExpression(obj_expr)}")
-                return
-        self._template.clearExpression(prop)
-
     def update_object(self, obj, prop):
-        widget = self._widgets.get(prop)
-        if widget is None:
-            setattr(obj, prop, getattr(self._template, prop))
-        else:
-            setattr(obj, prop, widget.text())
-
-        for name, e in self._template.ExpressionEngine:
-            if name == prop:
-                setattr(obj, prop, obj.evalExpression(e))
-                obj.setExpression(prop, e)
-                return
-        obj.clearExpression(prop)
+        copy_property(self._template, obj, prop)
 
     def bind(self, widget, prop):
         self._widgets[prop] = widget
         Gui.ExpressionBinding(widget).bind(self._template, prop)
+        widget.setProperty('value', getattr(self._template, prop))
+        QtCore.QObject.connect(
+            widget,
+            QtCore.SIGNAL("valueChanged(Base::Quantity)"),
+            lambda value, p=prop: self._on_quantity_changed(p, value),
+        )
 
-        for name, e in self._template.ExpressionEngine:
-            if name == prop:
-                evaluated = self._template.evalExpression(e)
-                widget.lineEdit().setText(f'{evaluated}')
-                return
-        widget.lineEdit().setText(f'{getattr(self._template, prop)}')
+    def _on_quantity_changed(self, prop_name, value):
+        setattr(self._template, prop_name, value)
 
     def widget_value(self, prop: str) -> App.Units.Quantity:
         for name, e in self._template.ExpressionEngine:
@@ -89,8 +56,3 @@ class _ExprTemplate:
 def make_expr_template(prop_dict):
     obj = App.ActiveDocument.addObject('App::FeaturePython', '_ExprTemplate')
     return _ExprTemplate(obj, prop_dict)
-
-
-def template_expr(template):
-    """Return expr_string or None from a template object."""
-    return None
