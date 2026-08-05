@@ -42,12 +42,13 @@ class ReportViewMiter(QtGui.QWidget):
 
         # Update data row
         self.angle_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
-        self.angle_widget.setProperty('unit', 'deg')
+        self.angle_widget.setProperty('minimum', -89.9)
+        self.angle_widget.setProperty('maximum', 89.9)
         self.angle_widget.setEnabled(False)
         self._template = make_expr_template({
             'Angle': 'App::PropertyAngle',
         })
-        self._template.bind(self.angle_widget, 'Angle')
+        self._template.bind(self.angle_widget, 'Angle', 0.0)
 
         # Angle row
         self.angle_apply_btn = QtWidgets.QPushButton("Update Angle")
@@ -74,7 +75,6 @@ class ReportViewMiter(QtGui.QWidget):
 
         # Connect signals
         self._table.checkedStateChanged.connect(self._on_table_checked_state_changed)
-        self.angle_widget.valueChanged.connect(self._on_value_changed)
 
     def run_cleanup(self):
         self._template.destroyTemplate()
@@ -82,18 +82,7 @@ class ReportViewMiter(QtGui.QWidget):
     def _on_table_checked_state_changed(self, checked: [App.DocumentObject]):
         has_selection = len(checked) > 0
         self.angle_widget.setEnabled(has_selection)
-        if has_selection:
-            self._on_value_changed()
-
-    def _on_value_changed(self):
-        angle_qty = self._template.widget_value('Angle')
-
-        if angle_qty.Value < -90.0:
-            self.angle_widget.lineEdit().setText("-90.0")
-        if angle_qty.Value > 90.0:
-            self.angle_widget.lineEdit().setText("90.0")
-
-        self.angle_apply_btn.setEnabled(-90.0 <= angle_qty.Value <= 90.0)
+        self.angle_apply_btn.setEnabled(has_selection)
 
     def _on_apply_angle(self):
         selected = self._table.get_checked_objects()
@@ -101,6 +90,7 @@ class ReportViewMiter(QtGui.QWidget):
         for miter in selected:
             self._template.update_object(miter, 'Angle')
             miter.recompute()
+            miter.Proxy.parent_cutout(miter).recompute()
         self._table.refresh_display()
         self._report_section.replace_text(f"Updated angle on {n} selected miters."
                                           "\n(Clicking 'Cancel' will undo this.)")

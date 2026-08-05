@@ -6,7 +6,7 @@ import os
 import FreeCAD as App
 import Part
 
-from shaper_cutout_util import _ICON_ROOT
+from shaper_cutout_util import _ICON_ROOT, parent_cutout
 
 
 def create(cutout, edges, angle, miter_axis, name="ShaperMiter"):
@@ -202,11 +202,13 @@ class ShaperMiter:
                         f"ShaperMiter: could not get edge '{subname}': {e}\n")
                     continue
 
-                shape = _miter_edge(shape, edge, miter.Angle, miter.MiterAxis, center_plane, thickness)
+                shape = _miter_edge(shape, edge, miter.Angle, miter.MiterAxis, center_plane,
+                                    thickness)
 
         return shape
 
-
+    def parent_cutout(self, obj):
+        return parent_cutout(obj, 'Miters')
 
 
 class ViewProviderShaperMiter:

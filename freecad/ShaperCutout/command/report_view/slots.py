@@ -42,17 +42,17 @@ class ReportViewSlots(QtGui.QWidget):
 
         # Update data row
         self.length_tolerance_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
-        self.length_tolerance_widget.setProperty('unit', 'mm')
+        self.length_tolerance_widget.setProperty('minimum', 0)
         self.length_tolerance_widget.setEnabled(False)
         self.width_tolerance_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
-        self.width_tolerance_widget.setProperty('unit', 'mm')
+        self.width_tolerance_widget.setProperty('minimum', 0)
         self.width_tolerance_widget.setEnabled(False)
         self._template = make_expr_template({
             'LengthTolerance': 'App::PropertyLength',
             'WidthTolerance': 'App::PropertyLength',
         })
-        self._template.bind(self.length_tolerance_widget, 'LengthTolerance')
-        self._template.bind(self.width_tolerance_widget, 'WidthTolerance')
+        self._template.bind(self.length_tolerance_widget, 'LengthTolerance', 0)
+        self._template.bind(self.width_tolerance_widget, 'WidthTolerance', 0)
 
         # Length Tolerance row
         self.length_tolerance_apply_btn = QtWidgets.QPushButton("Update Length Tolerance")
@@ -88,8 +88,6 @@ class ReportViewSlots(QtGui.QWidget):
 
         # Connect signals
         self._table.checkedStateChanged.connect(self._on_table_checked_state_changed)
-        self.length_tolerance_widget.valueChanged.connect(self._on_value_changed)
-        self.width_tolerance_widget.valueChanged.connect(self._on_value_changed)
 
     def run_cleanup(self):
         self._template.destroyTemplate()
@@ -98,35 +96,27 @@ class ReportViewSlots(QtGui.QWidget):
         has_selection = len(checked) > 0
         self.length_tolerance_widget.setEnabled(has_selection)
         self.width_tolerance_widget.setEnabled(has_selection)
-        if has_selection:
-            self._on_value_changed()
-
-    def _on_value_changed(self):
-        length_tolerance_qty = self._template.widget_value('LengthTolerance')
-        width_tolerance_qty = self._template.widget_value('WidthTolerance')
-
-        if length_tolerance_qty.Value < 0.0:
-            self.length_tolerance_widget.lineEdit().setText("0.0")
-        if width_tolerance_qty.Value < 0.0:
-            self.width_tolerance_widget.lineEdit().setText("0.0")
-
-        self.length_tolerance_apply_btn.setEnabled(length_tolerance_qty.Value >= 0.0)
-        self.width_tolerance_apply_btn.setEnabled(width_tolerance_qty.Value >= 0.0)
+        self.length_tolerance_apply_btn.setEnabled(has_selection)
+        self.width_tolerance_apply_btn.setEnabled(has_selection)
 
     def _on_apply_length_tolerance(self):
-        selected = self._get_selected_slots()
+        selected = self._table.get_checked_objects()
         n = len(selected)
         for slot in selected:
             self._template.update_object(slot, 'LengthTolerance')
             slot.recompute()
+            slot.Proxy.find_cutout1(slot).recompute()
+            slot.Proxy.find_cutout2(slot).recompute()
         self._report_section.replace_text(f"Updated length tolerance on {n} selected slots."
                                           "\n(Clicking 'Cancel' will undo this.)")
 
     def _on_apply_width_tolerance(self):
-        selected = self._get_selected_slots()
+        selected = self._table.get_checked_objects()
         n = len(selected)
         for slot in selected:
             self._template.update_object(slot, 'WidthTolerance')
             slot.recompute()
+            slot.Proxy.find_cutout1(slot).recompute()
+            slot.Proxy.find_cutout2(slot).recompute()
         self._report_section.replace_text(f"Updated width tolerance on {n} selected slots."
                                           "\n(Clicking 'Cancel' will undo this.)")

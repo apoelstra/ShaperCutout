@@ -385,6 +385,9 @@ class ShaperDados:
 
         return obj.DadoPlane
 
+    def parent_cutout(self, obj):
+        return parent_cutout(obj, 'Dados')
+
 
 class ViewProviderShaperDados:
     def __init__(self, vobj):

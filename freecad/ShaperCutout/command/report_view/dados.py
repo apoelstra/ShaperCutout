@@ -43,22 +43,22 @@ class ReportViewDados(QtGui.QWidget):
 
         # Update data row
         self.width_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
-        self.width_widget.setProperty('unit', 'mm')
+        self.width_widget.setProperty('minimum', 1e-7)
         self.width_widget.setEnabled(False)
         self.depth_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
-        self.depth_widget.setProperty('unit', 'mm')
+        self.depth_widget.setProperty('minimum', 0)
         self.depth_widget.setEnabled(False)
         self.tolerance_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
-        self.tolerance_widget.setProperty('unit', 'mm')
+        self.tolerance_widget.setProperty('minimum', 0)
         self.tolerance_widget.setEnabled(False)
         self._template = make_expr_template({
             'Width': 'App::PropertyLength',
             'Depth': 'App::PropertyLength',
             'Tolerance': 'App::PropertyLength',
         })
-        self._template.bind(self.width_widget, 'Width')
-        self._template.bind(self.depth_widget, 'Depth')
-        self._template.bind(self.tolerance_widget, 'Tolerance')
+        self._template.bind(self.width_widget, 'Width', 25.4)  # arbitrory nonzero value
+        self._template.bind(self.depth_widget, 'Depth', 0)
+        self._template.bind(self.tolerance_widget, 'Tolerance', 0)
 
         # Width row
         self.width_apply_btn = QtWidgets.QPushButton("Update Width")
@@ -103,9 +103,6 @@ class ReportViewDados(QtGui.QWidget):
 
         # Connect signals
         self._table.checkedStateChanged.connect(self._on_table_checked_state_changed)
-        self.width_widget.valueChanged.connect(self._on_value_changed)
-        self.depth_widget.valueChanged.connect(self._on_value_changed)
-        self.tolerance_widget.valueChanged.connect(self._on_value_changed)
 
     def run_cleanup(self):
         self._template.destroyTemplate()
@@ -115,24 +112,9 @@ class ReportViewDados(QtGui.QWidget):
         self.width_widget.setEnabled(has_selection)
         self.depth_widget.setEnabled(has_selection)
         self.tolerance_widget.setEnabled(has_selection)
-        if has_selection:
-            self._on_value_changed()
-
-    def _on_value_changed(self):
-        width_qty = self._template.widget_value('Width')
-        depth_qty = self._template.widget_value('Depth')
-        tolerance_qty = self._template.widget_value('Tolerance')
-
-        if width_qty.Value < 0.0:
-            self.width_widget.lineEdit().setText("0.0")
-        if depth_qty.Value < 0.0:
-            self.depth_widget.lineEdit().setText("0.0")
-        if tolerance_qty.Value < 0.0:
-            self.tolerance_widget.lineEdit().setText("0.0")
-
-        self.width_apply_btn.setEnabled(width_qty.Value > 0.0)
-        self.depth_apply_btn.setEnabled(depth_qty.Value > 0.0)
-        self.tolerance_apply_btn.setEnabled(True)
+        self.width_apply_btn.setEnabled(has_selection)
+        self.depth_apply_btn.setEnabled(has_selection)
+        self.tolerance_apply_btn.setEnabled(has_selection)
 
     def _on_apply_width(self):
         selected = self._table.get_checked_objects()
@@ -140,6 +122,7 @@ class ReportViewDados(QtGui.QWidget):
         for dados in selected:
             self._template.update_object(dados, 'Width')
             dados.recompute()
+            dados.Proxy.parent_cutout(dados).recompute()
         self._table.refresh_display()
         self._report_section.replace_text(f"Updated width on {n} selected dados."
                                           "\n(Clicking 'Cancel' will undo this.)")
@@ -150,6 +133,7 @@ class ReportViewDados(QtGui.QWidget):
         for dados in selected:
             self._template.update_object(dados, 'Depth')
             dados.recompute()
+            dados.Proxy.parent_cutout(dados).recompute()
         self._table.refresh_display()
         self._report_section.replace_text(f"Updated depth on {n} selected dados."
                                           "\n(Clicking 'Cancel' will undo this.)")

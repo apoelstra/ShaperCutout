@@ -72,10 +72,10 @@ class ReportViewCutouts(QtGui.QWidget):
 
         # Thickness row
         self.thickness_widget = Gui.UiLoader().createWidget('Gui::QuantitySpinBox')
-        self.thickness_widget.setProperty('unit', 'mm')
-        self.thickness_widget.setEnabled(False)
+        self.thickness_widget.setProperty('minimum', 1e-7)
         self._template = make_expr_template({'Thickness': 'App::PropertyLength'})
-        self._template.bind(self.thickness_widget, 'Thickness')
+        self._template.bind(self.thickness_widget, 'Thickness', 25.4)  # arbitrary nonzero value
+        self.thickness_widget.setEnabled(False)
 
         self.apply_btn = QtWidgets.QPushButton("Update Thickness")
         self.apply_btn.clicked.connect(self._on_apply_thickness)
@@ -101,7 +101,6 @@ class ReportViewCutouts(QtGui.QWidget):
 
         # Connect signals
         self._table.checkedStateChanged.connect(self._on_table_checked_state_changed)
-        self.thickness_widget.valueChanged.connect(self._on_thickness_changed)
 
     def run_cleanup(self):
         self._template.destroyTemplate()
@@ -111,8 +110,7 @@ class ReportViewCutouts(QtGui.QWidget):
         self.check_collisions_btn.setEnabled(has_selection)
         self.recompute_btn.setEnabled(has_selection)
         self.thickness_widget.setEnabled(has_selection)
-        if has_selection:
-            self._on_thickness_changed()
+        self.apply_btn.setEnabled(has_selection)
 
     def _on_check_collisions(self):
         checked = self._table.get_checked_objects()
@@ -148,12 +146,6 @@ class ReportViewCutouts(QtGui.QWidget):
             self._report_section.replace_text("\n".join(report_lines))
         else:
             self._report_section.replace_text(f"No collisions found among {n} checked cutouts.")
-
-    def _on_thickness_changed(self):
-        current_qty = self._template.widget_value('Thickness')
-        if current_qty.Value < 0.0:
-            self.thickness_widget.lineEdit().setText("0.0")
-        self.apply_btn.setEnabled(current_qty.Value > 0.0)
 
     def _on_recompute(self):
         checked = self._table.get_checked_objects()
