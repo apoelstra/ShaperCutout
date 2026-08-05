@@ -18,27 +18,20 @@ from ShaperDados import ZERO_DEPTH_TOLERANCE, _wire_to_pipes
 # Wire classification (outer vs hole)
 # ---------------------------------------------------------------------------
 
-def _classify_wires(wires):
+def _classify_wires(cutout_face: App.DocumentObject) -> ([Part.Wire], [Part.Wire]):
     """Return (outer_wires, inner_wires).
     We use a basic heuristic where a wire is 'inner' (i.e. a hole) if its first
     vertex lies inside another wire's face. In cases where this fails we don't
     have a well-defined inside/outside distinction anyway."""
-    if len(wires) <= 1:
-        return wires, []
-
-    faces = []
-    for w in wires:
-        try:
-            faces.append(Part.Face(w))
-        except Exception:
-            faces.append(None)
+    if len(cutout_face.Wires) <= 1:
+        return cutout_face.Wires, []
 
     outer = []
     inner = []
-    for i, w in enumerate(wires):
+    for i, w in enumerate(cutout_face.Wires):
         test_pt = w.Vertexes[0].Point
         is_inner = False
-        for j, f in enumerate(faces):
+        for j, f in enumerate(cutout_face.Faces):
             if i == j or f is None:
                 continue
             if f.isInside(test_pt, 1e-3, True):
@@ -269,9 +262,7 @@ def _collect_paths(cutout, dado_groups, drill_holes, mirror=False, addAnchor=Tru
         xy_matrix.A33 *= -1
 
     outline_shape = cutout.CutoutFace.transformed(xy_matrix)
-    outline_wires = outline_shape.Wires
-
-    outer_wires, inner_wires = _classify_wires(outline_wires)
+    outer_wires, inner_wires = _classify_wires(outline_shape)
     path_elements = []
 
     for w in outer_wires:
