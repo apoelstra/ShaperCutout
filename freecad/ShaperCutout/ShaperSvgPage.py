@@ -107,7 +107,7 @@ class ShaperSvgPage:
                 continue
 
             svg_data = SvgData(cutout, not child.Flip, child.Invert)
-            svg_path = svg_data.svg_paths(include_anchor=False)
+            svg_path = svg_data.svg_paths(include_anchor=child.IncludeAnchor)
             bb = svg_data.bounding_box
 
             cx = bb.XMin + bb.XLength / 2

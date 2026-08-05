@@ -204,7 +204,6 @@ class SvgData:
 
     def svg_paths(self, include_anchor=False) -> str:
         paths_str = "\n".join(self._svg_paths)
-        print(include_anchor)
         if include_anchor and self._anchor_path:
             paths_str += "\n" + self._anchor_path
         return paths_str

@@ -32,6 +32,8 @@ class ShaperSvgImage:
                         'False = front face, True = back face.')
         obj.addProperty('App::PropertyBool', 'Invert', 'Base',
                         'Mirror the image over its Y axis.')
+        obj.addProperty('App::PropertyBool', 'IncludeAnchor', 'Base',
+                        'Include the anchor point in the SVG rendering.')
         obj.addProperty('App::PropertyAngle', 'Rotation', 'Base',
                         'Rotation about the image bounding box center (degrees).')
         obj.addProperty('App::PropertyDistance', 'OffsetX', 'Base',
@@ -42,6 +44,7 @@ class ShaperSvgImage:
         obj.Type = 'ShaperSvgImage'
         obj.Flip = False
         obj.Invert = False
+        obj.IncludeAnchor = False
         obj.Rotation = 0.0
         obj.OffsetX = 0.0
         obj.OffsetY = 0.0
@@ -52,9 +55,23 @@ class ShaperSvgImage:
     def onChanged(self, obj, prop):
         if prop == 'Type':
             return
+        if prop == 'IncludeAnchor' and obj.IncludeAnchor:
+            # Find parent ShaperSvgPage(s) and disable anchor on other images
+            for parent in obj.InList:
+                if getattr(parent, 'Type', None) == 'ShaperSvgPage':
+                    for child in parent.Group:
+                        if (getattr(child, 'Type', None) == 'ShaperSvgImage'
+                                and child != obj):
+                            child.IncludeAnchor = False
         for parent in obj.InList:
             if getattr(parent, 'Type', None) == 'ShaperSvgPage':
                 parent.touch()
+
+    def onDocumentRestored(self, obj):
+        if not hasattr(obj, 'IncludeAnchor'):
+            obj.addProperty('App::PropertyBool', 'IncludeAnchor', 'Base',
+                            'Include the anchor point in the SVG rendering.')
+            obj.IncludeAnchor = False
 
     def dumps(self):
         return None
