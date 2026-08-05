@@ -73,6 +73,30 @@ class ShaperDadosTaskPanel(ShaperTaskPanel):
             self._quantity_widget('Tolerance', minimum=0),
         )
 
+        # Autodrill section
+        autodrill_group = QtWidgets.QGroupBox("Autodrill")
+        autodrill_layout = QtWidgets.QFormLayout(autodrill_group)
+        # Max Holes Per Line - integer spinbox
+        self.max_holes_spin = QtWidgets.QSpinBox()
+        self.max_holes_spin.setMinimum(0)
+        self.max_holes_spin.setValue(self._object.MaxHolesPerLine)
+        self.max_holes_spin.valueChanged.connect(self._on_max_holes_changed)
+        autodrill_layout.addRow("Max Holes Per Line:", self.max_holes_spin)
+
+        autodrill_layout.addRow(
+            "Hole Diameter:",
+            self._quantity_widget('HoleDiameter', minimum=1e-7),
+        )
+        autodrill_layout.addRow(
+            "Min Hole Distance:",
+            self._quantity_widget('MinHoleDistance', minimum=1e-7),
+        )
+        autodrill_layout.addRow(
+            "End Distance:",
+            self._quantity_widget('EndDistance', minimum=0),
+        )
+        self._main_layout.addRow(autodrill_group)
+
         # Sketch list with Add/Remove
         self.sketch_list = QtWidgets.QListWidget()
         self.sketch_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
@@ -109,6 +133,12 @@ class ShaperDadosTaskPanel(ShaperTaskPanel):
         if self._initialized:
             self._object.recompute()
             self._cutout.recompute()
+
+    def _on_max_holes_changed(self):
+        if self._object is None:
+            return
+        self._object.MaxHolesPerLine = self.max_holes_spin.value()
+        self.recompute_objects('MaxHolesPerLine')
 
     def _make_item(self, sketch):
         item = QtWidgets.QListWidgetItem(sketch.Label)
