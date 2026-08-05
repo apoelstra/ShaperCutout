@@ -81,10 +81,10 @@ class ShaperSvgPage:
             obj.removeProperty('Svg')
 
     def _recompute_svg(self, obj):
-        from shaper_cutout_command.export_shaper_svg import _collect_paths, _collect_dado_groups
-
         if not hasattr(obj, 'zzSvg') or not hasattr(obj, 'Width') or not hasattr(obj, 'Height'):
             return
+
+        from shaper_cutout_svg import SvgData
 
         page_w = obj.Width.Value
         page_h = obj.Height.Value
@@ -106,25 +106,18 @@ class ShaperSvgPage:
             if cutout is None:
                 continue
 
-            # See comment in export_shaper_svg.py; because SVG interprets Y in the opposite
-            # direction as FreeCAD, need to interpret Flip in the opposite way that you'd
-            # expect, for mirroring purposes.
-            mirror = (not child.Flip) ^ child.Invert
-            dados, drill_holes = _collect_dado_groups(cutout, not child.Flip)
-            path_elements, bb = _collect_paths(cutout, dados, drill_holes,
-                                               mirror=mirror, addAnchor=False)
+            svg_data = SvgData(cutout, not child.Flip, child.Invert)
+            svg_path = svg_data.svg_paths(include_anchor=False)
+            bb = svg_data.bounding_box
+
             cx = bb.XMin + bb.XLength / 2
             cy = bb.YMin + bb.YLength / 2
             rot = child.Rotation.Value + 180
             tx = child.OffsetX.Value - bb.XMin
             ty = -child.OffsetY.Value - bb.YMin - bb.YLength + obj.Height.Value
-            svg += f'  <g transform="translate({tx:.4f},{ty:.4f}) ' \
-                   f'rotate({rot:.4f},{cx:.4f},{cy:.4f})">\n'
-            for path in path_elements:
-                svg += f'  {path}\n'
-            svg += '  </g>\n'
+            svg += f'<g transform="translate({tx:.4f},{ty:.4f}) ' \
+                   f'rotate({rot:.4f},{cx:.4f},{cy:.4f})">\n{svg_path}\n</g>\n'
 
-        # Initially we just have a blue "guide" rectangle and nothing else.
         obj.zzSvg = svg + "</svg>\n"
 
 
