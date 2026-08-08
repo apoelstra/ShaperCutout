@@ -75,8 +75,14 @@ class _PageWidget(QtWidgets.QWidget):
         self._page_obj = page_obj
         self._svg = ''
         self.setMinimumSize(200, 100)
+        self.setMouseTracking(True)
+        self._dragging = None
+        self._drag_start = None
+        self._drag_orig_offset = None
 
-    def update_svg(self, obj):
+    def update_svg(self, obj=None):
+        if obj is None:
+            obj = self._page_obj
         page_w = obj.Width.Value
         page_h = obj.Height.Value
 
@@ -97,6 +103,9 @@ class _PageWidget(QtWidgets.QWidget):
         for child in obj.Group:
             if not hasattr(child, 'Svg_BBCenter'):
                 continue
+            if child in selected:
+                # We will draw selected children below, so they're on top
+                continue
 
             cx = child.Svg_BBCenter.x
             cy = child.Svg_BBCenter.y
@@ -109,14 +118,29 @@ class _PageWidget(QtWidgets.QWidget):
                 self._svg += f'{g}{child.Svg_Full}</g>'
             if hasattr(child, 'Svg_Anchor') and child.IncludeAnchor:
                 self._svg += f'{g}{child.Svg_Anchor}</g>'
-            # Render selections on top
-            if child in selected and hasattr(child, 'Svg_Outline'):
+
+        for child in selected:
+            if not hasattr(child, 'Svg_BBCenter'):
+                continue
+
+            cx = child.Svg_BBCenter.x
+            cy = child.Svg_BBCenter.y
+            rot = child.Rotation.Value + 180
+            tx = child.OffsetX.Value - child.Svg_BBCenter.x + child.Svg_BBLength.x / 2
+            ty = page_h - child.Svg_BBCenter.y - child.Svg_BBLength.y / 2 - child.OffsetY.Value
+
+            g = f'<g transform="translate({tx:.4f},{ty:.4f}) rotate({rot:.4f},{cx:.4f},{cy:.4f})">'
+            if hasattr(child, 'Svg_Full'):
+                self._svg += f'{g}{child.Svg_Full}</g>'
+            if hasattr(child, 'Svg_Anchor') and child.IncludeAnchor:
+                self._svg += f'{g}{child.Svg_Anchor}</g>'
+            if hasattr(child, 'Svg_Outline'):
                 self._svg += f'{g}{child.Svg_Outline}</g>'
 
         self._svg += "</svg>"
         self.update()
 
-    def paintEvent(self, event):
+    def _get_page_metrics(self):
         min_pad = 5
         page_w_mm = self._page_obj.Width.Value
         page_h_mm = self._page_obj.Height.Value
@@ -125,7 +149,7 @@ class _PageWidget(QtWidgets.QWidget):
         avail_w = self.width() - 2 * min_pad
         avail_h = self.height() - 2 * min_pad
         if page_w_mm <= 0 or page_h_mm <= 0 or avail_w <= 0 or avail_h <= 0:
-            return
+            return None
 
         grid_w = math.ceil(page_w_mm / grid_mm)
         grid_h = math.ceil(page_h_mm / grid_mm)
@@ -135,6 +159,14 @@ class _PageWidget(QtWidgets.QWidget):
         pad_y = (self.height() - grid_h * grid_px) / 2.0
         avail_w = self.width() - 2 * pad_x
         avail_h = self.height() - 2 * pad_y
+
+        return pad_x, pad_y, grid_px, grid_w, grid_h, avail_w, avail_h
+
+    def paintEvent(self, event):
+        metrics = self._get_page_metrics()
+        if not metrics:
+            return
+        pad_x, pad_y, grid_px, grid_w, grid_h, avail_w, avail_h = metrics
 
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
@@ -172,6 +204,98 @@ class _PageWidget(QtWidgets.QWidget):
 
         painter.end()
 
+    def _hit_test(self, pos):
+        metrics = self._get_page_metrics()
+        if not metrics:
+            return None
+        pad_x, pad_y, grid_px, _, _, _, _ = metrics
+
+        grid_mm = self._page_obj.GridSpacing.Value
+        page_h = self._page_obj.Height.Value
+        pos_x_mm = (pos.x() - pad_x) / grid_px * grid_mm
+        pos_y_mm = (pos.y() - pad_y) / grid_px * grid_mm
+
+        for child in reversed(self._page_obj.Group):
+            if getattr(child, 'Type', '') != 'ShaperSvgImage':
+                continue
+
+            cx = child.OffsetX.Value + child.Svg_BBLength.x / 2
+            cy = page_h - child.Svg_BBLength.y / 2 - child.OffsetY.Value
+            length = child.Svg_BBLength
+
+            xdist = abs(cx - pos_x_mm)
+            ydist = abs(cy - pos_y_mm)
+
+            if xdist < length.x / 2 and ydist < length.y / 2:
+                return child
+
+        return None
+
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton:
+            child = self._hit_test(event.pos())
+            if child:
+                Gui.Selection.clearSelection()
+                Gui.Selection.addSelection(child.Document.Name, child.Name)
+                self._dragging = child
+                self._drag_start = event.pos()
+                self._drag_orig_offset = (child.OffsetX.Value, child.OffsetY.Value)
+                self._page_obj.Proxy._is_dragging = True
+                self._page_obj.Document.openTransaction("Move ShaperSvgImage")
+                self.setCursor(QtCore.Qt.ClosedHandCursor)
+            else:
+                Gui.Selection.clearSelection()
+
+    def mouseMoveEvent(self, event):
+
+        if self._dragging:
+            metrics = self._get_page_metrics()
+            if not metrics:
+                return
+            _, _, grid_px, _, _, _, _ = metrics
+            grid_mm = self._page_obj.GridSpacing.Value
+            page_h = self._page_obj.Height.Value
+            page_w = self._page_obj.Width.Value
+
+            dx_px = event.pos().x() - self._drag_start.x()
+            dy_px = event.pos().y() - self._drag_start.y()
+            dx_mm = dx_px / grid_px * grid_mm
+            dy_mm = -dy_px / grid_px * grid_mm
+
+            self._dragging.OffsetX = min(
+                self._drag_orig_offset[0] + dx_mm,
+                page_w - self._dragging.Svg_BBLength.x,
+            )
+            self._dragging.OffsetY = min(
+                self._drag_orig_offset[1] + dy_mm,
+                page_h - self._dragging.Svg_BBLength.y,
+            )
+
+            self.update_svg()
+        else:
+            child = self._hit_test(event.pos())
+            if child:
+                self.setCursor(QtCore.Qt.OpenHandCursor)
+            else:
+                self.unsetCursor()
+
+    def mouseReleaseEvent(self, event):
+        if self._dragging:
+            dx_px = event.pos().x() - self._drag_start.x()
+            dy_px = event.pos().y() - self._drag_start.y()
+
+            self._dragging = None
+            self._drag_start = None
+            self._drag_orig_offset = None
+            self._page_obj.Proxy._is_dragging = False
+
+            self.update_svg()
+            if dx_px == 0 and dy_px == 0:
+                self._page_obj.Document.abortTransaction()
+            else:
+                self._page_obj.Document.commitTransaction()
+            self.setCursor(QtCore.Qt.OpenHandCursor)
+
 
 # This ViewProvider, which creates a new MDI window similar to what TechView and Spreadsheet
 # do, is due to Claude. It's a bit hacky -- we call Gui.getMainWindow().centralWidget() to
@@ -195,6 +319,15 @@ class ViewProviderShaperSvgPage:
         # Observe selection changes to track which images are selected
         Gui.Selection.addObserver(self)
 
+    def slotUndoDocument(self, doc):
+        # Updating the SVG is quite cheap (the actual SVG paths are computed elsewhere;
+        # this function just puts them in <g> blocks to translate and rotate them) so
+        # just redo it on every single undo/redo action.
+        self._page_widget.update_svg(self._vobj.Object)
+
+    def slotRedoDocument(self, doc):
+        self._page_widget.update_svg(self._vobj.Object)
+
     def slotDeletedDocument(self, doc):
         """Method to allow this ViewProviderShaperSvgPage to act as a document observer"""
         try:
@@ -211,6 +344,10 @@ class ViewProviderShaperSvgPage:
     def removeSelection(self, doc_name, obj_name, sub_name, pnt):
         """Called when selection changes in the document."""
         self.addSelection(doc_name, obj_name, sub_name, pnt)
+
+    def clearSelection(self, doc_name):
+        """Called when selection changes in the document."""
+        self._page_widget.update_svg(self._vobj.Object)
 
     def onDelete(self, vobj, subelements):
         """Clean up selection observer when view provider is deleted."""
