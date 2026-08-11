@@ -142,7 +142,7 @@ class SvgData:
     def _collect_paths(self):
         """Populates self._svg_paths, self._anchor_path, self.bounding_box"""
         self._svg_paths = []
-        self._anchor_path = None
+        self.anchor_path = ''
         if self._cutout.CutoutFace.isNull():
             self.bounding_box = App.BoundBox(0)
             return
@@ -195,7 +195,7 @@ class SvgData:
         if anchor_wire:
             d = wire_to_d(anchor_wire)
             if d:
-                self._anchor_path = f'  <path d="{d}" fill="red" stroke="none"/>'
+                self.anchor_path = f'  <path d="{d}" fill="red" stroke="none"/>'
 
     def _outer_wire_paths(self, fill, stroke_width, color):
         """Generate SVG path strings for outer wires with given stroke width and color."""
@@ -216,8 +216,8 @@ class SvgData:
 
     def svg_paths(self, include_anchor=False) -> str:
         paths_str = "\n".join(self._svg_paths)
-        if include_anchor and self._anchor_path:
-            paths_str += "\n" + self._anchor_path
+        if include_anchor and self.anchor_path:
+            paths_str += "\n" + self.anchor_path
         return paths_str
 
     def extract_complete_svg(self, include_anchor=True) -> str:

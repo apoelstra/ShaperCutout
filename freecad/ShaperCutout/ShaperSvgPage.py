@@ -36,34 +36,24 @@ class ShaperSvgPage:
                         'Page height')
         obj.addProperty('App::PropertyLength', 'GridSpacing', 'Base',
                         'Grid spacing for the page view')
-        obj.addProperty('App::PropertyString', 'zzSvg', 'Base',
-                        'SVG code of the whole page')
-
-        obj.setPropertyStatus('zzSvg', 2)
 
         obj.Type = 'ShaperSvgPage'
         obj.Width = '8 ft'
         obj.Height = '4 ft'
         obj.GridSpacing = '1 in'
-        self._recompute_svg(obj)
-
-        self._svg_data = {}
-        self._selection_svg = ""
 
     def onChanged(self, obj, prop):
         if prop == 'Group':
             for child in list(obj.Group):
                 if getattr(child, 'Type', None) != 'ShaperSvgImage':
                     obj.removeObject(child)
-        if prop == 'zzSvg':
-            # Ignore changes to the SVG, which presumably are happening programmatically from
-            # this code.
-            return
 
-        obj.touch()
+        if obj.ViewObject and obj.ViewObject.Proxy:
+            obj.ViewObject.Proxy._page_widget.update_svg(obj)
 
     def execute(self, obj):
-        self._recompute_svg(obj)
+        if obj.ViewObject and obj.ViewObject.Proxy:
+            obj.ViewObject.Proxy._page_widget.update_svg(obj)
         pass
 
     def dumps(self):
@@ -73,26 +63,24 @@ class ShaperSvgPage:
         return None
 
     def onDocumentRestored(self, obj):
-        self._svg_data = {}
-        self._selection_svg = ""
-
-        if not hasattr(obj, 'zzSvg'):
-            obj.addProperty('App::PropertyString', 'zzSvg', 'Base',
-                            'SVG code of the whole page')
+        if hasattr(obj, 'zzSvg'):
+            obj.removeProperty('zzSvg')
         if hasattr(obj, 'Svg'):
-            # OK to clobber existing zzSvg value, if any, since it will
-            # be recomputed. Nothing should simultaneously have a zzSvg
-            # and a Svg property anyway.
-            obj.zzSvg = obj.Svg
             obj.removeProperty('Svg')
 
-    def _recompute_svg(self, obj):
-        from shaper_cutout_svg import SvgData
 
+class _PageWidget(QtWidgets.QWidget):
+    def __init__(self, page_obj, parent=None):
+        super().__init__(parent)
+        self._page_obj = page_obj
+        self._svg = ''
+        self.setMinimumSize(200, 100)
+
+    def update_svg(self, obj):
         page_w = obj.Width.Value
         page_h = obj.Height.Value
 
-        svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+        self._svg = f'''<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
      xmlns:shaper="http://www.shapertools.com/namespaces/shaper"
      viewBox="0 0 {page_w:.4f} {page_h:.4f}"
@@ -103,76 +91,30 @@ class ShaperSvgPage:
         shaper:cutType="guide" />
 '''
 
+        selected = [s for s in Gui.Selection.getSelection()
+                    if getattr(s, 'Type', '') == 'ShaperSvgImage' and s in obj.Group]
         # Render each ShaperSvgImage child
-        self._svg_data = {}
         for child in obj.Group:
-            cutout = child.Cutout
-            if cutout is None:
+            if not hasattr(child, 'Svg_BBCenter'):
                 continue
 
-            svg_data = SvgData(cutout, not child.Flip, child.Invert)
-            self._svg_data[child] = svg_data
-            svg_path = svg_data.svg_paths(include_anchor=child.IncludeAnchor)
-            bb = svg_data.bounding_box
-
-            cx = bb.XMin + bb.XLength / 2
-            cy = bb.YMin + bb.YLength / 2
+            cx = child.Svg_BBCenter.x
+            cy = child.Svg_BBCenter.y
             rot = child.Rotation.Value + 180
-            tx = child.OffsetX.Value - bb.XMin
-            ty = -child.OffsetY.Value - bb.YMin - bb.YLength + obj.Height.Value
-            svg += f'<g transform="translate({tx:.4f},{ty:.4f}) ' \
-                   f'rotate({rot:.4f},{cx:.4f},{cy:.4f})">\n{svg_path}\n</g>\n'
+            tx = child.OffsetX.Value - child.Svg_BBCenter.x + child.Svg_BBLength.x / 2
+            ty = page_h - child.Svg_BBCenter.y - child.Svg_BBLength.y / 2 - child.OffsetY.Value
 
-        obj.zzSvg = svg + "</svg>\n"
+            g = f'<g transform="translate({tx:.4f},{ty:.4f}) rotate({rot:.4f},{cx:.4f},{cy:.4f})">'
+            if hasattr(child, 'Svg_Full'):
+                self._svg += f'{g}{child.Svg_Full}</g>'
+            if hasattr(child, 'Svg_Anchor') and child.IncludeAnchor:
+                self._svg += f'{g}{child.Svg_Anchor}</g>'
+            # Render selections on top
+            if child in selected and hasattr(child, 'Svg_Outline'):
+                self._svg += f'{g}{child.Svg_Outline}</g>'
 
-    def _recompute_selection_svg(self, vp, selected=None):
-        if not vp._subwindow:
-            return
-
-        obj = vp._vobj.Object
-        if selected is None:
-            selected = [obj for obj in Gui.Selection.getSelection()
-                        if getattr(obj, 'Type', '') == 'ShaperSvgImage'
-                        and obj in obj.Group]
-
-        page_w = obj.Width.Value
-        page_h = obj.Height.Value
-        svg = f'''<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg"
-     viewBox="0 0 {page_w:.4f} {page_h:.4f}"
-     width="{page_w:.4f}mm" height="{page_h:.4f}mm">
-'''
-
-        if selected and not self._svg_data:
-            self._recompute_svg(obj)
-
-        # Add highlight for selected images
-        for child in selected:
-            svg_data = self._svg_data.get(child)
-            if svg_data is None:
-                continue
-
-            bb = svg_data.bounding_box
-
-            cx = bb.XMin + bb.XLength / 2
-            cy = bb.YMin + bb.YLength / 2
-            rot = child.Rotation.Value + 180
-            tx = child.OffsetX.Value - bb.XMin
-            ty = -child.OffsetY.Value - bb.YMin - bb.YLength + obj.Height.Value
-            highlight_paths = svg_data.outline_svg_path("#FA0")
-            svg += f'<g transform="translate({tx:.4f},{ty:.4f}) ' \
-                   f'rotate({rot:.4f},{cx:.4f},{cy:.4f})">\n' + \
-                   "\n".join(highlight_paths) + "\n</g>\n"
-
-        self._selection_svg = svg + "</svg>\n"
-        vp._subwindow.widget().update()
-
-
-class _PageWidget(QtWidgets.QWidget):
-    def __init__(self, page_obj, parent=None):
-        super().__init__(parent)
-        self._page_obj = page_obj
-        self.setMinimumSize(200, 100)
+        self._svg += "</svg>"
+        self.update()
 
     def paintEvent(self, event):
         min_pad = 5
@@ -224,15 +166,9 @@ class _PageWidget(QtWidgets.QWidget):
 
         # SVG content
         main_renderer = QtSvg.QSvgRenderer()
-        main_renderer.load(QtCore.QByteArray(self._page_obj.zzSvg.encode('utf-8')))
+        main_renderer.load(QtCore.QByteArray(self._svg.encode('utf-8')))
         if main_renderer.isValid():
             main_renderer.render(painter, QtCore.QRectF(pad_x, pad_y, avail_w, avail_h))
-
-        if self._page_obj.Proxy._selection_svg:
-            sel_renderer = QtSvg.QSvgRenderer()
-            sel_renderer.load(QtCore.QByteArray(self._page_obj.Proxy._selection_svg.encode('utf-8')))
-            if sel_renderer.isValid():
-                sel_renderer.render(painter, QtCore.QRectF(pad_x, pad_y, avail_w, avail_h))
 
         painter.end()
 
@@ -243,10 +179,13 @@ class _PageWidget(QtWidgets.QWidget):
 # undo system, etc.
 class ViewProviderShaperSvgPage:
     def __init__(self, vobj):
+        self._page_widget = None
         vobj.Proxy = self
 
     def attach(self, vobj):
         self._vobj = vobj
+        self._page_widget = _PageWidget(self._vobj.Object)
+        self._subwindow = None
         # Cache document name so we can check it in slotDeletedDocument, even though
         # self._vobj will have been deleted
         self._doc_name = self._vobj.Object.Document.Name
@@ -254,7 +193,6 @@ class ViewProviderShaperSvgPage:
         # so that I don't accidentally observe other events, but meh.
         App.addDocumentObserver(self)
         # Observe selection changes to track which images are selected
-        self._subwindow = None
         Gui.Selection.addObserver(self)
 
     def slotDeletedDocument(self, doc):
@@ -268,10 +206,7 @@ class ViewProviderShaperSvgPage:
 
     def addSelection(self, doc_name, obj_name, sub_name, pnt):
         """Called when selection changes in the document."""
-        selected = [obj for obj in Gui.Selection.getSelection()
-                    if getattr(obj, 'Type', '') == 'ShaperSvgImage'
-                    and obj in self._vobj.Object.Group]
-        self._vobj.Object.Proxy._recompute_selection_svg(self, selected)
+        self._page_widget.update_svg(self._vobj.Object)
 
     def removeSelection(self, doc_name, obj_name, sub_name, pnt):
         """Called when selection changes in the document."""
@@ -310,9 +245,8 @@ class ViewProviderShaperSvgPage:
             return
 
         mdi_area = Gui.getMainWindow().centralWidget()
-        widget = _PageWidget(obj)
         sub = QtWidgets.QMdiSubWindow()
-        sub.setWidget(widget)
+        sub.setWidget(self._page_widget)
         sub.setWindowTitle(obj.Label)
         sub.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         mdi_area.addSubWindow(sub)
@@ -320,7 +254,7 @@ class ViewProviderShaperSvgPage:
         self._subwindow = sub
 
     def updateData(self, fp, prop):
-        if prop in ('Width', 'Height', 'Group', 'GridSpacing', 'zzSvg') and self._subwindow_alive():
+        if prop in ('Width', 'Height', 'Group', 'GridSpacing') and self._subwindow_alive():
             self._subwindow.widget().update()
 
     def getDisplayModes(self, obj):
