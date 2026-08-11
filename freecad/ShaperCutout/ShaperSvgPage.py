@@ -296,6 +296,34 @@ class _PageWidget(QtWidgets.QWidget):
                 self._page_obj.Document.commitTransaction()
             self.setCursor(QtCore.Qt.OpenHandCursor)
 
+    def wheelEvent(self, event):
+        child = self._hit_test(event.position())
+        if not child:
+            event.ignore()
+            return
+
+        selected = [s for s in Gui.Selection.getSelection()
+                    if getattr(s, 'Type', '') == 'ShaperSvgImage' and s in self._page_obj.Group]
+        if child not in selected:
+            event.ignore()
+            return
+
+        delta_y = event.angleDelta().y()
+        if delta_y == 0:
+            event.ignore()
+            return
+
+        delta = -1 if delta_y > 0 else 1
+        step = 0.25
+        current_rot = child.Rotation.Value
+        new_rot = round(current_rot / step + delta) * step
+
+        self._page_obj.Document.openTransaction("Rotate ShaperSvgImage")
+        child.Rotation = new_rot
+        self._page_obj.Document.commitTransaction()
+        self.update_svg()
+        event.accept()
+
 
 # This ViewProvider, which creates a new MDI window similar to what TechView and Spreadsheet
 # do, is due to Claude. It's a bit hacky -- we call Gui.getMainWindow().centralWidget() to
@@ -309,6 +337,7 @@ class ViewProviderShaperSvgPage:
     def attach(self, vobj):
         self._vobj = vobj
         self._page_widget = _PageWidget(self._vobj.Object)
+        self._page_widget.update_svg(self._vobj.Object)
         self._subwindow = None
         # Cache document name so we can check it in slotDeletedDocument, even though
         # self._vobj will have been deleted
