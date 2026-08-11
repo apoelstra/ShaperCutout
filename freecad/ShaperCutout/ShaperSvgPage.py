@@ -262,14 +262,29 @@ class _PageWidget(QtWidgets.QWidget):
             dx_mm = dx_px / grid_px * grid_mm
             dy_mm = -dy_px / grid_px * grid_mm
 
-            self._dragging.OffsetX = min(
-                self._drag_orig_offset[0] + dx_mm,
-                page_w - self._dragging.Svg_BBLength.x,
-            )
-            self._dragging.OffsetY = min(
-                self._drag_orig_offset[1] + dy_mm,
-                page_h - self._dragging.Svg_BBLength.y,
-            )
+            rot_rad = math.radians(self._dragging.Rotation.Value)
+            cos_r = abs(math.cos(rot_rad))
+            sin_r = abs(math.sin(rot_rad))
+            w_rot = self._dragging.Svg_BBLength.x * cos_r + self._dragging.Svg_BBLength.y * sin_r
+            h_rot = self._dragging.Svg_BBLength.x * sin_r + self._dragging.Svg_BBLength.y * cos_r
+
+            min_x = w_rot / 2 - self._dragging.Svg_BBLength.x / 2
+            max_x = page_w - w_rot / 2 - self._dragging.Svg_BBLength.x / 2
+            min_y = h_rot / 2 - self._dragging.Svg_BBLength.y / 2
+            max_y = page_h - h_rot / 2 - self._dragging.Svg_BBLength.y / 2
+
+            new_x = self._drag_orig_offset[0] + dx_mm
+            new_y = self._drag_orig_offset[1] + dy_mm
+
+            if min_x > max_x:
+                self._dragging.OffsetX = (min_x + max_x) / 2
+            else:
+                self._dragging.OffsetX = max(min_x, min(new_x, max_x))
+
+            if min_y > max_y:
+                self._dragging.OffsetY = (min_y + max_y) / 2
+            else:
+                self._dragging.OffsetY = max(min_y, min(new_y, max_y))
 
             self.update_svg()
         else:
