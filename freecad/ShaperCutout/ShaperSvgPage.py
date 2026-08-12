@@ -49,11 +49,11 @@ class ShaperSvgPage:
                     obj.removeObject(child)
 
         if obj.ViewObject and obj.ViewObject.Proxy:
-            obj.ViewObject.Proxy._page_widget.update_svg(obj)
+            obj.ViewObject.Proxy.update_widget_svg()
 
     def execute(self, obj):
         if obj.ViewObject and obj.ViewObject.Proxy:
-            obj.ViewObject.Proxy._page_widget.update_svg(obj)
+            obj.ViewObject.Proxy.update_widget_svg()
         pass
 
     def dumps(self):
@@ -346,13 +346,10 @@ class _PageWidget(QtWidgets.QWidget):
 # undo system, etc.
 class ViewProviderShaperSvgPage:
     def __init__(self, vobj):
-        self._page_widget = None
         vobj.Proxy = self
 
     def attach(self, vobj):
         self._vobj = vobj
-        self._page_widget = _PageWidget(self._vobj.Object)
-        self._page_widget.update_svg(self._vobj.Object)
         self._subwindow = None
         # Cache document name so we can check it in slotDeletedDocument, even though
         # self._vobj will have been deleted
@@ -367,10 +364,10 @@ class ViewProviderShaperSvgPage:
         # Updating the SVG is quite cheap (the actual SVG paths are computed elsewhere;
         # this function just puts them in <g> blocks to translate and rotate them) so
         # just redo it on every single undo/redo action.
-        self._page_widget.update_svg(self._vobj.Object)
+        self.update_widget_svg()
 
     def slotRedoDocument(self, doc):
-        self._page_widget.update_svg(self._vobj.Object)
+        self.update_widget_svg()
 
     def slotDeletedDocument(self, doc):
         """Method to allow this ViewProviderShaperSvgPage to act as a document observer"""
@@ -394,7 +391,7 @@ class ViewProviderShaperSvgPage:
         if not self._subwindow_alive():
             Gui.Selection.removeObserver(self)
         else:
-            self._page_widget.update_svg(self._vobj.Object)
+            self.update_widget_svg()
 
     def getIcon(self):
         return os.path.join(_ICON_ROOT, "svg-page.svg")
@@ -422,12 +419,16 @@ class ViewProviderShaperSvgPage:
 
         mdi_area = Gui.getMainWindow().centralWidget()
         sub = QtWidgets.QMdiSubWindow()
-        sub.setWidget(self._page_widget)
+        sub.setWidget(_PageWidget(self._vobj.Object))
         sub.setWindowTitle(obj.Label)
         sub.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         mdi_area.addSubWindow(sub)
         sub.show()
         self._subwindow = sub
+        self.update_widget_svg()
+
+    def update_widget_svg(self):
+        self._subwindow.widget().update_svg()
 
     def updateData(self, fp, prop):
         if prop in ('Width', 'Height', 'Group', 'GridSpacing') and self._subwindow_alive():
