@@ -383,23 +383,18 @@ class ViewProviderShaperSvgPage:
 
     def addSelection(self, doc_name, obj_name, sub_name, pnt):
         """Called when selection changes in the document."""
-        self._page_widget.update_svg(self._vobj.Object)
+        self.clearSelection(doc_name)
 
     def removeSelection(self, doc_name, obj_name, sub_name, pnt):
         """Called when selection changes in the document."""
-        self.addSelection(doc_name, obj_name, sub_name, pnt)
+        self.clearSelection(doc_name)
 
     def clearSelection(self, doc_name):
         """Called when selection changes in the document."""
-        self._page_widget.update_svg(self._vobj.Object)
-
-    def onDelete(self, vobj, subelements):
-        """Clean up selection observer when view provider is deleted."""
-        try:
-            Gui.Selection.removeSelectionObserver(self)
-        except (RuntimeError, ValueError):
-            pass
-        return True
+        if not self._subwindow_alive():
+            Gui.Selection.removeObserver(self)
+        else:
+            self._page_widget.update_svg(self._vobj.Object)
 
     def getIcon(self):
         return os.path.join(_ICON_ROOT, "svg-page.svg")
