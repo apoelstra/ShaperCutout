@@ -10,8 +10,6 @@ from shaper_cutout_util import _ICON_ROOT
 
 
 def export(obj):
-    obj.Proxy._recompute_svg(obj)
-
     path, _ = QtWidgets.QFileDialog.getSaveFileName(
         None,
         "Export SVG Page",
@@ -22,7 +20,7 @@ def export(obj):
         return
 
     with open(path, 'w', encoding='utf-8') as f:
-        f.write(obj.zzSvg)
+        f.write(obj.Proxy.compute_svg(obj))
 
     App.Console.PrintMessage(f"export_shaper_svg_page: wrote '{path}'\n")
 

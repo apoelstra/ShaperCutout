@@ -68,25 +68,11 @@ class ShaperSvgPage:
         if hasattr(obj, 'Svg'):
             obj.removeProperty('Svg')
 
-
-class _PageWidget(QtWidgets.QWidget):
-    def __init__(self, page_obj, parent=None):
-        super().__init__(parent)
-        self._page_obj = page_obj
-        self._svg = ''
-        self.setMinimumSize(200, 100)
-        self.setMouseTracking(True)
-        self._dragging = None
-        self._drag_start = None
-        self._drag_orig_offset = None
-
-    def update_svg(self, obj=None):
-        if obj is None:
-            obj = self._page_obj
+    def compute_svg(self, obj):
         page_w = obj.Width.Value
         page_h = obj.Height.Value
 
-        self._svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+        svg = f'''<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
      xmlns:shaper="http://www.shapertools.com/namespaces/shaper"
      viewBox="0 0 {page_w:.4f} {page_h:.4f}"
@@ -115,9 +101,9 @@ class _PageWidget(QtWidgets.QWidget):
 
             g = f'<g transform="translate({tx:.4f},{ty:.4f}) rotate({rot:.4f},{cx:.4f},{cy:.4f})">'
             if hasattr(child, 'Svg_Full'):
-                self._svg += f'{g}{child.Svg_Full}</g>'
+                svg += f'{g}{child.Svg_Full}</g>'
             if hasattr(child, 'Svg_Anchor') and child.IncludeAnchor:
-                self._svg += f'{g}{child.Svg_Anchor}</g>'
+                svg += f'{g}{child.Svg_Anchor}</g>'
 
         for child in selected:
             if not hasattr(child, 'Svg_BBCenter'):
@@ -131,13 +117,31 @@ class _PageWidget(QtWidgets.QWidget):
 
             g = f'<g transform="translate({tx:.4f},{ty:.4f}) rotate({rot:.4f},{cx:.4f},{cy:.4f})">'
             if hasattr(child, 'Svg_Full'):
-                self._svg += f'{g}{child.Svg_Full}</g>'
+                svg += f'{g}{child.Svg_Full}</g>'
             if hasattr(child, 'Svg_Anchor') and child.IncludeAnchor:
-                self._svg += f'{g}{child.Svg_Anchor}</g>'
+                svg += f'{g}{child.Svg_Anchor}</g>'
             if hasattr(child, 'Svg_Outline'):
-                self._svg += f'{g}{child.Svg_Outline}</g>'
+                svg += f'{g}{child.Svg_Outline}</g>'
 
-        self._svg += "</svg>"
+        svg += "</svg>"
+        return svg
+
+
+class _PageWidget(QtWidgets.QWidget):
+    def __init__(self, page_obj, parent=None):
+        super().__init__(parent)
+        self._page_obj = page_obj
+        self._svg = ''
+        self.setMinimumSize(200, 100)
+        self.setMouseTracking(True)
+        self._dragging = None
+        self._drag_start = None
+        self._drag_orig_offset = None
+
+    def update_svg(self):
+        obj = self._page_obj
+        App.Console.PrintLog("in update_svg")
+        self._svg = obj.Proxy.compute_svg(obj)
         self.update()
 
     def _get_page_metrics(self):
@@ -235,6 +239,7 @@ class _PageWidget(QtWidgets.QWidget):
         if event.button() == QtCore.Qt.LeftButton:
             child = self._hit_test(event.pos())
             if child:
+                # FIXME depending on Ctrl / Shift be better about selecting
                 Gui.Selection.clearSelection()
                 Gui.Selection.addSelection(child.Document.Name, child.Name)
                 self._dragging = child
@@ -386,11 +391,17 @@ class ViewProviderShaperSvgPage:
         """Called when selection changes in the document."""
         self.clearSelection(doc_name)
 
+    def setSelection(self, doc_name, obj_name, sub_name, pnt):
+        """Called when selection changes in the document."""
+        self.clearSelection(doc_name)
+
     def clearSelection(self, doc_name):
         """Called when selection changes in the document."""
         if not self._subwindow_alive():
+            print("removing observer")
             Gui.Selection.removeObserver(self)
         else:
+            print("observer reacting")
             self.update_widget_svg()
 
     def getIcon(self):
