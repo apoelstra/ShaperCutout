@@ -122,20 +122,86 @@ class ShaperSvgPage:
         svg += "</svg>"
         return svg
 
+    def compute_overlaps(self, obj: App.DocumentObject):
+        """Compute overlaps and close distances between images. Returns list of overlap data."""
+        if getattr(self, '_is_dragging', False):
+            return [], []
+
+        images = [child for child in obj.Group
+                  if getattr(child, 'Type', '') == 'ShaperSvgImage'
+                  and hasattr(child, 'Svg_TranslatedFace')
+                  and not child.Svg_TranslatedFace.isNull()]
+
+        overlaps = []
+        close_pairs = []
+
+        page_h = obj.Height.Value
+        for i, img1 in enumerate(images):
+            for img2 in images[i+1:]:
+                cx1, cy1 = img1.Proxy.centerXY(img1)
+                tx1, ty1 = img1.Proxy.translateXY(img1, page_h)
+                cx2, cy2 = img2.Proxy.centerXY(img2)
+                tx2, ty2 = img2.Proxy.translateXY(img2, page_h)
+                zvec = App.Vector(0, 0, 1)
+
+                face1 = img1.Svg_TranslatedFace \
+                    .rotated(App.Vector(cx1, cy1, 0), zvec, img1.Rotation.Value + 180) \
+                    .translated(App.Vector(tx1, ty1, 0))
+                face2 = img2.Svg_TranslatedFace \
+                    .rotated(App.Vector(cx2, cy2, 0), zvec, img2.Rotation.Value + 180) \
+                    .translated(App.Vector(tx2, ty2, 0))
+
+                # Check for overlap
+                bb1 = face1.BoundBox
+                bb2 = face2.BoundBox
+                if bb2.intersect(bb1):
+                    common = face1.common(face2)
+                    if not common.isNull() and common.Area > 0:
+                        overlaps.append((img1, img2, common))
+                        continue
+
+                # If no overlap, check for close distance
+                # distToShape returns three objects -- a minimum distance then a list of
+                # (Vector, Vector) pairs where the two vectors are endpoints of min-dist lines.
+                dist, pairs, _ = face1.distToShape(face2)
+                if dist < 50.0 and len(pairs) > 1:  # 50mm threshold
+                    pt1 = pairs[0][0]
+                    pt2 = pairs[0][1]
+                    dist = App.Units.Quantity(f"{dist} mm")
+                    close_pairs.append((img1, img2, dist, pt1, pt2))
+
+        return overlaps, close_pairs
+
 
 class _PageWidget(QtWidgets.QWidget):
     def __init__(self, page_obj, parent=None):
         super().__init__(parent)
         self._page_obj = page_obj
         self._svg = ''
+        self._overlaps = []
+        self._close_pairs = []
         self.setMinimumSize(200, 100)
         self.setMouseTracking(True)
         self._dragging = None
         self._drag_start = None
         self._drag_orig_offset = None
 
+        self._compute_overlap_timeout(page_obj)
+
     def update_svg(self):
         obj = self._page_obj
+        self._svg = obj.Proxy.compute_svg(obj)
+        self.update()
+
+        self._compute_overlap_timer.setInterval(100)
+        self._compute_overlap_timer.start()
+
+    def _compute_overlap_timeout(self, obj):
+        self._compute_overlap_timer = QtCore.QTimer()
+        self._compute_overlap_timer.setSingleShot(True)
+        self._compute_overlap_timer.timeout.connect(lambda: self._compute_overlap_timeout(obj))
+
+        self._overlaps, self._close_pairs = obj.Proxy.compute_overlaps(obj)
         self._svg = obj.Proxy.compute_svg(obj)
         self.update()
 
@@ -227,7 +293,65 @@ class _PageWidget(QtWidgets.QWidget):
         if main_renderer.isValid():
             main_renderer.render(painter, QtCore.QRectF(pad_x, pad_y, avail_w, avail_h))
 
+        # Draw overlap highlights in bright red
+        grid_mm = self._page_obj.GridSpacing.Value
+        grid_ratio = grid_px / grid_mm
+        for img1, _, common in self._overlaps:
+            self._draw_shape(painter, common, pad_x, pad_y, grid_ratio,
+                             QtGui.QColor(255, 0, 0, 192))
+
+        # Draw distance lines for close pairs
+        for img1, img2, dist, pt1, pt2 in self._close_pairs:
+            self._draw_distance_line(painter, pt1, pt2, dist, pad_x, pad_y, grid_ratio)
+
         painter.end()
+
+    def _draw_shape(self, painter, shape, pad_x, pad_y, grid_ratio, color):
+        """Draw a shape using QPainter."""
+        for wire in shape.Wires:
+            path = QtGui.QPainterPath()
+            pts = wire.discretize(Deflection=0.5)  # Approximate with line segments
+            if pts:
+                path.moveTo(pad_x + pts[0].x * grid_ratio, pad_y + pts[0].y * grid_ratio)
+                for pt in pts[1:]:
+                    path.lineTo(pad_x + pt.x * grid_ratio, pad_y + pt.y * grid_ratio)
+
+            painter.fillPath(path, QtGui.QBrush(color))
+
+    def _draw_distance_line(
+        self,
+        painter: QtGui.QPainter,
+        pt1: App.Vector,
+        pt2: App.Vector,
+        dist: App.Units.Quantity,
+        pad_x: float,
+        pad_y: float,
+        grid_ratio: float,
+    ):
+        """Draw red line between closest points with distance label."""
+        # Convert to widget coordinates
+        x1 = pad_x + pt1.x * grid_ratio
+        y1 = pad_y + pt1.y * grid_ratio
+        x2 = pad_x + pt2.x * grid_ratio
+        y2 = pad_y + pt2.y * grid_ratio
+
+        pen = QtGui.QPen(QtGui.QColor('red'), 2)
+        painter.setPen(pen)
+        painter.drawLine(QtCore.QPointF(x1, y1), QtCore.QPointF(x2, y2))
+
+        schema = App.Units.getSchema()
+        dist = App.Units.schemaTranslate(dist, schema)[0]
+
+        # Draw distance label at midpoint
+        mid_x = (x1 + x2) / 2 + 2
+        mid_y = (y1 + y2) / 2 + 2
+        font = QtGui.QFont()
+        font.setStyleHint(QtGui.QFont.SansSerif)
+        font.setPixelSize(16)
+
+        painter.setPen(QtGui.QColor('red'))
+        painter.setFont(font)
+        painter.drawText(QtCore.QPointF(mid_x, mid_y), f"{dist}")
 
     def _hit_test(self, pos):
         metrics = self._get_page_metrics()

@@ -68,6 +68,11 @@ class ShaperSvgImage:
         obj.Svg_Outline = f"{svg_data.outline_svg_path("#FA0")}"
         obj.Svg_BBCenter = bb.Center
         obj.Svg_BBLength = App.Vector(bb.XLength, bb.YLength, bb.ZLength)
+
+        # Cache translated face for overlap detection
+        if svg_data.translated_face:
+            obj.Svg_TranslatedFace = svg_data.translated_face
+
         self.needsRecompute = False
 
     def onChanged(self, obj, prop):
@@ -118,6 +123,10 @@ class ShaperSvgImage:
             obj.addProperty('App::PropertyVector', 'Svg_BBLength', 'Svg',
                             'A vector representing the size of the bounding box of the SVG.')
             obj.setPropertyStatus('Svg_BBLength', 2)
+        if not hasattr(obj, 'Svg_TranslatedFace'):
+            obj.addProperty('Part::PropertyPartShape', 'Svg_TranslatedFace', 'Svg',
+                            'Translated cutout face for overlap detection.')
+            obj.setPropertyStatus('Svg_TranslatedFace', 2)
 
     def onDocumentRestored(self, obj):
         self.addSvgProperties(obj)

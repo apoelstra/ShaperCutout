@@ -68,6 +68,16 @@ class SvgData:
         self._collect_dados_and_drill_holes()
         self._collect_paths()
 
+        # Store translated face for overlap detection. Translate it to z=0 and flip it if needed
+        # (but don't translate/rotate it based on OffsetX/Y or Rotation, which are properties of
+        # ShaperSvgImage and not available here).
+        if not self._cutout.CutoutFace.isNull():
+            cutout_face = self._cutout.CutoutFace.transformed(self._xy_matrix)
+            center_z = cutout_face.BoundBox.Center.z
+            self.translated_face = cutout_face.translated(App.Vector(0, 0, -center_z))
+        else:
+            self.translated_face = None
+
     def _collect_dados_and_drill_holes(self):
         """Sets self._drill_holes and self._dado_wires"""
         from ShaperDados import autodrill_holes
