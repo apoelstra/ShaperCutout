@@ -26,4 +26,5 @@ class CreateShaperSvgPageCmd:
         Gui.SendMsgToActiveView("ViewFit")
 
 
-Gui.addCommand('ShaperCutout_createSvgPage', CreateShaperSvgPageCmd())
+if App.GuiUp:
+    Gui.addCommand('ShaperCutout_createSvgPage', CreateShaperSvgPageCmd())
