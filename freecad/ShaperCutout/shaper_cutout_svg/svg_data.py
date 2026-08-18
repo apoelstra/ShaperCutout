@@ -108,7 +108,7 @@ class SvgData:
                         cylinders = autodrill_holes(w, dados.MinHoleDistance.Value,
                                                     dados.EndDistance.Value, dados.MaxHolesPerLine)
                         for center in cylinders:
-                            self._drill_holes.append((center, dados.HoleDiameter.Value))
+                            self._drill_holes.append((center, hole_radius))
 
         for slot in self._cutout.Slots:
             slot_data = slot.Proxy.slot_data_for(slot, self._cutout)
