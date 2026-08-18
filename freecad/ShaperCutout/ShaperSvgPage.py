@@ -140,7 +140,6 @@ class _PageWidget(QtWidgets.QWidget):
 
     def update_svg(self):
         obj = self._page_obj
-        App.Console.PrintLog("in update_svg")
         self._svg = obj.Proxy.compute_svg(obj)
         self.update()
 
@@ -252,7 +251,6 @@ class _PageWidget(QtWidgets.QWidget):
                 Gui.Selection.clearSelection()
 
     def mouseMoveEvent(self, event):
-
         if self._dragging:
             metrics = self._get_page_metrics()
             if not metrics:
@@ -344,6 +342,13 @@ class _PageWidget(QtWidgets.QWidget):
         self.update_svg()
         event.accept()
 
+    def closeEvent(self, event):
+        try:
+            self._page_obj.ViewObject.Proxy._subwindow = None
+        except NameError:
+            # When closing the document, we'll fail to access self._page_obj.
+            pass
+
 
 # This ViewProvider, which creates a new MDI window similar to what TechView and Spreadsheet
 # do, is due to Claude. It's a bit hacky -- we call Gui.getMainWindow().centralWidget() to
@@ -397,11 +402,7 @@ class ViewProviderShaperSvgPage:
 
     def clearSelection(self, doc_name):
         """Called when selection changes in the document."""
-        if not self._subwindow_alive():
-            print("removing observer")
-            Gui.Selection.removeObserver(self)
-        else:
-            print("observer reacting")
+        if self._subwindow_alive():
             self.update_widget_svg()
 
     def getIcon(self):
@@ -412,15 +413,9 @@ class ViewProviderShaperSvgPage:
         return True
 
     def _subwindow_alive(self):
-        try:
-            if not hasattr(self, '_subwindow') or self._subwindow is None:
-                return False
-            # PySide raises RuntimeError when accessing a deleted C++ object
-            self._subwindow.isVisible()
-            return True
-        except RuntimeError:
-            self._subwindow = None
+        if not hasattr(self, '_subwindow') or self._subwindow is None:
             return False
+        return True
 
     def _open_view(self, obj):
         if self._subwindow_alive():
@@ -439,7 +434,8 @@ class ViewProviderShaperSvgPage:
         self.update_widget_svg()
 
     def update_widget_svg(self):
-        self._subwindow.widget().update_svg()
+        if self._subwindow_alive():
+            self._subwindow.widget().update_svg()
 
     def updateData(self, fp, prop):
         if prop in ('Width', 'Height', 'Group', 'GridSpacing') and self._subwindow_alive():
