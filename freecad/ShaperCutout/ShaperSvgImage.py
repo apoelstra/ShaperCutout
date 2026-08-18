@@ -128,6 +128,15 @@ class ShaperSvgImage:
     def loads(self, state):
         return None
 
+    def centerXY(self, obj: App.DocumentObject) -> (float, float):
+        return (obj.Svg_BBCenter.x, obj.Svg_BBCenter.y)
+
+    def translateXY(self, obj, page_h: float) -> (float, float):
+        return (
+            obj.OffsetX.Value - obj.Svg_BBCenter.x + obj.Svg_BBLength.x / 2,
+            page_h - obj.Svg_BBCenter.y - obj.Svg_BBLength.y / 2 - obj.OffsetY.Value,
+        )
+
 
 class ViewProviderShaperSvgImage:
     def __init__(self, vobj):

@@ -93,11 +93,9 @@ class ShaperSvgPage:
                 # We will draw selected children below, so they're on top
                 continue
 
-            cx = child.Svg_BBCenter.x
-            cy = child.Svg_BBCenter.y
+            cx, cy = child.Proxy.centerXY(child)
+            tx, ty = child.Proxy.translateXY(child, page_h)
             rot = child.Rotation.Value + 180
-            tx = child.OffsetX.Value - child.Svg_BBCenter.x + child.Svg_BBLength.x / 2
-            ty = page_h - child.Svg_BBCenter.y - child.Svg_BBLength.y / 2 - child.OffsetY.Value
 
             g = f'<g transform="translate({tx:.4f},{ty:.4f}) rotate({rot:.4f},{cx:.4f},{cy:.4f})">'
             if hasattr(child, 'Svg_Full'):
@@ -109,11 +107,9 @@ class ShaperSvgPage:
             if not hasattr(child, 'Svg_BBCenter'):
                 continue
 
-            cx = child.Svg_BBCenter.x
-            cy = child.Svg_BBCenter.y
+            cx, cy = child.Proxy.centerXY(child)
+            tx, ty = child.Proxy.translateXY(child, page_h)
             rot = child.Rotation.Value + 180
-            tx = child.OffsetX.Value - child.Svg_BBCenter.x + child.Svg_BBLength.x / 2
-            ty = page_h - child.Svg_BBCenter.y - child.Svg_BBLength.y / 2 - child.OffsetY.Value
 
             g = f'<g transform="translate({tx:.4f},{ty:.4f}) rotate({rot:.4f},{cx:.4f},{cy:.4f})">'
             if hasattr(child, 'Svg_Full'):
