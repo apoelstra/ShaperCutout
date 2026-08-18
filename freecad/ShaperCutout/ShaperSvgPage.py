@@ -139,33 +139,56 @@ class _PageWidget(QtWidgets.QWidget):
         self._svg = obj.Proxy.compute_svg(obj)
         self.update()
 
-    def _get_page_metrics(self):
-        min_pad = 5
+    def _get_page_metrics(self) -> (float, float, float, float, float, float, float):
+        """Computes various properties of the display window for the SVG.
+
+        Returns `pad_x`, `pad_y`, `grid_px`, `avail_w`, `avail_h`.
+
+        With `grid_mm` equal to `self._page_obj.GridSpacing.Value`, this returns viewport dimensions
+        (`avail_w`, `avail_h`) and padding (`pad_x`, `pad_y`) such that:
+
+        * The actual viewport size is `avail_w + 2 * pad_x` by `avail_h + 2 * pad_y`
+        * The grid squares are `grid_px` by `grid_px` (this value *will* be an integer); the aspect
+          ratio `avail_w` / `avail_h` will match `self._page_obj.Width / self._page_obj.Height`.
+        * The "pixel ratio" `grid_px / grid_mm` equals both `avail_w` / `self._page_obj.Width.Value`
+          and `avail_h` / `self._page_obj.Height.Value`
+        """
+        # Minimum padding so the viewport has a GUI border. One of the `pad_x`/`pad_y` padding
+        # values will be equal to this; the other may be larger.
+        min_pad = 2
+        # Page properties set by user, in mm
         page_w_mm = self._page_obj.Width.Value
         page_h_mm = self._page_obj.Height.Value
         grid_mm = self._page_obj.GridSpacing.Value
-
-        avail_w = self.width() - 2 * min_pad
-        avail_h = self.height() - 2 * min_pad
-        if page_w_mm <= 0 or page_h_mm <= 0 or avail_w <= 0 or avail_h <= 0:
+        if page_w_mm <= 0 or page_h_mm <= 0 \
+                or self.width() < 2 * min_pad or self.height() < 2 * min_pad:
             return None
 
-        grid_w = math.ceil(page_w_mm / grid_mm)
-        grid_h = math.ceil(page_h_mm / grid_mm)
-        grid_px = min(avail_w / grid_w, avail_h / grid_h)
+        # Determine padding, available viewport space, and grid size, all in pixels
+        page_ar = page_w_mm / page_h_mm
+        view_ar = self.width() / self.height()
+        if page_ar > view_ar:
+            # Page is width-limited
+            avail_w = self.width() - 2 * min_pad
+            avail_h = avail_w * page_ar
+            pad_x = min_pad
+            pad_y = (self.height() - avail_h) / 2.0
+            grid_px = grid_mm * avail_w / page_w_mm
+        else:
+            # Page is height-limited
+            avail_h = self.height() - 2 * min_pad
+            avail_w = avail_h * page_ar
+            pad_y = min_pad
+            pad_x = (self.width() - avail_w) / 2.0
+            grid_px = grid_mm * avail_h / page_h_mm
 
-        pad_x = (self.width() - grid_w * grid_px) / 2.0
-        pad_y = (self.height() - grid_h * grid_px) / 2.0
-        avail_w = self.width() - 2 * pad_x
-        avail_h = self.height() - 2 * pad_y
-
-        return pad_x, pad_y, grid_px, grid_w, grid_h, avail_w, avail_h
+        return pad_x, pad_y, grid_px, avail_w, avail_h
 
     def paintEvent(self, event):
         metrics = self._get_page_metrics()
         if not metrics:
             return
-        pad_x, pad_y, grid_px, grid_w, grid_h, avail_w, avail_h = metrics
+        pad_x, pad_y, grid_px, avail_w, avail_h = metrics
 
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
@@ -176,6 +199,7 @@ class _PageWidget(QtWidgets.QWidget):
 
         # Light grey grid
         if grid_px > 1:
+            grid_w = math.floor(avail_w / grid_px)
             for x in range(grid_w):
                 if x % 10 == 0:
                     painter.setPen(QtGui.QPen(QtGui.QColor(220, 120, 120), 0.5))
@@ -185,6 +209,8 @@ class _PageWidget(QtWidgets.QWidget):
                 px = pad_x + x * grid_px
                 painter.drawLine(QtCore.QPointF(px, pad_y),
                                  QtCore.QPointF(px, pad_y + avail_h))
+
+            grid_h = math.floor(avail_h / grid_px)
             for y in range(grid_h):
                 if y % 10 == 0:
                     painter.setPen(QtGui.QPen(QtGui.QColor(220, 120, 120), 0.5))
@@ -207,7 +233,7 @@ class _PageWidget(QtWidgets.QWidget):
         metrics = self._get_page_metrics()
         if not metrics:
             return None
-        pad_x, pad_y, grid_px, _, _, _, _ = metrics
+        pad_x, pad_y, grid_px, _, _ = metrics
 
         grid_mm = self._page_obj.GridSpacing.Value
         page_h = self._page_obj.Height.Value
@@ -268,7 +294,7 @@ class _PageWidget(QtWidgets.QWidget):
             metrics = self._get_page_metrics()
             if not metrics:
                 return
-            _, _, grid_px, _, _, _, _ = metrics
+            _, _, grid_px, _, _ = metrics
             grid_mm = self._page_obj.GridSpacing.Value
             page_h = self._page_obj.Height.Value
             page_w = self._page_obj.Width.Value
