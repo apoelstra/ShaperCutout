@@ -217,13 +217,13 @@ class _PageWidget(QtWidgets.QWidget):
         selected = {s for s in Gui.Selection.getSelection()
                     if getattr(s, 'Type', '') == 'ShaperSvgImage' and s in self._page_obj.Group}
 
-        ordered = list(reversed(self._page_obj.Group))
+        ordered_children = reversed(self._page_obj.Group)
         swap_idx = 0
-        for i in range(len(ordered)):
-            if i > swap_idx and ordered[i] in selected:
-                ordered[swap_idx], ordered[i] = ordered[i], ordered[swap_idx]
+        for i in len(ordered_children):
+            if i > swap_idx and ordered_children[i] in selected:
+                (ordered_children
 
-        for child in ordered:
+        for child in reversed(self._page_obj.Group):
             if getattr(child, 'Type', '') != 'ShaperSvgImage':
                 continue
 
