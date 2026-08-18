@@ -218,12 +218,20 @@ class _PageWidget(QtWidgets.QWidget):
             if getattr(child, 'Type', '') != 'ShaperSvgImage':
                 continue
 
-            cx = child.OffsetX.Value + child.Svg_BBLength.x / 2
-            cy = page_h - child.Svg_BBLength.y / 2 - child.OffsetY.Value
+            cx, cy = child.Proxy.centerXY(child)
+            tx, ty = child.Proxy.translateXY(child, page_h)
             length = child.Svg_BBLength
 
-            xdist = abs(cx - pos_x_mm)
-            ydist = abs(cy - pos_y_mm)
+            rot_rad = math.radians(child.Rotation.Value)
+            cos_r = math.cos(rot_rad)
+            sin_r = math.sin(rot_rad)
+
+            xdist = tx + cx - pos_x_mm
+            ydist = ty + cy - pos_y_mm
+            xdist, ydist = (
+                abs(xdist * cos_r + ydist * sin_r),
+                abs(xdist * sin_r + ydist * cos_r),
+            )
 
             if xdist < length.x / 2 and ydist < length.y / 2:
                 return child
