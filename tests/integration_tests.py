@@ -35,11 +35,13 @@ except Exception as e:
 
 import test_dados
 import test_dado_autodrill
+import test_miters
 import test_slots
 
 ALL_TESTS = []
 test_dados.register_tests(ALL_TESTS)
 test_dado_autodrill.register_tests(ALL_TESTS)
+test_miters.register_tests(ALL_TESTS)
 test_slots.register_tests(ALL_TESTS)
 
 ########
@@ -55,11 +57,10 @@ def run_test(test):
     App.Console.PrintMessage(f"Running {test.__name__}... ")
     try:
         test()
+        App.Console.PrintMessage("Success\n")
     except Exception as e:
         App.Console.PrintError(f"Exception {e}\n")
-        App.Console.PrintError(traceback.format_exception(e))
-        raise e
-    App.Console.PrintMessage("Success\n")
+        traceback.print_exception(e)
 
 
 filter = sys.argv[4:]
