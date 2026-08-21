@@ -14,6 +14,7 @@ To run a specific test:
 """
 
 import sys
+import traceback
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -33,14 +34,12 @@ except Exception as e:
     sys.exit(1)
 
 import test_dados
+import test_dado_autodrill
 import test_slots
-
-########
-# Tests
-########
 
 ALL_TESTS = []
 test_dados.register_tests(ALL_TESTS)
+test_dado_autodrill.register_tests(ALL_TESTS)
 test_slots.register_tests(ALL_TESTS)
 
 ########
@@ -54,7 +53,12 @@ Gui.setupWithoutGUI()
 # name filters for the test.
 def run_test(test):
     App.Console.PrintMessage(f"Running {test.__name__}... ")
-    test()
+    try:
+        test()
+    except Exception as e:
+        App.Console.PrintError(f"Exception {e}\n")
+        App.Console.PrintError(traceback.format_exception(e))
+        raise e
     App.Console.PrintMessage("Success\n")
 
 
