@@ -12,7 +12,7 @@ def assert_true(condition, message):
         raise AssertionError(message)
 
 
-def assert_eq(description, val, target, tol=1e-4):
+def assert_eq(description, val, target, tol=1e-6):
     if abs(val - target) > tol:
         raise AssertionError(f"{description} {val} not in [{target - tol}..{target + tol}]")
 

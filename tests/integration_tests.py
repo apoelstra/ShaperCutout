@@ -32,13 +32,15 @@ except Exception as e:
     print(f"Exception: {e}")
     sys.exit(1)
 
-import test_slots  # noqa: F401
+import test_dados
+import test_slots
 
 ########
 # Tests
 ########
 
 ALL_TESTS = []
+test_dados.register_tests(ALL_TESTS)
 test_slots.register_tests(ALL_TESTS)
 
 ########
