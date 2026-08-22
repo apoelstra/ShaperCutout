@@ -83,8 +83,12 @@ class ShaperSvgPage:
         shaper:cutType="guide" />
 '''
 
-        selected = [s for s in Gui.Selection.getSelection()
-                    if getattr(s, 'Type', '') == 'ShaperSvgImage' and s in obj.Group]
+        if App.GuiUp:
+            selected = [s for s in Gui.Selection.getSelection()
+                        if getattr(s, 'Type', '') == 'ShaperSvgImage' and s in obj.Group]
+        else:
+            selected = []
+
         # Render each ShaperSvgImage child
         for child in obj.Group:
             if not hasattr(child, 'Svg_BBCenter'):
