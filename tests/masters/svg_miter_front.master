@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:shaper="http://www.shapertools.com/namespaces/shaper"
+     viewBox="-50.8000 -77.9015 101.6000 154.1015"
+     width="101.6000mm" height="154.1015mm">
+<g transform="rotate(180 0.0000 -0.8507)">
+  <path d="M -50.8 76.19999999999999 L 50.8 76.19999999999999 L 50.8 -74.49852262806236 L 50.8 -76.19999999999999 L -50.8 -76.19999999999999 L -50.8 -74.49852262806236 L -50.8 76.19999999999999 Z " fill="black" stroke="black" stroke-width="1" shaper:cutType="outside"/>
+  <path d="M 50.8 -77.90147737193762 L 50.8 -76.19999999999999 L -50.8 -76.19999999999999 L -50.8 -77.90147737193762 L 50.8 -77.90147737193762 Z " fill="black" stroke="black" stroke-width="1" shaper:cutType="outside"/>
+  <path d="M 50.8 -74.49852262806236 L -50.8 -74.49852262806236 L -50.8 -77.90147737193762 L 50.8 -77.90147737193762 L 50.8 -74.49852262806236 Z " fill="none" stroke="blue" stroke-width="1" shaper:cutType="guide"/>
+  <path d="M 50.8 76.19999999999999 L 35.8 76.19999999999999 L 50.8 46.19999999999999 L 50.8 76.19999999999999 Z " fill="red" stroke="none"/>
+</g>
+</svg>
