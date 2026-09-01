@@ -14,6 +14,7 @@ class CreateShaperSvgPageCmd:
             "MenuText": "Create SVG Page",
             "ToolTip": "Create a ShaperSvgPage layout object",
             "Pixmap": icon_path,
+            "CmdType": "AlterDoc",
         }
 
     def IsActive(self):

@@ -194,6 +194,7 @@ class CreateShaperDadosCmd:
             "MenuText": "Create Dados",
             "ToolTip": "Create a dado pocket collection on the selected ShaperCutout",
             "Pixmap": icon_path,
+            "CmdType": "AlterDoc",
         }
 
     def IsActive(self):

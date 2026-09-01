@@ -118,6 +118,7 @@ class CreateShaperMiterCmd:
             "MenuText": "Create Miter",
             "ToolTip": "Create a miter cut on selected edges of a ShaperCutout outline sketch",
             "Pixmap": icon_path,
+            "CmdType": "AlterDoc",
         }
 
     def IsActive(self):

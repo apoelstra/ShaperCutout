@@ -258,6 +258,7 @@ class CreateShaperCutoutCmd:
             "ToolTip": "Create an empty cutout from the selected plane (or the center plane of "
                         "the selected cutout).",
             "Pixmap": icon_path,
+            "CmdType": "AlterDoc",
         }
 
     def IsActive(self):

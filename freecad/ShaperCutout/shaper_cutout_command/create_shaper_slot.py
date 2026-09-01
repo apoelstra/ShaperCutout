@@ -196,6 +196,7 @@ class CreateShaperSlotCmd:
             "MenuText": "Create Slot",
             "ToolTip": "Cut a slot into the two selected cutouts at the selected interface plane",
             "Pixmap": icon_path,
+            "CmdType": "AlterDoc",
         }
 
     def IsActive(self):

@@ -33,6 +33,7 @@ class ExportShaperSvgPageCmd:
             "MenuText": "Export SVG Page",
             "ToolTip": "Export selected ShaperSvgPage to an SVG file",
             "Pixmap": icon_path,
+            "CmdType": "",
         }
 
     def IsActive(self):

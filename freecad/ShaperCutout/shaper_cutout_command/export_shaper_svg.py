@@ -49,6 +49,7 @@ class ExportShaperSVGCmd:
             "MenuText": menu_text,
             "ToolTip": "Export selected ShaperCutout to Shaper-compatible SVG file(s)",
             "Pixmap": icon_path,
+            "CmdType": "",
         }
 
     def IsActive(self):
