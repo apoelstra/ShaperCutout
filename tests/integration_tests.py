@@ -13,11 +13,16 @@ To run a specific test:
     FreeCADCmd ./integration_test.py slot_two_cutouts
 """
 
+import os
 import sys
 import traceback
 
-import FreeCAD as App
 import FreeCADGui as Gui
+
+
+def print_stdout(msg):
+    os.write(2, msg.encode("utf-8", errors="backslashreplace"))
+
 
 ########
 # Setup
@@ -28,41 +33,44 @@ try:
     import ShaperMiter  # noqa: F401
     import ShaperSlot  # noqa: F401
 except Exception as e:
-    print("Failed to import ShaperCutout modules. Is the ShaperCutout workbench installed?")
-    print("")
-    print(f"Exception: {e}")
+    print_stdout("Failed to import ShaperCutout modules. Is the ShaperCutout workbench installed?")
+    print_stdout("\n\n")
+    print_stdout(f"Exception: {e}")
     sys.exit(1)
 
-import test_dados
-import test_dado_autodrill
-import test_miters
-import test_slots
-import test_svg
+try:
+    import test_dados
+    import test_dado_autodrill
+    import test_miters
+    import test_slots
+    import test_svg
 
-ALL_TESTS = []
-test_dados.register_tests(ALL_TESTS)
-test_dado_autodrill.register_tests(ALL_TESTS)
-test_miters.register_tests(ALL_TESTS)
-test_slots.register_tests(ALL_TESTS)
-test_svg.register_tests(ALL_TESTS)
+    ALL_TESTS = []
+    test_dados.register_tests(ALL_TESTS)
+    test_dado_autodrill.register_tests(ALL_TESTS)
+    test_miters.register_tests(ALL_TESTS)
+    test_slots.register_tests(ALL_TESTS)
+    test_svg.register_tests(ALL_TESTS)
 
-########
-# Main
-########
-
-Gui.setupWithoutGUI()
+    Gui.setupWithoutGUI()
+except Exception as e:
+    print_stdout("Failed to setup test harness.")
+    print_stdout("\n\n")
+    print_stdout(f"Exception: {e}")
+    sys.exit(1)
 
 
 # Somewhat hackily get "the arguments passed to the integration test harness" and use them as
 # name filters for the test.
 def run_test(test):
-    App.Console.PrintMessage(f"Running {test.__name__}... ")
+    print_stdout(f"Running {test.__name__}... ")
     try:
         test()
-        App.Console.PrintMessage("Success\n")
+        print_stdout("Success\n")
     except Exception as e:
-        App.Console.PrintError(f"Exception {e}\n")
+        print_stdout(f"Exception {e}\n")
         traceback.print_exception(e)
+        sys.exit(1)
 
 
 filter = sys.argv[4:]

@@ -1,0 +1,55 @@
+name: Tests
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'freecad/**'
+      - 'tests/**'
+      - '.github/workflows/tests.yml'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'freecad/**'
+      - 'tests/**'
+      - '.github/workflows/tests.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        freecad-version:
+          - "1.0"
+          - "1.1.3"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: mamba-org/setup-micromamba@v3
+        with:
+          environment-name: freecad
+          cache-environment: true
+          create-args: >-
+            -c conda-forge
+            python=3.11
+            freecad=${{ matrix.freecad-version }}
+
+      - name: Verify FreeCAD installation
+        shell: micromamba-shell {0}
+        run: |
+          freecadcmd --version
+
+      - name: Symlink addon into FreeCAD Mod directory
+        shell: micromamba-shell {0}
+        run: |
+          MOD_DIR="$(freecadcmd -c 'import FreeCAD, os; print(os.path.join(FreeCAD.getUserAppDataDir(), "Mod"))' 2>/dev/null | tail -1)"
+          mkdir -p "$MOD_DIR"
+          ln -sf "${{ github.workspace }}" "$MOD_DIR/ShaperCutout"
+
+      - name: Run integration tests
+        shell: micromamba-shell {0}
+        run: |
+          freecadcmd tests/integration_tests.py
