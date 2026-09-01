@@ -43,6 +43,7 @@ class ShaperCutoutWorkbench(Gui.Workbench):
         import ShaperSlot      # noqa: F401
         import ShaperSvgPage   # noqa: F401
         import ShaperSvgImage  # noqa: F401
+        import ShaperSvgShape  # noqa: F401
 
         # Import all commands.
         from shaper_cutout_command import CreateShaperCutoutCmd, CreateShaperDadosCmd, \

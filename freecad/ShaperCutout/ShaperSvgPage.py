@@ -9,6 +9,15 @@ from PySide import QtCore, QtGui, QtWidgets, QtSvg
 
 from shaper_cutout_util import _ICON_ROOT
 import ShaperSvgImage
+import ShaperSvgShape
+
+
+# Object types that can live in a ShaperSvgPage's Group.
+_PAGE_CHILD_TYPES = ('ShaperSvgImage', 'ShaperSvgShape')
+
+
+def _is_page_child(obj) -> bool:
+    return getattr(obj, 'Type', '') in _PAGE_CHILD_TYPES
 
 
 def create(name="ShaperSvgPage"):
@@ -61,7 +70,7 @@ class ShaperSvgPage:
     def onChanged(self, obj, prop):
         if prop == 'Group':
             for child in list(obj.Group):
-                if getattr(child, 'Type', None) != 'ShaperSvgImage':
+                if getattr(child, 'Type', None) not in _PAGE_CHILD_TYPES:
                     obj.removeObject(child)
 
         if obj.ViewObject and obj.ViewObject.Proxy:
@@ -103,7 +112,7 @@ class ShaperSvgPage:
 
         if App.GuiUp:
             selected = [s for s in Gui.Selection.getSelection()
-                        if getattr(s, 'Type', '') == 'ShaperSvgImage' and s in obj.Group]
+                        if _is_page_child(s) and s in obj.Group]
         else:
             selected = []
 
@@ -393,7 +402,7 @@ class _PageWidget(QtWidgets.QWidget):
         pos_y_mm = (pos.y() - pad_y) / grid_px * grid_mm
 
         selected = {s for s in Gui.Selection.getSelection()
-                    if getattr(s, 'Type', '') == 'ShaperSvgImage' and s in self._page_obj.Group}
+                    if _is_page_child(s) and s in self._page_obj.Group}
 
         ordered = list(reversed(self._page_obj.Group))
         swap_idx = 0
@@ -402,7 +411,7 @@ class _PageWidget(QtWidgets.QWidget):
                 ordered[swap_idx], ordered[i] = ordered[i], ordered[swap_idx]
 
         for child in ordered:
-            if getattr(child, 'Type', '') != 'ShaperSvgImage':
+            if not _is_page_child(child):
                 continue
 
             cx, cy = child.Proxy.centerXY(child)
@@ -512,7 +521,7 @@ class _PageWidget(QtWidgets.QWidget):
             return
 
         selected = {s for s in Gui.Selection.getSelection()
-                    if getattr(s, 'Type', '') == 'ShaperSvgImage' and s in self._page_obj.Group}
+                    if _is_page_child(s) and s in self._page_obj.Group}
         if child not in selected:
             event.ignore()
             return
@@ -663,6 +672,36 @@ class ViewProviderShaperSvgPage:
         action = menu.addAction("Add Cutout to Page")
         action.triggered.connect(lambda: self._add_cutout_to(vobj.Object))
 
+        action = menu.addAction("Add Sketch/Draft to Page")
+        action.triggered.connect(lambda: self._add_shape_to(vobj.Object))
+
+    def _add_shape_to(self, page):
+        # Collect available objects with a shape which aren't already on a page.
+        candidates = [o for o in App.ActiveDocument.Objects
+                      if getattr(o, 'Type', None) not in _PAGE_CHILD_TYPES
+                      and getattr(o, 'Type', None) != 'ShaperCutout'
+                      and hasattr(o, 'Shape') and not o.Shape.isNull()]
+        if not candidates:
+            QtWidgets.QMessageBox.warning(
+                None, "No Shapes",
+                "No sketches or Draft objects found in the document.")
+            return
+
+        labels = [o.Label for o in candidates]
+        label, ok = QtWidgets.QInputDialog.getItem(
+            None,
+            "Add Sketch/Draft to Page",
+            "Select an object with a 2D shape:",
+            labels,
+            0,
+            False,
+        )
+        if not ok:
+            return
+
+        source = candidates[labels.index(label)]
+        ShaperSvgShape.create(page, source, source.Label + "_shape")
+
     def _add_cutout_to(self, page):
         # Collect available ShaperCutout objects
         cutouts = [o for o in App.ActiveDocument.Objects
@@ -698,12 +737,18 @@ class ViewProviderShaperSvgPage:
         return True
 
     def canDropObject(self, child):
-        return getattr(child, 'Type', '') in ('ShaperCutout', 'ShaperSvgImage')
+        if getattr(child, 'Type', '') in ('ShaperCutout', 'ShaperSvgImage', 'ShaperSvgShape'):
+            return True
+        # Any object with a shape (sketches, Draft objects, ...) can be added to
+        # the page as a ShaperSvgShape.
+        return hasattr(child, 'Shape') and not child.Shape.isNull()
 
     def dropObject(self, vobj, child):
         if getattr(child, 'Type', '') == 'ShaperCutout':
             ShaperSvgImage.create(vobj.Object, child, child.Label + "_svg")
-        else:
+        elif getattr(child, 'Type', '') in ('ShaperSvgImage', 'ShaperSvgShape'):
             grp = list(vobj.Object.Group)
             grp.append(child)
             vobj.Object.Group = grp
+        elif hasattr(child, 'Shape') and not child.Shape.isNull():
+            ShaperSvgShape.create(vobj.Object, child, child.Label + "_shape")
