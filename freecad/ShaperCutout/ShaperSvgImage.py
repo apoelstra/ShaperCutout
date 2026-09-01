@@ -65,7 +65,7 @@ class ShaperSvgImage:
 
         obj.Svg_Anchor = f"{svg_data.anchor_path}"
         obj.Svg_Full = f"{svg_data.svg_paths()}"
-        obj.Svg_Outline = f"{svg_data.outline_svg_path("#FA0")}"
+        obj.Svg_Outline = f"{svg_data.outline_svg_path('#FA0')}"
         obj.Svg_BBCenter = bb.Center
         obj.Svg_BBLength = App.Vector(bb.XLength, bb.YLength, bb.ZLength)
 
