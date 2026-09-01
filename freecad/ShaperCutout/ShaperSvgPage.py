@@ -37,10 +37,26 @@ class ShaperSvgPage:
         obj.addProperty('App::PropertyLength', 'GridSpacing', 'Base',
                         'Grid spacing for the page view')
 
+        self.addDisplayProperties(obj)
+
         obj.Type = 'ShaperSvgPage'
         obj.Width = '8 ft'
         obj.Height = '4 ft'
         obj.GridSpacing = '1 in'
+        obj.ShowOverlaps = True
+        obj.ShowMinDistances = True
+
+    def addDisplayProperties(self, obj):
+        if not hasattr(obj, 'ShowOverlaps'):
+            obj.addProperty('App::PropertyBool', 'ShowOverlaps', 'View',
+                            'Whether to show overlap highlights between images. '
+                            'May be slow on complex pages.')
+            obj.ShowOverlaps = True
+        if not hasattr(obj, 'ShowMinDistances'):
+            obj.addProperty('App::PropertyBool', 'ShowMinDistances', 'View',
+                            'Whether to show minimum distance lines between images. '
+                            'May be slow on complex pages.')
+            obj.ShowMinDistances = True
 
     def onChanged(self, obj, prop):
         if prop == 'Group':
@@ -67,6 +83,8 @@ class ShaperSvgPage:
             obj.removeProperty('zzSvg')
         if hasattr(obj, 'Svg'):
             obj.removeProperty('Svg')
+
+        self.addDisplayProperties(obj)
 
     def compute_svg(self, obj):
         page_w = obj.Width.Value
@@ -129,6 +147,10 @@ class ShaperSvgPage:
     def compute_overlaps(self, obj: App.DocumentObject):
         """Compute overlaps and close distances between images. Returns list of overlap data."""
         if getattr(self, '_is_dragging', False):
+            return [], []
+
+        if not getattr(obj, 'ShowOverlaps', True) \
+                and not getattr(obj, 'ShowMinDistances', True):
             return [], []
 
         images = [child for child in obj.Group
@@ -297,16 +319,18 @@ class _PageWidget(QtWidgets.QWidget):
         if main_renderer.isValid():
             main_renderer.render(painter, QtCore.QRectF(pad_x, pad_y, avail_w, avail_h))
 
-        # Draw overlap highlights in bright red
+        # Draw overlap highlights in bright red (if enabled)
         grid_mm = self._page_obj.GridSpacing.Value
         grid_ratio = grid_px / grid_mm
-        for img1, _, common in self._overlaps:
-            self._draw_shape(painter, common, pad_x, pad_y, grid_ratio,
-                             QtGui.QColor(255, 0, 0, 192))
+        if getattr(self._page_obj, 'ShowOverlaps', True):
+            for img1, _, common in self._overlaps:
+                self._draw_shape(painter, common, pad_x, pad_y, grid_ratio,
+                                 QtGui.QColor(255, 0, 0, 192))
 
-        # Draw distance lines for close pairs
-        for img1, img2, dist, pt1, pt2 in self._close_pairs:
-            self._draw_distance_line(painter, pt1, pt2, dist, pad_x, pad_y, grid_ratio)
+        # Draw distance lines for close pairs (if enabled)
+        if getattr(self._page_obj, 'ShowMinDistances', True):
+            for img1, img2, dist, pt1, pt2 in self._close_pairs:
+                self._draw_distance_line(painter, pt1, pt2, dist, pad_x, pad_y, grid_ratio)
 
         painter.end()
 
@@ -577,7 +601,12 @@ class ViewProviderShaperSvgPage:
 
     def doubleClicked(self, vobj):
         self._open_view(vobj.Object)
+        self._open_edit_dialog(vobj.Object)
         return True
+
+    def _open_edit_dialog(self, obj):
+        from shaper_cutout_command.edit_shaper_svg_page import open_page_task_panel
+        open_page_task_panel(obj)
 
     def _subwindow_alive(self):
         if not hasattr(self, '_subwindow') or self._subwindow is None:
@@ -605,7 +634,8 @@ class ViewProviderShaperSvgPage:
             self._subwindow.widget().update_svg()
 
     def updateData(self, fp, prop):
-        if prop in ('Width', 'Height', 'Group', 'GridSpacing') and self._subwindow_alive():
+        if prop in ('Width', 'Height', 'Group', 'GridSpacing',
+                    'ShowOverlaps', 'ShowMinDistances') and self._subwindow_alive():
             self._subwindow.widget().update()
 
     def getDisplayModes(self, obj):
@@ -622,6 +652,11 @@ class ViewProviderShaperSvgPage:
 
     def setupContextMenu(self, vobj, menu):
         from shaper_cutout_command.export_shaper_svg_page import export
+        from shaper_cutout_command.edit_shaper_svg_page import open_page_task_panel
+
+        action = menu.addAction("Edit SVG Page")
+        action.triggered.connect(lambda: open_page_task_panel(vobj.Object))
+
         action = menu.addAction("Export SVG Page")
         action.triggered.connect(lambda: export(vobj.Object))
 
