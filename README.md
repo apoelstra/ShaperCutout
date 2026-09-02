@@ -38,7 +38,9 @@ off using the Woodworking Workbench.
 
 ## Installation
 
-To use the ShaperCutout workbench, just symlink it into your Mod directory.
+If you are viewing this from the Addon Manager, it is already installed. Otherwise,
+to use the ShaperCutout workbench, just symlink the repo directory (the one this README.md
+lives in) into your Mod directory.
 
 ```
 ln -s . ~/.local/share/FreeCAD/Mod/
@@ -62,15 +64,13 @@ code to learn how to make their own workbenches.
 
 ## Todo
 
-I will try to file Github Issues for any specific TODOs. But broadly speaking, we need to
+I will try to file Github Issues for any specific TODOs. But to give an idea of what's left
+to be done,
 
-* fix bugs (e.g. not autorefreshing when we should)
-* improve the UX (e.g. add missing context menu items, be smarter about what options we
-  present in dropdowns, highlight stuff in the 3D view better)
 * improve the geometry, optimize algorithms
 * improve FreeCAD integration (e.g. there are a bunch of places that require Sketches and don't
   let you use Links or ShapeBinders, but you should be able to)
-* improve the SVG Page layout tool (e.g. to identify overlaps or label distances)
+* add some form of versioning support for SVG pages and exports
 * add support for box joins and dovetails, which the Shaper Origin can do by cutting into the
   side of workpieces; this is a major selling point of the tool but I've never done it and don't
   have a clear idea what the workflow should be
