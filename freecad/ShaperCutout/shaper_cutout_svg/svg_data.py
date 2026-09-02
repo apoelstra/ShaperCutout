@@ -2,7 +2,7 @@
 
 import FreeCAD as App
 import Part
-from shaper_cutout_svg import classify_wires, custom_anchor_wire, wire_to_d
+from shaper_cutout_svg import classify_wires, custom_anchor_wire, wire_to_svg
 from shaper_cutout_util import cleanFaces, global_normal
 from ShaperDados import ZERO_DEPTH_TOLERANCE, _wire_to_pipes
 
@@ -170,20 +170,18 @@ class SvgData:
         self._svg_paths.extend(self._outer_wire_paths("black", 1, "black"))
 
         for w in inner_wires:
-            d = wire_to_d(w)
-            if d:
-                self._svg_paths.append(
-                    f'  <path d="{d}" fill="white" stroke="black" stroke-width="1" '
-                    f'shaper:cutType="inside"/>')
+            elem = wire_to_svg(w, fill="white", stroke="black", stroke_width=1, cut_type="inside")
+            if elem:
+                self._svg_paths.append(elem)
 
         for depth_mm, wires in self._dado_wires:
             for w in wires:
                 w = w.transformed(self._xy_matrix)
-                d = wire_to_d(w)
-                if d:
-                    self._svg_paths.append(
-                        f'  <path d="{d}" fill="white" stroke="black" stroke-width="1" '
-                        f'shaper:cutType="inside" shaper:cutDepth="{depth_mm:.4f}mm"/>')
+                elem = wire_to_svg(w, fill="white", stroke="black", stroke_width=1,
+                                   cut_type="inside",
+                                   depth_attr=f' shaper:cutDepth="{depth_mm:.4f}mm"')
+                if elem:
+                    self._svg_paths.append(elem)
 
         for (c, radius) in self._drill_holes:
             c = self._xy_matrix.multVec(c)
@@ -193,19 +191,16 @@ class SvgData:
                 f'shaper:cutType="inside"/>')
 
         for w in _miter_rectangles(self._cutout, self._xy_matrix):
-            d = wire_to_d(w)
-            if d:
-                self._svg_paths.append(
-                    f'  <path d="{d}" fill="none" stroke="blue" stroke-width="1" '
-                    f'shaper:cutType="guide"/>')
+            elem = wire_to_svg(w, fill="none", stroke="blue", stroke_width=1, cut_type="guide")
+            if elem:
+                self._svg_paths.append(elem)
 
         anchor_wire = custom_anchor_wire(outer_wires)
         if not anchor_wire:
             anchor_wire = custom_anchor_wire(inner_wires)
         if anchor_wire:
-            d = wire_to_d(anchor_wire)
-            if d:
-                self.anchor_path = f'  <path d="{d}" fill="red" stroke="none"/>'
+            self.anchor_path = wire_to_svg(anchor_wire, fill="red", stroke="none",
+                                           stroke_width=None)
 
     def _outer_wire_paths(self, fill, stroke_width, color):
         """Generate SVG path strings for outer wires with given stroke width and color."""
@@ -213,11 +208,10 @@ class SvgData:
         outline_shape = self._cutout.CutoutFace.transformed(self._xy_matrix)
         outer_wires, _ = classify_wires(outline_shape)
         for w in outer_wires:
-            d = wire_to_d(w)
-            if d:
-                paths.append(
-                    f'  <path d="{d}" fill="{fill}" stroke="{color}" stroke-width="{stroke_width}" '
-                    f'shaper:cutType="outside"/>')
+            elem = wire_to_svg(w, fill=fill, stroke=color, stroke_width=stroke_width,
+                               cut_type="outside")
+            if elem:
+                paths.append(elem)
         return paths
 
     def outline_svg_path(self, color):

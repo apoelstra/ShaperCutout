@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import re
+
 import FreeCAD as App
 from draftfunctions.svgshapes import get_path
 import Part
@@ -41,12 +43,11 @@ def _extract_path_d(svg_str):
     return svg_str[start:end]
 
 
-def wire_to_d(wire: Part.Wire) -> str:
-    """Project a wire onto the plane and return the SVG path d string."""
-    # We need a stub object with a Name attribute for get_path
+def _get_path_element(wire: Part.Wire) -> str:
+    """Run draftfunctions get_path on a single wire, returning the raw element."""
     class _Stub:
         Name = "stub"
-    svg_str = get_path(
+    return get_path(
         obj=_Stub(),
         plane=None,
         fill="black",  # just need a dummy to cause get_path to close the path
@@ -56,7 +57,52 @@ def wire_to_d(wire: Part.Wire) -> str:
         lstyle="solid",
         wires=[wire],
     )
-    return _extract_path_d(svg_str)
+
+
+def wire_to_svg(wire: Part.Wire, fill: str, stroke: str, cut_type: str = None,
+                depth_attr: str = '', stroke_width: float = 1) -> str:
+    """Return a complete SVG element string for a single projected wire, or ''
+    if the wire produces no output.
+
+    draftfunctions renders most wires as `<path>` elements, but a wire that
+    consists of a single complete circle edge becomes a compact `<circle>`
+    element (e.g. a sketch circle); both forms are handled here. Open wires
+    are not closed with a 'Z' segment. `cut_type` is the Shaper cutType value
+    as spelled for SVG (e.g. 'onLine'), or None to omit the attribute;
+    `depth_attr` is a pre-formatted ` shaper:cutDepth="..."` attribute or '';
+    `stroke_width` is omitted entirely when None.
+    """
+    svg_str = _get_path_element(wire)
+    stripped = svg_str.strip()
+
+    cut_attrs = ''
+    if cut_type is not None:
+        cut_attrs += f' shaper:cutType="{cut_type}"'
+    cut_attrs += depth_attr
+
+    width_attr = ''
+    if stroke_width is not None:
+        width_attr = f' stroke-width="{stroke_width}"'
+
+    if stripped.startswith('<circle'):
+        attrs = dict(re.findall(r'\s(\w+)="([^"]*)"', stripped))
+        if 'cx' not in attrs or 'r' not in attrs:
+            return ''
+        return (f'  <circle cx="{attrs["cx"]}" cy="{attrs["cy"]}" r="{attrs["r"]}" '
+                f'fill="{fill}" stroke="{stroke}"{width_attr}{cut_attrs}/>')
+
+    d = _extract_path_d(svg_str)
+    if not d:
+        return ''
+    # draftfunctions always closes paths; undo that for open wires so that an
+    # "on line" cut doesn't cut the synthetic closing segment.
+    if not wire.isClosed():
+        d = d.strip()
+        if d.endswith('Z'):
+            d = d[:-1].rstrip()
+
+    return (f'  <path d="{d}" fill="{fill}" stroke="{stroke}"'
+            f'{width_attr}{cut_attrs}/>')
 
 
 def custom_anchor_wire(outline_wires: [Part.Wire]) -> Part.Wire:
