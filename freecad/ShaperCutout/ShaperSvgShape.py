@@ -195,6 +195,16 @@ class ViewProviderShaperSvgShape:
     def getIcon(self):
         return os.path.join(_ICON_ROOT, "svg-shape.svg")
 
+    def doubleClicked(self, vobj):
+        from shaper_cutout_command.edit_shaper_svg_shape import open_shape_task_panel
+        open_shape_task_panel(vobj.Object)
+        return True
+
+    def setupContextMenu(self, vobj, menu):
+        from shaper_cutout_command.edit_shaper_svg_shape import open_shape_task_panel
+        action = menu.addAction("Edit SVG Shape")
+        action.triggered.connect(lambda: open_shape_task_panel(vobj.Object))
+
     def getDisplayModes(self, obj):
         return []
 
