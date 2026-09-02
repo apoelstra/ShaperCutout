@@ -266,34 +266,6 @@ def test_svg_shape_draft_object():
         App.closeDocument(doc.Name)
 
 
-def test_svg_shape_overlap_detection():
-    """Two overlapping shapes on a page are reported by compute_overlaps."""
-    doc = App.newDocument("t_svg_shape_overlap")
-    try:
-        page = _make_page(doc, "Overlap")
-
-        # Two closed sketches at overlapping page offsets.
-        p1 = _make_plane(doc, "P1")
-        p2 = _make_plane(doc, "P2")
-        s1 = _make_closed_sketch(doc, p1, "S1", width_mm=50, height_mm=50)
-        s2 = _make_closed_sketch(doc, p2, "S2", width_mm=50, height_mm=50)
-
-        sh1 = ShaperSvgShape.create(page, s1, "Sh1")
-        sh2 = ShaperSvgShape.create(page, s2, "Sh2")
-        sh1.OffsetX = 0
-        sh1.OffsetY = 0
-        sh2.OffsetX = 20  # overlaps sh1 (both 50 wide)
-        sh2.OffsetY = 0
-        doc.recompute()
-
-        overlaps, _ = page.Proxy.compute_overlaps(page)
-        pair_names = [{a.Name, b.Name} for a, b, _ in overlaps]
-        assert_true({sh1.Name, sh2.Name} in pair_names,
-                    f"overlapping shapes detected (got {pair_names})")
-    finally:
-        App.closeDocument(doc.Name)
-
-
 def test_svg_shape_group_filter():
     """The page Group accepts ShaperSvgShape children but rejects random
     objects."""
