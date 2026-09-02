@@ -195,6 +195,9 @@ class ViewProviderShaperSvgShape:
     def getIcon(self):
         return os.path.join(_ICON_ROOT, "svg-shape.svg")
 
+    def claimChildren(self):
+        return [self._vobj.Object.Source]
+
     def doubleClicked(self, vobj):
         from shaper_cutout_command.edit_shaper_svg_shape import open_shape_task_panel
         open_shape_task_panel(vobj.Object)
