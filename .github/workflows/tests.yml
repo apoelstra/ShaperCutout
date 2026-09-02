@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         freecad-version:
-          - "1.0"
+          - "1.1.0"
           - "1.1.3"
 
     steps:

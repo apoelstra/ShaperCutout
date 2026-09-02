@@ -17,6 +17,7 @@
       <icon>Resources/Icons/ShaperCutoutWorkbench.svg</icon>
       <tag>woodworking</tag>
       <tag>cnc</tag>
+      <freecadmin>1.1.0</freecadmin>
     </workbench>
   </content>
   <pythonmin>3.8</pythonmin>
