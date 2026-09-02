@@ -44,6 +44,7 @@ try:
     import test_miters
     import test_slots
     import test_svg
+    import test_svg_shape
 
     ALL_TESTS = []
     test_dados.register_tests(ALL_TESTS)
@@ -51,6 +52,7 @@ try:
     test_miters.register_tests(ALL_TESTS)
     test_slots.register_tests(ALL_TESTS)
     test_svg.register_tests(ALL_TESTS)
+    test_svg_shape.register_tests(ALL_TESTS)
 
     Gui.setupWithoutGUI()
 except Exception as e:
