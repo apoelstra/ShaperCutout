@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import math
 import os
+import re
 
 import FreeCAD as App
 import Part
@@ -289,6 +291,59 @@ def test_svg_export_back_is_mirrored():
         App.closeDocument(doc.Name)
 
 
+def test_svg_export_with_circle_front():
+    """Regression: a circle in the outline sketch appears in the exported SVG.
+
+    draftfunctions renders a wire that is a single complete circle as a
+    compact <circle> element instead of a <path>, so d-attribute-based path
+    extraction silently dropped sketch circles from the SVG even though the
+    3D cutout volume correctly accounted for them.
+    """
+    doc = App.newDocument("test_svg_circle_front")
+    try:
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        cutout = make_rect_cutout(doc, "Circle")
+        doc.recompute()
+        svg_without = export_svg_front(cutout)
+        assert_true('<circle' not in svg_without, "no <circle> before sketch edit")
+
+        # Punch a 10mm-radius hole at (10, 20) in the outline sketch. The
+        # volume must drop by the cylinder's volume.
+        vol_before = sum(s.Volume for s in cutout.Shape.Solids)
+        cutout.OutlineSketch.addGeometry(
+            Part.Circle(App.Vector(10, 20, 0), App.Vector(0, 0, 1), 10), False)
+        doc.recompute()
+        vol_after = sum(s.Volume for s in cutout.Shape.Solids)
+        expected_drop = math.pi * 10.0 * 10.0 * mm(0.5)
+        assert_true(abs((vol_before - vol_after) - expected_drop) < 0.1,
+                    f"3D volume dropped by the circle cut ({expected_drop})")
+
+        svg = export_svg_front(cutout)
+        assert_true(svg != svg_without, "SVG changes when a circle is added")
+        assert_true(svg.count('<circle') == 1, "SVG contains exactly one <circle>")
+
+        m = re.search(r'<circle cx="([^"]+)" cy="([^"]+)" r="([^"]+)"[^>]*'
+                      r'shaper:cutType="inside"/>', svg)
+        assert_true(m is not None, f'circle element with inside cutType:\n{svg}')
+        # The front export mirrors x (see SvgData.__init__), so the projected
+        # center is (-10, 20).
+        assert_true(abs(float(m.group(1)) + 10.0) < 1e-6, "circle cx is projected/mirrored")
+        assert_true(abs(float(m.group(2)) - 20.0) < 1e-6, "circle cy is projected")
+        assert_true(abs(float(m.group(3)) - 10.0) < 1e-6, "circle radius is 10mm")
+
+        test_file = os.path.join(OUTPUT_DIR, "svg_circle_front.svg")
+        with open(test_file, 'w') as f:
+            f.write(svg)
+
+        master_file = os.path.join(MASTER_DIR, "svg_circle_front.master")
+        assert_svg_eq(svg, master_file)
+    except Exception as e:
+        App.Console.PrintError(f"  ERROR: {e}")
+        raise e
+    finally:
+        App.closeDocument(doc.Name)
+
+
 # ============================================================================
 # 2. ShaperSvgPage layout tests
 # ============================================================================
@@ -547,6 +602,7 @@ def register_tests(all_tests):
     all_tests.append(test_svg_export_with_miter_front)
     all_tests.append(test_svg_export_with_slot_front)
     all_tests.append(test_svg_export_back_is_mirrored)
+    all_tests.append(test_svg_export_with_circle_front)
     # SVG page layout tests
     all_tests.append(test_svg_page_single_piece)
     all_tests.append(test_svg_page_offset_positions)
