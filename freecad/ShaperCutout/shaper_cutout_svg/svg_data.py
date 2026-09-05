@@ -216,7 +216,8 @@ class SvgData:
 
     def outline_svg_path(self, color):
         """Return SVG path strings for outer wires with stroke-width=2 and given color."""
-        return self._outer_wire_paths("none", 8, color)
+        from shaper_cutout_svg import HIGHLIGHT_WIDTH
+        return self._outer_wire_paths("none", HIGHLIGHT_WIDTH, color)
 
     def svg_paths(self, include_anchor=False) -> str:
         paths_str = "\n".join(self._svg_paths)

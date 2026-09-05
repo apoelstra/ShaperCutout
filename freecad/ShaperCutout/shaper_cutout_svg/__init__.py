@@ -2,3 +2,6 @@
 
 from .misc import classify_wires, custom_anchor_wire, wire_to_svg  # noqa: F401
 from .svg_data import SvgData  # noqa: F401
+
+HIGHLIGHT_COLOR = '#FA0'
+HIGHLIGHT_WIDTH = 8
