@@ -436,11 +436,21 @@ class _PageWidget(QtWidgets.QWidget):
 
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.LeftButton:
+            key_mods = QtWidgets.QApplication.keyboardModifiers()
+
             child = self._hit_test(event.pos())
             if child:
-                # FIXME depending on Ctrl / Shift be better about selecting
-                Gui.Selection.clearSelection()
-                Gui.Selection.addSelection(child.Document.Name, child.Name)
+                if key_mods & QtCore.Qt.ShiftModifier == QtCore.Qt.ShiftModifier:
+                    Gui.Selection.addSelection(child)
+                elif key_mods & QtCore.Qt.ControlModifier == QtCore.Qt.ControlModifier:
+                    if Gui.Selection.isSelected(child):
+                        Gui.Selection.removeSelection(child)
+                    else:
+                        Gui.Selection.addSelection(child)
+                else:
+                    Gui.Selection.clearSelection()
+                    Gui.Selection.addSelection(child)
+
                 self._dragging = child
                 self._drag_start = event.pos()
                 self._drag_orig_offset = (child.OffsetX.Value, child.OffsetY.Value)
@@ -448,7 +458,9 @@ class _PageWidget(QtWidgets.QWidget):
                 self._page_obj.Document.openTransaction("Move ShaperSvgImage")
                 self.setCursor(QtCore.Qt.ClosedHandCursor)
             else:
-                Gui.Selection.clearSelection()
+                if key_mods & (QtCore.Qt.ShiftModifier | QtCore.Qt.ControlModifier) \
+                        == QtCore.Qt.NoModifier:
+                    Gui.Selection.clearSelection()
 
     def mouseMoveEvent(self, event):
         if self._dragging:
@@ -592,7 +604,7 @@ class ViewProviderShaperSvgPage:
         """Called when selection changes in the document."""
         self.clearSelection(doc_name)
 
-    def removeSelection(self, doc_name, obj_name, sub_name, pnt):
+    def removeSelection(self, doc_name, obj_name, sub_name):
         """Called when selection changes in the document."""
         self.clearSelection(doc_name)
 
