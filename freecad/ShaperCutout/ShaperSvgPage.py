@@ -451,19 +451,21 @@ class _PageWidget(QtWidgets.QWidget):
                     Gui.Selection.clearSelection()
                     Gui.Selection.addSelection(child)
 
-                self._dragging = [child]
                 self._drag_start = event.pos()
-                self._drag_orig_offset = (child.OffsetX.Value, child.OffsetY.Value)
+                self._dragging = [(s, s.OffsetX.Value, s.OffsetY.Value)
+                                  for s in Gui.Selection.getSelection()
+                                  if _is_page_child(s) and s in self._page_obj.Group]
                 self._page_obj.Proxy._is_dragging = True
                 self._page_obj.Document.openTransaction("Move ShaperSvgImage")
                 self.setCursor(QtCore.Qt.ClosedHandCursor)
             else:
+                self._dragging = []
                 if key_mods & (QtCore.Qt.ShiftModifier | QtCore.Qt.ControlModifier) \
                         == QtCore.Qt.NoModifier:
                     Gui.Selection.clearSelection()
 
     def mouseMoveEvent(self, event):
-        for dragging in self._dragging:
+        if self._dragging:
             metrics = self._get_page_metrics()
             if not metrics:
                 return
@@ -477,6 +479,7 @@ class _PageWidget(QtWidgets.QWidget):
             dx_mm = dx_px / grid_px * grid_mm
             dy_mm = -dy_px / grid_px * grid_mm
 
+        for dragging, orig_offset_x, orig_offset_y in self._dragging:
             rot_rad = math.radians(dragging.Rotation.Value)
             cos_r = abs(math.cos(rot_rad))
             sin_r = abs(math.sin(rot_rad))
@@ -488,8 +491,8 @@ class _PageWidget(QtWidgets.QWidget):
             min_y = h_rot / 2 - dragging.Svg_BBLength.y / 2
             max_y = page_h - h_rot / 2 - dragging.Svg_BBLength.y / 2
 
-            new_x = self._drag_orig_offset[0] + dx_mm
-            new_y = self._drag_orig_offset[1] + dy_mm
+            new_x = orig_offset_x + dx_mm
+            new_y = orig_offset_y + dy_mm
 
             if min_x > max_x:
                 dragging.OffsetX = (min_x + max_x) / 2
@@ -501,6 +504,7 @@ class _PageWidget(QtWidgets.QWidget):
             else:
                 dragging.OffsetY = max(min_y, min(new_y, max_y))
 
+        if self._dragging:
             self.update_svg()
         else:
             child = self._hit_test(event.pos())
