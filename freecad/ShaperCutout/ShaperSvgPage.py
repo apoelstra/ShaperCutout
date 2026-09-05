@@ -217,7 +217,7 @@ class _PageWidget(QtWidgets.QWidget):
         self._close_pairs = []
         self.setMinimumSize(200, 100)
         self.setMouseTracking(True)
-        self._dragging = None
+        self._dragging = []
         self._drag_start = None
         self._drag_orig_offset = None
 
@@ -451,7 +451,7 @@ class _PageWidget(QtWidgets.QWidget):
                     Gui.Selection.clearSelection()
                     Gui.Selection.addSelection(child)
 
-                self._dragging = child
+                self._dragging = [child]
                 self._drag_start = event.pos()
                 self._drag_orig_offset = (child.OffsetX.Value, child.OffsetY.Value)
                 self._page_obj.Proxy._is_dragging = True
@@ -463,7 +463,7 @@ class _PageWidget(QtWidgets.QWidget):
                     Gui.Selection.clearSelection()
 
     def mouseMoveEvent(self, event):
-        if self._dragging:
+        for dragging in self._dragging:
             metrics = self._get_page_metrics()
             if not metrics:
                 return
@@ -477,29 +477,29 @@ class _PageWidget(QtWidgets.QWidget):
             dx_mm = dx_px / grid_px * grid_mm
             dy_mm = -dy_px / grid_px * grid_mm
 
-            rot_rad = math.radians(self._dragging.Rotation.Value)
+            rot_rad = math.radians(dragging.Rotation.Value)
             cos_r = abs(math.cos(rot_rad))
             sin_r = abs(math.sin(rot_rad))
-            w_rot = self._dragging.Svg_BBLength.x * cos_r + self._dragging.Svg_BBLength.y * sin_r
-            h_rot = self._dragging.Svg_BBLength.x * sin_r + self._dragging.Svg_BBLength.y * cos_r
+            w_rot = dragging.Svg_BBLength.x * cos_r + dragging.Svg_BBLength.y * sin_r
+            h_rot = dragging.Svg_BBLength.x * sin_r + dragging.Svg_BBLength.y * cos_r
 
-            min_x = w_rot / 2 - self._dragging.Svg_BBLength.x / 2
-            max_x = page_w - w_rot / 2 - self._dragging.Svg_BBLength.x / 2
-            min_y = h_rot / 2 - self._dragging.Svg_BBLength.y / 2
-            max_y = page_h - h_rot / 2 - self._dragging.Svg_BBLength.y / 2
+            min_x = w_rot / 2 - dragging.Svg_BBLength.x / 2
+            max_x = page_w - w_rot / 2 - dragging.Svg_BBLength.x / 2
+            min_y = h_rot / 2 - dragging.Svg_BBLength.y / 2
+            max_y = page_h - h_rot / 2 - dragging.Svg_BBLength.y / 2
 
             new_x = self._drag_orig_offset[0] + dx_mm
             new_y = self._drag_orig_offset[1] + dy_mm
 
             if min_x > max_x:
-                self._dragging.OffsetX = (min_x + max_x) / 2
+                dragging.OffsetX = (min_x + max_x) / 2
             else:
-                self._dragging.OffsetX = max(min_x, min(new_x, max_x))
+                dragging.OffsetX = max(min_x, min(new_x, max_x))
 
             if min_y > max_y:
-                self._dragging.OffsetY = (min_y + max_y) / 2
+                dragging.OffsetY = (min_y + max_y) / 2
             else:
-                self._dragging.OffsetY = max(min_y, min(new_y, max_y))
+                dragging.OffsetY = max(min_y, min(new_y, max_y))
 
             self.update_svg()
         else:
@@ -514,7 +514,7 @@ class _PageWidget(QtWidgets.QWidget):
             dx_px = event.pos().x() - self._drag_start.x()
             dy_px = event.pos().y() - self._drag_start.y()
 
-            self._dragging = None
+            self._dragging = []
             self._drag_start = None
             self._drag_orig_offset = None
             self._page_obj.Proxy._is_dragging = False
