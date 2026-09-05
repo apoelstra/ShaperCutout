@@ -4,6 +4,7 @@ import os
 
 import FreeCAD as App
 
+from shaper_cutout_svg import HIGHLIGHT_COLOR, HIGHLIGHT_WIDTH
 from shaper_cutout_util import _ICON_ROOT
 
 # The user-facing enum labels, and their mapping to Shaper `cutType` attribute values.
@@ -75,6 +76,8 @@ class ShaperSvgShape:
         obj.setPropertyStatus('Svg_BBCenter', 2)
         obj.setPropertyStatus('Svg_BBLength', 2)
 
+        self._add_svg_outline_property(obj)
+
         obj.Type = 'ShaperSvgShape'
         obj.Rotation = 0.0
         obj.OffsetX = 0.0
@@ -144,7 +147,8 @@ class ShaperSvgShape:
         if obj.CutDepthEnabled:
             depth_attr = f' shaper:cutDepth="{obj.CutDepth.Value:.4f}mm"'
 
-        paths = []
+        svg_full = ""
+        svg_outline = ""
         for w in local.Wires:
             if w.isClosed():
                 cut_type = obj.ClosedWireType
@@ -156,12 +160,34 @@ class ShaperSvgShape:
 
             elem = wire_to_svg(w, 'none', stroke, cut_type_svg, depth_attr)
             if elem:
-                paths.append(elem)
+                svg_full += f"{elem}\n"
+            elem = wire_to_svg(w, 'none', HIGHLIGHT_COLOR,
+                               stroke_width=HIGHLIGHT_WIDTH)
+            if elem:
+                svg_outline += f"{elem}\n"
 
-        obj.Svg_Full = "\n".join(paths)
+        obj.Svg_Full = svg_full
+        obj.Svg_Outline = svg_outline
         bb = local.BoundBox
         obj.Svg_BBCenter = bb.Center
         obj.Svg_BBLength = App.Vector(bb.XLength, bb.YLength, bb.ZLength)
+
+    def _add_svg_outline_property(self, obj):
+        """Add Svg_Outline to objects saved before the selection highlight
+        existed (same pattern as ShaperSvgImage.addSvgProperties)."""
+        if not hasattr(obj, 'Svg_Outline'):
+            obj.addProperty('App::PropertyString', 'Svg_Outline', 'Svg',
+                            'A thick orange stroke of all wires, drawn by the '
+                            'page when this shape is selected (highlight).')
+            obj.setPropertyStatus('Svg_Outline', 2)
+            obj.Svg_Outline = ''
+            return True
+        return False
+
+    def onDocumentRestored(self, obj):
+        if self._add_svg_outline_property(obj):
+            if obj.Source:
+                self._recompute_svg(obj)
 
     def dumps(self):
         return None
