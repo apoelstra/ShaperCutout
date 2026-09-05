@@ -330,6 +330,68 @@ def test_svg_shape_save_restore():
             os.remove(path)
 
 
+def test_svg_shape_selection_highlight():
+    """Every wire gets a precomputed thick orange highlight (Svg_Outline),
+    which the page draws (on top) only while the shape is selected."""
+    import FreeCADGui as Gui
+
+    doc = App.newDocument("t_svg_shape_highlight")
+    try:
+        plane = _make_plane(doc, "Plane")
+        # Two closed wires (rect + circle) to prove *all* lines highlight,
+        # not just an "outline".
+        sketch = _make_closed_sketch(doc, plane, "RectHole", with_hole=True)
+        page = _make_page(doc, "Highlight")
+        shape = ShaperSvgShape.create(page, sketch, "HoleShape")
+
+        assert_true(len(shape.Svg_Outline) > 0, "Svg_Outline is populated")
+        assert_true('stroke="#FA0"' in shape.Svg_Outline,
+                    "highlight stroke is orange")
+        assert_true('stroke-width="8"' in shape.Svg_Outline,
+                    "highlight stroke is thick")
+        assert_true(shape.Svg_Outline.count('fill="none"') == 2,
+                    "highlight elements are stroke-only")
+        assert_true(shape.Svg_Outline.count('<path')
+                    + shape.Svg_Outline.count('<circle') == 2,
+                    "highlight covers both wires (path + circle)")
+        assert_true('shaper:' not in shape.Svg_Outline,
+                    "highlight carries no shaper cut attributes")
+
+        # Nothing selected (headless): no highlight in the page SVG.
+        svg = page.Proxy.compute_svg(page)
+        assert_true('#FA0' not in svg, "no highlight when nothing is selected")
+
+        # With the shape selected: Gui.Selection doesn't exist in
+        # FreeCADCmd, so fake the selection state compute_svg consults.
+        real_selection = getattr(Gui, 'Selection', None)
+        real_guiup = App.GuiUp
+
+        class _FakeSelection:
+            @staticmethod
+            def getSelection():
+                return [shape]
+
+        try:
+            App.GuiUp = 1
+            Gui.Selection = _FakeSelection
+            svg = page.Proxy.compute_svg(page)
+        finally:
+            App.GuiUp = real_guiup
+            if real_selection is not None:
+                Gui.Selection = real_selection
+            else:
+                try:
+                    del Gui.Selection
+                except Exception:
+                    pass
+
+        assert_true('#FA0' in svg, "selected shape gets orange highlight")
+        assert_true(svg.rindex('#FA0') > svg.rindex('shaper:cutType="outside"'),
+                    "highlight is drawn on top of the normal rendering")
+    finally:
+        App.closeDocument(doc.Name)
+
+
 def register_tests(all_tests):
     all_tests.append(test_svg_shape_basic)
     all_tests.append(test_svg_shape_offset_normalization)
@@ -341,3 +403,4 @@ def register_tests(all_tests):
     all_tests.append(test_svg_shape_draft_object)
     all_tests.append(test_svg_shape_group_filter)
     all_tests.append(test_svg_shape_save_restore)
+    all_tests.append(test_svg_shape_selection_highlight)
