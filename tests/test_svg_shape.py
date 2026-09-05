@@ -96,6 +96,11 @@ def test_svg_shape_basic():
         assert_true(len(shape.Svg_Full) > 0, "Svg_Full is populated")
         assert_true(shape.Svg_Full.count('shaper:cutType="outside"') == 1,
                     "closed wire defaults to outside cutType")
+        assert_true('fill="none"' in shape.Svg_Full
+                    and 'fill="white"' not in shape.Svg_Full,
+                    "closed wires are stroke-only, never filled")
+        assert_true('stroke="black"' in shape.Svg_Full,
+                    "non-guide wires are stroked black")
         assert_true('cutDepth' not in shape.Svg_Full, "no cutDepth by default")
         assert_true(abs(shape.Svg_BBLength.x - 40) < 1e-6
                     and abs(shape.Svg_BBLength.y - 60) < 1e-6,
@@ -136,7 +141,7 @@ def test_svg_shape_offset_normalization():
 
 def test_svg_shape_circle_wire():
     """Sketch circles (which draftfunctions renders as <circle> elements)
-    appear in the shape SVG."""
+    appear in the shape SVG, unfilled."""
     doc = App.newDocument("t_svg_shape_circle")
     try:
         plane = _make_plane(doc, "Plane")
@@ -148,6 +153,9 @@ def test_svg_shape_circle_wire():
                     "sketch circle renders as a <circle> element")
         assert_true(shape.Svg_Full.count('shaper:cutType="outside"') == 2,
                     "both rect and circle get the closed-wire cutType")
+        assert_true(shape.Svg_Full.count('fill="none"') == 2
+                    and 'fill="white"' not in shape.Svg_Full,
+                    "circle and rect are both stroke-only")
     finally:
         App.closeDocument(doc.Name)
 

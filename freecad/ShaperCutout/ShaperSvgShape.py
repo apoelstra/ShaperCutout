@@ -3,7 +3,6 @@
 import os
 
 import FreeCAD as App
-import Part
 
 from shaper_cutout_util import _ICON_ROOT
 
@@ -153,14 +152,9 @@ class ShaperSvgShape:
                 cut_type = obj.OpenWireType
 
             cut_type_svg = _CUT_TYPE_SVG[cut_type]
-            if cut_type == 'guide':
-                fill, stroke = 'none', 'blue'
-            elif cut_type == 'on line':
-                fill, stroke = 'none', 'black'
-            else:  # inside / outside
-                fill, stroke = 'white', 'black'
+            stroke = 'blue' if cut_type == 'guide' else 'black'
 
-            elem = wire_to_svg(w, fill, stroke, cut_type_svg, depth_attr)
+            elem = wire_to_svg(w, 'none', stroke, cut_type_svg, depth_attr)
             if elem:
                 paths.append(elem)
 
