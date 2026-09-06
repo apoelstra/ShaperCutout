@@ -48,14 +48,13 @@ class ShaperCutoutWorkbench(Gui.Workbench):
         # Import all commands.
         from shaper_cutout_command import CreateShaperCutoutCmd, CreateShaperDadosCmd, \
             CreateShaperMiterCmd, \
-            ExportShaperSVGCmd, CreateShaperSvgPageCmd, ExportShaperSvgPageCmd, \
+            ExportToShaperSvgPageCmd, CreateShaperSvgPageCmd, ExportShaperSvgPageCmd, \
             CreateShaperSlotCmd, ReportViewCmd
 
         Gui.addCommand('ShaperCutout_createCutout', CreateShaperCutoutCmd())
         Gui.addCommand('ShaperCutout_createDados', CreateShaperDadosCmd())
         Gui.addCommand('ShaperCutout_createMiter', CreateShaperMiterCmd())
-        Gui.addCommand('ShaperCutout_exportFrontSVG', ExportShaperSVGCmd(True))
-        Gui.addCommand('ShaperCutout_exportBackSVG', ExportShaperSVGCmd(False))
+        Gui.addCommand('ShaperCutout_exportToSvgPage', ExportToShaperSvgPageCmd())
         Gui.addCommand('ShaperCutout_createSvgPage', CreateShaperSvgPageCmd())
         Gui.addCommand('ShaperCutout_exportSvgPage', ExportShaperSvgPageCmd())
         Gui.addCommand('ShaperCutout_createSlot', CreateShaperSlotCmd())
@@ -70,8 +69,7 @@ class ShaperCutoutWorkbench(Gui.Workbench):
                 "ShaperCutout_createSlot",
                 "ShaperCutout_createSvgPage",
                 "ShaperCutout_exportSvgPage",
-                "ShaperCutout_exportFrontSVG",
-                "ShaperCutout_exportBackSVG",
+                "ShaperCutout_exportToSvgPage",
                 "ShaperCutout_reportView",
                 "Separator",
                 "Part_CoordinateSystem",
@@ -87,8 +85,7 @@ class ShaperCutoutWorkbench(Gui.Workbench):
                 "ShaperCutout_createMiter",
                 "ShaperCutout_createSlot",
                 "ShaperCutout_createSvgPage",
-                "ShaperCutout_exportFrontSVG",
-                "ShaperCutout_exportBackSVG",
+                "ShaperCutout_exportToSvgPage",
                 "ShaperCutout_reportView",
                 "Separator",
                 "Part_CoordinateSystem",

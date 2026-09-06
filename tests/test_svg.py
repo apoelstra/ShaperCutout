@@ -595,6 +595,43 @@ def test_svg_page_with_anchor():
         App.closeDocument(doc.Name)
 
 
+def test_export_to_svg_page():
+    """'Export to ShaperSvgPage' creates a page sized to the cutout with one child."""
+    from shaper_cutout_command.export_to_shaper_svg_page import create_page
+
+    doc = App.newDocument("test_export_to_svg_page")
+    try:
+        cutout = make_rect_cutout(doc, "ExportPiece")
+        page = create_page(cutout)
+
+        assert_true(getattr(page, 'Type', None) == 'ShaperSvgPage',
+                    "export creates a ShaperSvgPage")
+        assert_true(len(page.Group) == 1,
+                    f"page has exactly one child (got {len(page.Group)})")
+        image = page.Group[0]
+        assert_true(getattr(image, 'Type', None) == 'ShaperSvgImage',
+                    "page child is a ShaperSvgImage")
+        assert_true(image.Cutout is cutout, "image links to the cutout")
+
+        # The page is sized exactly to the cutout bounding box (4" x 6").
+        assert_true(abs(page.Width.Value - image.Svg_BBLength.x) < 1e-6,
+                    f"page width matches cutout ({page.Width.Value} vs {image.Svg_BBLength.x})")
+        assert_true(abs(page.Height.Value - image.Svg_BBLength.y) < 1e-6,
+                    f"page height matches cutout ({page.Height.Value} vs {image.Svg_BBLength.y})")
+        assert_true(abs(page.Width.Value - mm(4)) < 1e-6,
+                    f"page width is cutout width {mm(4)}mm (got {page.Width.Value})")
+        assert_true(abs(page.Height.Value - mm(6)) < 1e-6,
+                    f"page height is cutout height {mm(6)}mm (got {page.Height.Value})")
+
+        svg = page.Proxy.compute_svg(page)
+        assert_true('cutType="outside"' in svg, "page SVG contains piece outline")
+    except Exception as e:
+        App.Console.PrintError(f"  ERROR: {e}")
+        raise e
+    finally:
+        App.closeDocument(doc.Name)
+
+
 def register_tests(all_tests):
     # SVG export comparison tests
     all_tests.append(test_svg_export_simple_front)
@@ -613,3 +650,4 @@ def register_tests(all_tests):
     all_tests.append(test_svg_page_multiple_pieces)
     all_tests.append(test_svg_page_rotation_changes_svg)
     all_tests.append(test_svg_page_with_anchor)
+    all_tests.append(test_export_to_svg_page)

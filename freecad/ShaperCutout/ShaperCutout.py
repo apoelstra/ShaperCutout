@@ -449,17 +449,13 @@ class ViewProviderShaperCutout:
         return True
 
     def setupContextMenu(self, vobj, menu):
-        from shaper_cutout_command.export_shaper_svg import export
+        from shaper_cutout_command.export_to_shaper_svg_page import create_page
         edit_action = QtGui.QAction("Edit Shaper Cutout", menu)
         edit_action.triggered.connect(lambda: open_cutout_task_panel(vobj.Object))
         menu.addAction(edit_action)
 
-        export_action = QtGui.QAction("Export Shaper SVG (Front)", menu)
-        export_action.triggered.connect(lambda: export(vobj.Object, True))
-        menu.addAction(export_action)
-
-        export_action = QtGui.QAction("Export Shaper SVG (Back)", menu)
-        export_action.triggered.connect(lambda: export(vobj.Object, False))
+        export_action = QtGui.QAction("Export to ShaperSvgPage", menu)
+        export_action.triggered.connect(lambda: create_page(vobj.Object))
         menu.addAction(export_action)
 
     def updateData(self, fp, prop):

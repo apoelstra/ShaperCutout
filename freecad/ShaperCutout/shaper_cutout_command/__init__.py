@@ -4,7 +4,7 @@ from .create_shaper_cutout import CreateShaperCutoutCmd  # noqa: F401
 from .create_shaper_dados import CreateShaperDadosCmd    # noqa: F401
 from .create_shaper_miter import CreateShaperMiterCmd    # noqa: F401
 from .create_shaper_slot import CreateShaperSlotCmd      # noqa: F401
-from .export_shaper_svg import ExportShaperSVGCmd        # noqa: F401
+from .export_to_shaper_svg_page import ExportToShaperSvgPageCmd  # noqa: F401
 from .create_shaper_svg_page import CreateShaperSvgPageCmd    # noqa: F401
 from .export_shaper_svg_page import ExportShaperSvgPageCmd    # noqa: F401
 from .report_view import ReportViewCmd    # noqa: F401

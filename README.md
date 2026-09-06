@@ -128,7 +128,10 @@ On a new document, these are mostly disbled, but they are:
 * **Create SVG Page** creates a full sheet on which you can lay out your cuts. It defaults to being
   sized as a 8' by 4' sheet. Once you have created a page, you can right-click on it to export the
   whole thing as one SVG that the Shaper can understand (including encoded cut types and depths).
-* **SVG Export** these two buttons export the two faces of a single cutout as SVGs.
+* **Export to ShaperSvgPage** creates a `ShaperSvgPage` sized exactly to the selected cutout(s),
+  containing just that cutout. Rather than exporting an SVG file directly, the cutout lands on
+  its own page where you can preview it, flip it over, adjust its position, and set a custom
+  anchor before exporting the page.
 * **Check for Collisions** iterates through every pair of cutouts, looking for nontrivial
   intersections between the pieces.
 
@@ -280,10 +283,11 @@ Anyway here's what I did:
 
 <center><img alt="Some Datum Planes" src="./tutorial-images/22-done.png" /></center>
 
-If you want, you can right-click on the individual cutouts in the Tree View and choose the "Export
-SVG" option. Since these parts all have dados on only one side, that's the side you want to
-export. Instead, let's lay them all out on a single giant 8'x4' sketch that we can lay out over
-a whole sheet of plywood.
+If you want, you can right-click on the individual cutouts in the Tree View and choose "Export to
+ShaperSvgPage", which creates a page exactly the size of that cutout, where you can flip it and
+preview it before exporting. Since these parts all have dados on only one side, that's the side you
+want to export. Instead, let's lay them all out on a single giant 8'x4' sketch that we can lay out
+over a whole sheet of plywood.
 
 Start by clicking "Create SVG Page":
 
