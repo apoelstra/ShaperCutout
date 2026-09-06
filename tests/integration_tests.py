@@ -42,6 +42,7 @@ try:
     import test_dados
     import test_dado_autodrill
     import test_miters
+    import test_page_metrics
     import test_slots
     import test_svg
     import test_svg_shape
@@ -50,6 +51,7 @@ try:
     test_dados.register_tests(ALL_TESTS)
     test_dado_autodrill.register_tests(ALL_TESTS)
     test_miters.register_tests(ALL_TESTS)
+    test_page_metrics.register_tests(ALL_TESTS)
     test_slots.register_tests(ALL_TESTS)
     test_svg.register_tests(ALL_TESTS)
     test_svg_shape.register_tests(ALL_TESTS)

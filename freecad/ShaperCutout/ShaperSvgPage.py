@@ -33,6 +33,35 @@ def create(name="ShaperSvgPage"):
     return obj
 
 
+def page_view_metrics(widget_w, widget_h, page_w_mm, page_h_mm, grid_mm):
+    # Minimum padding so the viewport has a GUI border. One of the `pad_x`/`pad_y` padding
+    # values will be equal to this; the other may be larger.
+    min_pad = 2
+    if page_w_mm <= 0 or page_h_mm <= 0 \
+            or widget_w < 2 * min_pad or widget_h < 2 * min_pad:
+        return None
+
+    # Determine padding, available viewport space, and grid size, all in pixels
+    page_ar = page_w_mm / page_h_mm
+    view_ar = widget_w / widget_h
+    if page_ar > view_ar:
+        # Page is width-limited
+        avail_w = widget_w - 2 * min_pad
+        avail_h = avail_w / page_ar
+        pad_x = min_pad
+        pad_y = (widget_h - avail_h) / 2.0
+        grid_px = grid_mm * avail_w / page_w_mm
+    else:
+        # Page is height-limited
+        avail_h = widget_h - 2 * min_pad
+        avail_w = avail_h * page_ar
+        pad_y = min_pad
+        pad_x = (widget_w - avail_w) / 2.0
+        grid_px = grid_mm * avail_h / page_h_mm
+
+    return pad_x, pad_y, grid_px, avail_w, avail_h
+
+
 class ShaperSvgPage:
     def __init__(self, obj):
         obj.Proxy = self
@@ -254,36 +283,9 @@ class _PageWidget(QtWidgets.QWidget):
         * The "pixel ratio" `grid_px / grid_mm` equals both `avail_w` / `self._page_obj.Width.Value`
           and `avail_h` / `self._page_obj.Height.Value`
         """
-        # Minimum padding so the viewport has a GUI border. One of the `pad_x`/`pad_y` padding
-        # values will be equal to this; the other may be larger.
-        min_pad = 2
-        # Page properties set by user, in mm
-        page_w_mm = self._page_obj.Width.Value
-        page_h_mm = self._page_obj.Height.Value
-        grid_mm = self._page_obj.GridSpacing.Value
-        if page_w_mm <= 0 or page_h_mm <= 0 \
-                or self.width() < 2 * min_pad or self.height() < 2 * min_pad:
-            return None
-
-        # Determine padding, available viewport space, and grid size, all in pixels
-        page_ar = page_w_mm / page_h_mm
-        view_ar = self.width() / self.height()
-        if page_ar > view_ar:
-            # Page is width-limited
-            avail_w = self.width() - 2 * min_pad
-            avail_h = avail_w / page_ar
-            pad_x = min_pad
-            pad_y = (self.height() - avail_h) / 2.0
-            grid_px = grid_mm * avail_w / page_w_mm
-        else:
-            # Page is height-limited
-            avail_h = self.height() - 2 * min_pad
-            avail_w = avail_h * page_ar
-            pad_y = min_pad
-            pad_x = (self.width() - avail_w) / 2.0
-            grid_px = grid_mm * avail_h / page_h_mm
-
-        return pad_x, pad_y, grid_px, avail_w, avail_h
+        return page_view_metrics(self.width(), self.height(),
+                                 self._page_obj.Width.Value, self._page_obj.Height.Value,
+                                 self._page_obj.GridSpacing.Value)
 
     def paintEvent(self, event):
         metrics = self._get_page_metrics()
