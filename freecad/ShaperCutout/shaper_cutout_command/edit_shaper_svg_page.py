@@ -37,6 +37,16 @@ class ShaperSvgPageTaskPanel(ShaperTaskPanel):
             self._quantity_widget('GridSpacing', minimum=1e-7),
         )
 
+        # Include custom anchor
+        self.anchor_checkbox = QtWidgets.QCheckBox()
+        self.anchor_checkbox.setChecked(getattr(self._object, 'IncludeAnchor', False))
+        self.anchor_checkbox.setToolTip(
+            "Include a custom anchor, placed at the best 90-degree corner found "
+            "across all objects on the page."
+        )
+        self.anchor_checkbox.stateChanged.connect(self._on_anchor_changed)
+        self._main_layout.addRow("Include Anchor:", self.anchor_checkbox)
+
         # Show overlaps (may be slow)
         self.overlaps_checkbox = QtWidgets.QCheckBox()
         self.overlaps_checkbox.setChecked(getattr(self._object, 'ShowOverlaps', True))
@@ -64,6 +74,10 @@ class ShaperSvgPageTaskPanel(ShaperTaskPanel):
         if not self._initialized:
             return
         self._object.recompute()
+
+    def _on_anchor_changed(self):
+        self._object.IncludeAnchor = self.anchor_checkbox.isChecked()
+        self.recompute_objects('IncludeAnchor')
 
     def _on_overlaps_changed(self):
         self._object.ShowOverlaps = self.overlaps_checkbox.isChecked()

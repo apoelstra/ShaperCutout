@@ -356,6 +356,7 @@ def make_svg_page_with_image(doc, cutout, name, offset_x=0, offset_y=0,
     page.Width = '24 in'
     page.Height = '12 in'
     page.GridSpacing = '1 in'
+    page.IncludeAnchor = include_anchor
 
     image = ShaperSvgImage.create(page, cutout, name + "_image")
     image.OffsetX = offset_x
@@ -363,7 +364,6 @@ def make_svg_page_with_image(doc, cutout, name, offset_x=0, offset_y=0,
     image.Rotation = rotation
     image.Flip = flip
     image.Invert = invert
-    image.IncludeAnchor = include_anchor
 
     doc.recompute()
     return page, image
@@ -588,6 +588,59 @@ def test_svg_page_with_anchor():
         # Verify SVG contains anchor (red fill, no stroke)
         has_anchor = 'fill="red"' in svg
         assert_true(has_anchor, "page SVG contains anchor")
+
+        # The anchor lives on the page, not the image.
+        assert_true(not hasattr(image, 'IncludeAnchor'),
+                    "image has no per-image IncludeAnchor property")
+        assert_true(not hasattr(image, 'Svg_Anchor'),
+                    "image has no per-image Svg_Anchor property")
+
+        # Toggling the page property toggles the anchor in the output.
+        page.IncludeAnchor = False
+        svg_off = page.Proxy.compute_svg(page)
+        assert_true('fill="red"' not in svg_off, "anchor absent when disabled")
+
+        # Moving the piece moves the anchor (it tracks all wires on the page).
+        page.IncludeAnchor = True
+        svg_a = page.Proxy.compute_anchor_svg(page)
+        assert_true(len(svg_a) > 0, "page anchor computed")
+        image.OffsetX = 100
+        svg_b = page.Proxy.compute_anchor_svg(page)
+        assert_true(svg_a != svg_b, "anchor follows child movement")
+    except Exception as e:
+        App.Console.PrintError(f"  ERROR: {e}")
+        raise e
+    finally:
+        App.closeDocument(doc.Name)
+
+
+def test_svg_page_anchor_single_across_children():
+    """The page computes exactly one anchor across all children."""
+    doc = App.newDocument("test_svg_page_anchor_multi")
+    try:
+        page = ShaperSvgPage.create("AnchorMulti_page")
+        page.Width = '24 in'
+        page.Height = '12 in'
+        page.IncludeAnchor = True
+
+        c1 = make_rect_cutout(doc, "AnchorMulti_c1")
+        c2 = make_rect_cutout(doc, "AnchorMulti_c2")
+        i1 = ShaperSvgImage.create(page, c1, "AnchorMulti_i1")
+        i1.OffsetX = 0
+        i1.OffsetY = 0
+        i2 = ShaperSvgImage.create(page, c2, "AnchorMulti_i2")
+        i2.OffsetX = 200
+        i2.OffsetY = 0
+        doc.recompute()
+
+        svg = page.Proxy.compute_svg(page)
+        # Exactly one anchor triangle in the whole page.
+        anchor_count = svg.count('fill="red"')
+        assert_true(anchor_count == 1,
+                    f"exactly one anchor on page (got {anchor_count})")
+
+        anchor = page.Proxy.compute_anchor_svg(page)
+        assert_true(len(anchor) > 0, "anchor computed across multiple children")
     except Exception as e:
         App.Console.PrintError(f"  ERROR: {e}")
         raise e
@@ -650,4 +703,5 @@ def register_tests(all_tests):
     all_tests.append(test_svg_page_multiple_pieces)
     all_tests.append(test_svg_page_rotation_changes_svg)
     all_tests.append(test_svg_page_with_anchor)
+    all_tests.append(test_svg_page_anchor_single_across_children)
     all_tests.append(test_export_to_svg_page)

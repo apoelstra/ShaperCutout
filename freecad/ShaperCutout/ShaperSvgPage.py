@@ -74,6 +74,9 @@ class ShaperSvgPage:
                         'Page height')
         obj.addProperty('App::PropertyLength', 'GridSpacing', 'Base',
                         'Grid spacing for the page view')
+        obj.addProperty('App::PropertyBool', 'IncludeAnchor', 'Base',
+                        'Include a custom anchor, placed at the best 90-degree '
+                        'corner found across all objects on the page.')
 
         self.addDisplayProperties(obj)
 
@@ -81,6 +84,7 @@ class ShaperSvgPage:
         obj.Width = '8 ft'
         obj.Height = '4 ft'
         obj.GridSpacing = '1 in'
+        obj.IncludeAnchor = False
         obj.ShowOverlaps = True
         obj.ShowMinDistances = True
 
@@ -132,6 +136,33 @@ class ShaperSvgPage:
                              App.Rotation(App.Vector(0, 0, 1), child.Rotation.Value + 180),
                              App.Vector(cx, cy, 0)).toMatrix()
 
+    def compute_anchor_svg(self, obj: App.DocumentObject) -> str:
+        """Compute the page's custom anchor: the best 90-degree corner found
+        among *all* the wires of *all* the page's children, transformed into
+        page space. Returns '' if no anchor could be found."""
+        from shaper_cutout_svg import custom_anchor_wire
+
+        outer_wires = []
+        inner_wires = []
+        for child in obj.Group:
+            if not hasattr(child.Proxy, 'anchor_wires'):
+                continue
+            child_outer, child_inner = child.Proxy.anchor_wires(child)
+
+            m = self._svg_to_page_matrix(obj, child)
+
+            for wires, dest in ((child_outer, outer_wires),
+                                (child_inner, inner_wires)):
+                dest.extend(w.transformed(m) for w in wires)
+
+        anchor_wire = custom_anchor_wire(outer_wires)
+        if not anchor_wire:
+            anchor_wire = custom_anchor_wire(inner_wires)
+        if not anchor_wire:
+            return ''
+        from shaper_cutout_svg import wire_to_svg
+        return wire_to_svg(anchor_wire, fill="red", stroke="none", stroke_width=None)
+
     def compute_svg(self, obj):
         page_w = obj.Width.Value
         page_h = obj.Height.Value
@@ -168,8 +199,6 @@ class ShaperSvgPage:
             g = f'<g transform="translate({tx:.4f},{ty:.4f}) rotate({rot:.4f},{cx:.4f},{cy:.4f})">'
             if hasattr(child, 'Svg_Full'):
                 svg += f'{g}{child.Svg_Full}</g>'
-            if hasattr(child, 'Svg_Anchor') and child.IncludeAnchor:
-                svg += f'{g}{child.Svg_Anchor}</g>'
 
         for child in selected:
             if not hasattr(child, 'Svg_BBCenter'):
@@ -182,10 +211,13 @@ class ShaperSvgPage:
             g = f'<g transform="translate({tx:.4f},{ty:.4f}) rotate({rot:.4f},{cx:.4f},{cy:.4f})">'
             if hasattr(child, 'Svg_Full'):
                 svg += f'{g}{child.Svg_Full}</g>'
-            if hasattr(child, 'Svg_Anchor') and child.IncludeAnchor:
-                svg += f'{g}{child.Svg_Anchor}</g>'
             if hasattr(child, 'Svg_Outline'):
                 svg += f'{g}{child.Svg_Outline}</g>'
+
+        if getattr(obj, 'IncludeAnchor', False):
+            anchor_svg = self.compute_anchor_svg(obj)
+            if anchor_svg:
+                svg += anchor_svg
 
         svg += "</svg>"
         return svg
@@ -668,7 +700,8 @@ class ViewProviderShaperSvgPage:
 
     def updateData(self, fp, prop):
         if prop in ('Width', 'Height', 'Group', 'GridSpacing',
-                    'ShowOverlaps', 'ShowMinDistances') and self._subwindow_alive():
+                    'ShowOverlaps', 'ShowMinDistances', 'IncludeAnchor') \
+                and self._subwindow_alive():
             self._subwindow.widget().update()
 
     def getDisplayModes(self, obj):

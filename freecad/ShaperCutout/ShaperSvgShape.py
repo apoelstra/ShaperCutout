@@ -3,6 +3,7 @@
 import os
 
 import FreeCAD as App
+import Part
 
 from shaper_cutout_svg import HIGHLIGHT_COLOR, HIGHLIGHT_WIDTH
 from shaper_cutout_util import _ICON_ROOT
@@ -72,9 +73,12 @@ class ShaperSvgShape:
                         'The center of the bounding box of the SVG.')
         obj.addProperty('App::PropertyVector', 'Svg_BBLength', 'Svg',
                         'A vector representing the size of the bounding box of the SVG.')
+        obj.addProperty('Part::PropertyPartShape', 'Svg_LocalShape', 'Svg',
+                        'The projected shape (on its local plane, in Svg space).')
         obj.setPropertyStatus('Svg_Full', 2)
         obj.setPropertyStatus('Svg_BBCenter', 2)
         obj.setPropertyStatus('Svg_BBLength', 2)
+        obj.setPropertyStatus('Svg_LocalShape', 2)
 
         self._add_svg_outline_property(obj)
 
@@ -168,6 +172,7 @@ class ShaperSvgShape:
 
         obj.Svg_Full = svg_full
         obj.Svg_Outline = svg_outline
+        obj.Svg_LocalShape = local
         bb = local.BoundBox
         obj.Svg_BBCenter = bb.Center
         obj.Svg_BBLength = App.Vector(bb.XLength, bb.YLength, bb.ZLength)
@@ -197,6 +202,17 @@ class ShaperSvgShape:
 
     def centerXY(self, obj: App.DocumentObject) -> (float, float):
         return (obj.Svg_BBCenter.x, obj.Svg_BBCenter.y)
+
+    def anchor_wires(self, obj: App.DocumentObject) -> ([Part.Wire], [Part.Wire]):
+        """Return (outer_wires, inner_wires) of the projected shape in this
+        object's local Svg space, for the page's custom-anchor algorithm.
+
+        A ShaperSvgShape's wires have no inherent inside/outside notion, so all
+        closed wires are returned as 'outer' candidates."""
+        if not hasattr(obj, 'Svg_LocalShape') or obj.Svg_LocalShape.isNull():
+            return [], []
+        outer = [w for w in obj.Svg_LocalShape.Wires if w.isClosed()]
+        return outer, []
 
     def translateXY(self, obj, page_h: float) -> (float, float):
         return (

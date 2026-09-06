@@ -143,9 +143,9 @@ lines with an encoded depth matching the dado depth. (I don't use "pocket" becau
 it's faster and cleaner to cut dados with a 1/4" bit by first offsetting the outline to cut out the
 center, then cutting the outline.
 
-For individual cutout exports, if there is a 90 degree corner somewhere in the outline sketch, a
-custom anchor will be added there, which hopefully will make it easier to define a grid on an
-already-cutout piece, e.g. to put dados on the reverse side.
+SVG pages have an "Include Anchor" option. When enabled, if there is a 90 degree corner somewhere
+among all the objects on the page, a custom anchor will be added there, which hopefully will make it
+easier to define a grid on an already-cutout piece, e.g. to put dados on the reverse side.
 
 ## Tutorial
 

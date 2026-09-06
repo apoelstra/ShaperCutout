@@ -2,7 +2,7 @@
 
 import FreeCAD as App
 import Part
-from shaper_cutout_svg import classify_wires, custom_anchor_wire, wire_to_svg
+from shaper_cutout_svg import classify_wires, wire_to_svg
 from shaper_cutout_util import cleanFaces, global_normal
 from ShaperDados import ZERO_DEPTH_TOLERANCE, _wire_to_pipes
 
@@ -150,9 +150,8 @@ class SvgData:
         self._dado_wires.sort(key=lambda d: d[0])
 
     def _collect_paths(self):
-        """Populates self._svg_paths, self._anchor_path, self.bounding_box"""
+        """Populates self._svg_paths, self.bounding_box"""
         self._svg_paths = []
-        self.anchor_path = ''
         if self._cutout.CutoutFace.isNull():
             self.bounding_box = App.BoundBox(0)
             return
@@ -194,13 +193,6 @@ class SvgData:
             elem = wire_to_svg(w, fill="none", stroke="blue", stroke_width=1, cut_type="guide")
             if elem:
                 self._svg_paths.append(elem)
-
-        anchor_wire = custom_anchor_wire(outer_wires)
-        if not anchor_wire:
-            anchor_wire = custom_anchor_wire(inner_wires)
-        if anchor_wire:
-            self.anchor_path = wire_to_svg(anchor_wire, fill="red", stroke="none",
-                                           stroke_width=None)
 
     def _outer_wire_paths(self, fill, stroke_width, color):
         """Generate SVG path strings for outer wires with given stroke width and color."""

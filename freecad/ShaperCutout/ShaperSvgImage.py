@@ -3,6 +3,7 @@
 import os
 
 import FreeCAD as App
+import Part
 
 from shaper_cutout_svg import HIGHLIGHT_COLOR
 from shaper_cutout_util import _ICON_ROOT
@@ -45,7 +46,6 @@ class ShaperSvgImage:
         obj.Type = 'ShaperSvgImage'
         obj.Flip = False
         obj.Invert = False
-        obj.IncludeAnchor = False
         obj.Rotation = 0.0
         obj.OffsetX = 0.0
         obj.OffsetY = 0.0
@@ -64,7 +64,6 @@ class ShaperSvgImage:
         svg_data = SvgData(obj.Cutout, not obj.Flip, obj.Invert)
         bb = svg_data.bounding_box
 
-        obj.Svg_Anchor = f"{svg_data.anchor_path}"
         obj.Svg_Full = f"{svg_data.svg_paths()}"
         obj.Svg_Outline = f"{svg_data.outline_svg_path(HIGHLIGHT_COLOR)}"
         obj.Svg_BBCenter = bb.Center
@@ -79,15 +78,6 @@ class ShaperSvgImage:
     def onChanged(self, obj, prop):
         if prop == 'Type':
             return
-        if prop == 'IncludeAnchor' and obj.IncludeAnchor:
-            # Find parent ShaperSvgPage(s) and disable anchor on other images
-            for parent in obj.InList:
-                if getattr(parent, 'Type', None) == 'ShaperSvgPage':
-                    for child in parent.Group:
-                        if (getattr(child, 'Type', None) == 'ShaperSvgImage'
-                                and child != obj):
-                            child.IncludeAnchor = False
-
         if prop in ('OffsetX', 'OffsetY', 'Rotation'):
             for parent in obj.InList:
                 if getattr(parent, 'Type', None) == 'ShaperSvgPage':
@@ -96,16 +86,6 @@ class ShaperSvgImage:
             self.needsRecompute = True
 
     def addSvgProperties(self, obj):
-        if not hasattr(obj, 'IncludeAnchor'):
-            obj.addProperty('App::PropertyBool', 'IncludeAnchor', 'Base',
-                            'Include the anchor point in the SVG rendering.')
-            obj.IncludeAnchor = False
-
-        if not hasattr(obj, 'Svg_Anchor'):
-            obj.addProperty('App::PropertyString', 'Svg_Anchor', 'Svg',
-                            'The SVG of the custom anchor added to the face.')
-            obj.setPropertyStatus('Svg_Anchor', 2)
-            obj.Svg_Anchor = ''
         if not hasattr(obj, 'Svg_Full'):
             obj.addProperty('App::PropertyString', 'Svg_Full', 'Svg',
                             'The SVG of the face as it would be export, excluding its anchor.')
@@ -148,6 +128,15 @@ class ShaperSvgImage:
 
     def centerXY(self, obj: App.DocumentObject) -> (float, float):
         return (obj.Svg_BBCenter.x, obj.Svg_BBCenter.y)
+
+    def anchor_wires(self, obj: App.DocumentObject) -> ([Part.Wire], [Part.Wire]):
+        """Return (outer_wires, inner_wires) of the cutout face in this image's
+        local Svg space, for the page's custom-anchor algorithm."""
+        from shaper_cutout_svg import classify_wires
+
+        if not hasattr(obj, 'Svg_TranslatedFace') or obj.Svg_TranslatedFace.isNull():
+            return [], []
+        return classify_wires(obj.Svg_TranslatedFace)
 
     def translateXY(self, obj, page_h: float) -> (float, float):
         return (
