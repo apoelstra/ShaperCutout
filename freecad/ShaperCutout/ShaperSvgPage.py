@@ -495,14 +495,23 @@ class _PageWidget(QtWidgets.QWidget):
             new_y = orig_offset_y + dy_mm
 
             if min_x > max_x:
-                dragging.OffsetX = (min_x + max_x) / 2
-            else:
-                dragging.OffsetX = max(min_x, min(new_x, max_x))
+                # Image too small, nothing we can do
+                dx_mm = 0
+            elif new_x < min_x:
+                dx_mm = max(dx_mm, min_x - orig_offset_x)
+            elif new_x > max_x:
+                dx_mm = min(dx_mm, max_x - orig_offset_x)
 
             if min_y > max_y:
-                dragging.OffsetY = (min_y + max_y) / 2
-            else:
-                dragging.OffsetY = max(min_y, min(new_y, max_y))
+                dy_mm = 0
+            elif new_y < min_y:
+                dy_mm = max(dy_mm, min_y - orig_offset_y)
+            elif new_y > max_y:
+                dy_mm = min(dy_mm, max_y - orig_offset_y)
+
+        for dragging, orig_offset_x, orig_offset_y in self._dragging:
+            dragging.OffsetX = orig_offset_x + dx_mm
+            dragging.OffsetY = orig_offset_y + dy_mm
 
         if self._dragging:
             self.update_svg()
