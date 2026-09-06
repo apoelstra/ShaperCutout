@@ -271,7 +271,7 @@ class _PageWidget(QtWidgets.QWidget):
         if page_ar > view_ar:
             # Page is width-limited
             avail_w = self.width() - 2 * min_pad
-            avail_h = avail_w * page_ar
+            avail_h = avail_w / page_ar
             pad_x = min_pad
             pad_y = (self.height() - avail_h) / 2.0
             grid_px = grid_mm * avail_w / page_w_mm
