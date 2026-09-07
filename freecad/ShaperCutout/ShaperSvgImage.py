@@ -138,6 +138,13 @@ class ShaperSvgImage:
             return [], []
         return classify_wires(obj.Svg_TranslatedFace)
 
+    def snap_wires(self, obj: App.DocumentObject) -> [Part.Wire]:
+        """All wires in this image's local Svg space, for the page's
+        interactive anchor-placement snapping."""
+        if not hasattr(obj, 'Svg_TranslatedFace') or obj.Svg_TranslatedFace.isNull():
+            return []
+        return list(obj.Svg_TranslatedFace.Wires)
+
     def translateXY(self, obj, page_h: float) -> (float, float):
         return (
             obj.OffsetX.Value - obj.Svg_BBCenter.x + obj.Svg_BBLength.x / 2,

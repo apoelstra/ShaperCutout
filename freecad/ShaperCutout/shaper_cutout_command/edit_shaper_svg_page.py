@@ -81,9 +81,8 @@ class ShaperSvgPageTaskPanel(ShaperTaskPanel):
         self._object.recompute()
 
     def _on_add_anchor(self):
-        # Will be replaced with dialog in the next commit
-        self._object.Proxy.auto_place_anchor(self._object)
-        self.remove_anchor_button.setEnabled(True)
+        from .add_shaper_anchor import open_add_anchor_dialog
+        open_add_anchor_dialog(self._object)
 
     def _on_remove_anchor(self):
         self._object.HasAnchor = False

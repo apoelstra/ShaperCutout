@@ -214,6 +214,13 @@ class ShaperSvgShape:
         outer = [w for w in obj.Svg_LocalShape.Wires if w.isClosed()]
         return outer, []
 
+    def snap_wires(self, obj: App.DocumentObject) -> [Part.Wire]:
+        """All wires (open ones included) in this object's local Svg space,
+        for the page's interactive anchor-placement snapping."""
+        if not hasattr(obj, 'Svg_LocalShape') or obj.Svg_LocalShape.isNull():
+            return []
+        return list(obj.Svg_LocalShape.Wires)
+
     def translateXY(self, obj, page_h: float) -> (float, float):
         return (
             obj.OffsetX.Value - obj.Svg_BBCenter.x + obj.Svg_BBLength.x / 2,

@@ -8,6 +8,8 @@ import FreeCADGui as Gui
 import Part
 from PySide import QtCore, QtGui, QtWidgets, QtSvg
 
+from shaper_cutout_svg import (anchor_triangle_wire, custom_anchor_frame,
+                               intersect_lines_2d)
 from shaper_cutout_util import _ICON_ROOT
 from shaper_cutout_svg import (anchor_triangle_wire, custom_anchor_frame)
 import ShaperSvgImage
@@ -20,6 +22,43 @@ _PAGE_CHILD_TYPES = ('ShaperSvgImage', 'ShaperSvgShape')
 
 def _is_page_child(obj) -> bool:
     return getattr(obj, 'Type', '') in _PAGE_CHILD_TYPES
+
+
+def _point_segment_distance(pt: App.Vector, p0: App.Vector, p1: App.Vector) -> float:
+    """Distance from `pt` to the finite segment p0-p1 (XY plane)."""
+    d = p1 - p0
+    len2 = d.x * d.x + d.y * d.y
+    if len2 < 1e-12:
+        return math.hypot(pt.x - p0.x, pt.y - p0.y)
+    t = ((pt.x - p0.x) * d.x + (pt.y - p0.y) * d.y) / len2
+    t = max(0.0, min(1.0, t))
+    return math.hypot(pt.x - (p0.x + t * d.x), pt.y - (p0.y + t * d.y))
+
+
+def _same_segment(s1, s2, tol: float = 1e-6) -> bool:
+    """True if the two (p0, p1) segments have the same endpoints (either direction)."""
+    return (((s1[0] - s2[0]).Length < tol and (s1[1] - s2[1]).Length < tol)
+            or ((s1[0] - s2[1]).Length < tol and (s1[1] - s2[0]).Length < tol))
+
+
+def _clip_line_to_rect(p: App.Vector, d: App.Vector, w: float, h: float):
+    """Clip the infinite line p + t*d to the rectangle [0, w] x [0, h].
+    Returns two App.Vectors, or None if the line misses the rectangle."""
+    tmin, tmax = -1e18, 1e18
+    for lo, hi, o, dd in ((0, w, p.x, d.x), (0, h, p.y, d.y)):
+        if abs(dd) < 1e-12:
+            if o < lo or o > hi:
+                return None
+            continue
+        t1, t2 = (lo - o) / dd, (hi - o) / dd
+        if t1 > t2:
+            t1, t2 = t2, t1
+        tmin, tmax = max(tmin, t1), min(tmax, t2)
+        if tmin > tmax:
+            return None
+    if tmin >= tmax or tmin <= -1e17 and tmax >= 1e17:
+        return None
+    return (p + d * tmin, p + d * tmax)
 
 
 def create(name="ShaperSvgPage"):
@@ -164,6 +203,105 @@ class ShaperSvgPage:
             outer_wires.extend(w.transformed(m) for w in child_outer)
             inner_wires.extend(w.transformed(m) for w in child_inner)
         return outer_wires, inner_wires
+
+    def collect_snap_wires(self, obj: App.DocumentObject) -> [Part.Wire]:
+        """All wires (open ones included) of all page children, in page space,
+        for interactive anchor-placement snapping."""
+        wires = []
+        for c in obj.Group:
+            if hasattr(c.Proxy, 'snap_wires'):
+                child_wires = c.Proxy.snap_wires(c)
+            elif hasattr(c.Proxy, 'anchor_wires'):
+                child_wires = sum(c.Proxy.anchor_wires(c), [])
+            else:
+                continue
+            m = self._svg_to_page_matrix(obj, c)
+            wires.extend(w.transformed(m) for w in child_wires)
+        return wires
+
+    def page_line_segments(self, obj: App.DocumentObject):
+        """All straight line segments of all page children, in page space, as
+        (p0, p1) App.Vector pairs."""
+        segs = []
+        for wire in self.collect_snap_wires(obj):
+            for edge in wire.Edges:
+                if isinstance(edge.Curve, Part.Line) and len(edge.Vertexes) == 2:
+                    segs.append((edge.Vertexes[0].Point, edge.Vertexes[1].Point))
+        return segs
+
+    def page_snap_points(self, obj: App.DocumentObject):
+        """All snap-able points on the page (line segment endpoints and circle
+        or arc centers), in page space."""
+        points = []
+        for wire in self.collect_snap_wires(obj):
+            for edge in wire.Edges:
+                center = getattr(edge.Curve, 'Center', None)
+                if center is not None and (isinstance(edge.Curve, Part.Circle)
+                                           or isinstance(edge.Curve, Part.ArcOfCircle)):
+                    points.append(center)
+                for v in edge.Vertexes:
+                    points.append(v.Point)
+        return points
+
+    def segment_near(self, obj: App.DocumentObject, pt: App.Vector, tol: float):
+        """Nearest line segment to `pt` within `tol` mm, as (p0, p1, distance),
+        or None."""
+        best = None
+        for p0, p1 in self.page_line_segments(obj):
+            d = _point_segment_distance(pt, p0, p1)
+            if d <= tol and (best is None or d < best[2]):
+                best = (p0, p1, d)
+        return best
+
+    def snap_point_near(self, obj: App.DocumentObject, pt: App.Vector, tol: float):
+        """Nearest snap point to `pt` within `tol` mm, or None."""
+        best = None
+        best_d = tol
+        for p in self.page_snap_points(obj):
+            d = (p - pt).Length
+            if d <= best_d and (best is None or d < best_d):
+                best, best_d = p, d
+        return best
+
+    def frame_for_vertex(self, obj: App.DocumentObject, pt: App.Vector):
+        """Default anchor frame placed at a snapped vertex (or circle center).
+        The long leg aligns with the longest straight edge incident to the
+        vertex; circle centers (no incident edges) align with the page axes."""
+        incident = []
+        tol = 1e-3
+        for p0, p1 in self.page_line_segments(obj):
+            if (p0 - pt).Length < tol:
+                incident.append((p1 - p0, (p1 - p0).Length))
+            elif (p1 - pt).Length < tol:
+                incident.append((p0 - p1, (p0 - p1).Length))
+        if not incident:
+            return (pt, App.Vector(1, 0, 0), App.Vector(0, 1, 0))
+        incident.sort(key=lambda x: x[1], reverse=True)
+        long_dir = incident[0][0].normalize()
+        short_dir = None
+        # If another incident edge is orthogonal to the longest one, align the
+        # short leg with it, so the anchor sits squarely in the corner.
+        for d, _ in incident[1:]:
+            d = d.normalize()
+            if abs(long_dir.dot(d)) < 0.01:
+                short_dir = d
+                break
+        if short_dir is None:
+            short_dir = App.Vector(-long_dir.y, long_dir.x, 0)
+        return (pt, long_dir, short_dir)
+
+    def frame_for_intersection(self, seg1, seg2):
+        """Anchor frame at the intersection of two segments: the long leg
+        aligns with the first segment. Returns (frame, is_orthogonal), or
+        (None, False) if the segments' lines are parallel."""
+        origin = intersect_lines_2d(seg1[0], seg1[1], seg2[0], seg2[1])
+        if origin is None:
+            return None, False
+        d1 = (seg1[1] - seg1[0]).normalize()
+        d2 = (seg2[1] - seg2[0]).normalize()
+        orthogonal = abs(d1.dot(d2)) < 0.01  # ~0.6 degrees of tolerance
+        short_dir = App.Vector(-d1.y, d1.x, 0)
+        return (origin, d1, short_dir), orthogonal
 
     def set_anchor_frame(self, obj: App.DocumentObject, frame):
         """Store an anchor (origin, long_dir, short_dir) in page space."""
@@ -311,11 +449,189 @@ class _PageWidget(QtWidgets.QWidget):
         self._close_pairs = []
         self.setMinimumSize(200, 100)
         self.setMouseTracking(True)
+        self.setFocusPolicy(QtCore.Qt.ClickFocus)
         self._dragging = []
         self._drag_start = None
         self._drag_orig_offset = None
+        # Interactive custom-anchor placement state: None, or a dict with
+        # 'mode' ('vertex' or 'intersection'), plus hover/selection info.
+        self._anchor_placement = None
+        self._anchor_rot = 0.0  # wheel-applied rotation (degrees) on the preview
 
         self._compute_overlap_timeout(page_obj)
+
+    # ------------------------------------------------------------------
+    # Custom anchor interactive placement
+    # ------------------------------------------------------------------
+
+    def start_anchor_placement(self, mode):
+        """Enter interactive anchor placement mode ('vertex' or 'intersection')."""
+        self._anchor_placement = {'mode': mode, 'hover_pt': None, 'hover_seg': None,
+                                  'seg1': None, 'frame': None, 'ortho': False}
+        self._anchor_rot = 0.0
+        self.setCursor(QtCore.Qt.CrossCursor)
+        self.update()
+
+    def _cancel_anchor_placement(self):
+        self._anchor_placement = None
+        self.unsetCursor()
+        self.update()
+
+    def _mm_pos(self, pos):
+        """Convert a widget position to page (SVG) coordinates in mm."""
+        metrics = self._get_page_metrics()
+        if not metrics:
+            return None
+        pad_x, pad_y, grid_px, _, _ = metrics
+        grid_mm = self._page_obj.GridSpacing.Value
+        return App.Vector((pos.x() - pad_x) / grid_px * grid_mm,
+                          (pos.y() - pad_y) / grid_px * grid_mm, 0)
+
+    def _update_anchor_preview(self, mm_pt):
+        """Recompute hover-dependent anchor placement state for a page-space point."""
+        st = self._anchor_placement
+        if st is None:
+            return
+        obj = self._page_obj
+        tol_px = 8.0
+        metrics = self._get_page_metrics()
+        if metrics:
+            tol_mm = tol_px * obj.GridSpacing.Value / metrics[2]
+        else:
+            tol_mm = 8.0
+
+        st['hover_pt'] = None
+        st['hover_seg'] = None
+        st['frame'] = None
+        st['ortho'] = False
+
+        if st['mode'] == 'vertex':
+            snap = obj.Proxy.snap_point_near(obj, mm_pt, tol_mm)
+            if snap is not None:
+                st['hover_pt'] = snap
+                st['frame'] = obj.Proxy.frame_for_vertex(obj, snap)
+        elif st['mode'] == 'intersection':
+            near = obj.Proxy.segment_near(obj, mm_pt, tol_mm)
+            if near is not None:
+                st['hover_seg'] = (near[0], near[1])
+                if st['seg1'] is not None:
+                    frame, ortho = obj.Proxy.frame_for_intersection(st['seg1'], st['hover_seg'])
+                    st['frame'], st['ortho'] = frame, ortho
+
+    def _rotated_frame(self, frame):
+        """Apply the wheel-rotation delta to a (origin, long, short) frame."""
+        if not frame or not self._anchor_rot:
+            return frame
+        origin, long_dir, short_dir = frame
+        r = math.radians(self._anchor_rot)
+        cos_r, sin_r = math.cos(r), math.sin(r)
+
+        def rot(v):
+            return App.Vector(v.x * cos_r - v.y * sin_r, v.x * sin_r + v.y * cos_r, 0)
+        return (origin, rot(long_dir), rot(short_dir))
+
+    def _commit_anchor_click(self, mm_pt):
+        """Handle a left click during anchor placement. Returns True if the
+        placement mode should continue, False if it ended."""
+        st = self._anchor_placement
+        obj = self._page_obj
+
+        if st['mode'] == 'vertex':
+            if st['frame'] is None:
+                return True  # not near a snap point; ignore the click
+            self._apply_anchor(self._rotated_frame(st['frame']))
+            return False
+
+        # 'intersection'
+        if st['seg1'] is None:
+            if st['hover_seg'] is None:
+                return True
+            st['seg1'] = st['hover_seg']
+            st['hover_seg'] = None
+            st['frame'] = None
+            return True
+
+        # Hovering back over the first edge is not a second edge; ignore.
+        if st['hover_seg'] is not None and _same_segment(st['seg1'], st['hover_seg']):
+            return True
+
+        # Second click: the intersection must exist and lie on the page,
+        # otherwise stop without making any changes.
+        frame, _ = obj.Proxy.frame_for_intersection(st['seg1'], st['hover_seg']) \
+            if st['hover_seg'] else (None, False)
+        if frame is None:
+            self._cancel_anchor_placement()
+            return False
+        frame = self._rotated_frame(frame)
+        if not (0 <= frame[0].x <= obj.Width.Value and 0 <= frame[0].y <= obj.Height.Value):
+            self._cancel_anchor_placement()
+            return False
+        self._apply_anchor(frame)
+        return False
+
+    def _apply_anchor(self, frame):
+        """Store the placed anchor in the document (undoable) and leave the mode."""
+        self._page_obj.Document.openTransaction("Place custom anchor")
+        try:
+            self._page_obj.Proxy.set_anchor_frame(self._page_obj, frame)
+            self._page_obj.touch()
+            self._page_obj.Document.recompute()
+            self._page_obj.Document.commitTransaction()
+        except Exception:
+            self._page_obj.Document.abortTransaction()
+            raise
+        self._anchor_placement = None
+        self.unsetCursor()
+        self.update_svg()
+
+    def _draw_anchor_placement(self, painter, metrics):
+        """Overlay for the interactive anchor placement mode."""
+        pad_x, pad_y, grid_px, avail_w, avail_h = metrics
+        obj = self._page_obj
+        ratio = grid_px / obj.GridSpacing.Value
+        page_w, page_h = obj.Width.Value, obj.Height.Value
+        st = self._anchor_placement
+
+        def to_px(p):
+            return QtCore.QPointF(pad_x + p.x * ratio, pad_y + p.y * ratio)
+
+        def draw_extended(p, d, color, dash):
+            """Draw the infinite line through p along d, clipped to the page."""
+            pts = _clip_line_to_rect(p, d, page_w, page_h)
+            if not pts:
+                return
+            pen = QtGui.QPen(color, 1.5)
+            pen.setStyle(QtCore.Qt.DashLine if dash else QtCore.Qt.SolidLine)
+            painter.setPen(pen)
+            painter.drawLine(to_px(pts[0]), to_px(pts[1]))
+
+        if st['seg1'] is not None:
+            p0, p1 = st['seg1']
+            draw_extended(p0, p1 - p0, QtGui.QColor('blue'), True)
+        if st.get('hover_seg') is not None:
+            p0, p1 = st['hover_seg']
+            if st['mode'] == 'intersection' and st['seg1'] is not None:
+                color = QtGui.QColor('green') if st['ortho'] else QtGui.QColor('red')
+            else:
+                color = QtGui.QColor('blue')
+            draw_extended(p0, p1 - p0, color, True)
+
+        frame = self._rotated_frame(st.get('frame'))
+        if frame is not None:
+            origin, long_dir, short_dir = frame
+            grey = QtGui.QColor(128, 128, 128, 160)
+            draw_extended(origin, long_dir, grey, True)
+            draw_extended(origin, short_dir, grey, True)
+
+            tri = anchor_triangle_wire(origin, long_dir, short_dir)
+            self._draw_shape(painter, tri, pad_x, pad_y, ratio,
+                             QtGui.QColor(255, 0, 0, 128))
+
+        if st['mode'] == 'vertex' and st.get('hover_pt') is not None:
+            p = st['hover_pt']
+            painter.setPen(QtGui.QPen(QtGui.QColor('blue'), 1.5))
+            painter.setBrush(QtCore.Qt.NoBrush)
+            painter.drawEllipse(to_px(p), 5, 5)
 
     def update_svg(self):
         obj = self._page_obj
@@ -407,6 +723,10 @@ class _PageWidget(QtWidgets.QWidget):
         if getattr(self._page_obj, 'ShowMinDistances', True):
             for img1, img2, dist, pt1, pt2 in self._close_pairs:
                 self._draw_distance_line(painter, pt1, pt2, dist, pad_x, pad_y, grid_ratio)
+
+        # Interactive anchor placement overlay
+        if self._anchor_placement is not None:
+            self._draw_anchor_placement(painter, metrics)
 
         painter.end()
 
@@ -502,6 +822,20 @@ class _PageWidget(QtWidgets.QWidget):
         return None
 
     def mousePressEvent(self, event):
+        if self._anchor_placement is not None:
+            if event.button() == QtCore.Qt.LeftButton:
+                mm_pt = self._mm_pos(event.pos())
+                if mm_pt is not None:
+                    self._update_anchor_preview(mm_pt)
+                    if not self._commit_anchor_click(mm_pt):
+                        event.accept()
+                        return
+                event.accept()
+            elif event.button() == QtCore.Qt.RightButton:
+                self._cancel_anchor_placement()
+                event.accept()
+            return
+
         if event.button() == QtCore.Qt.LeftButton:
             key_mods = QtWidgets.QApplication.keyboardModifiers()
 
@@ -532,6 +866,13 @@ class _PageWidget(QtWidgets.QWidget):
                     Gui.Selection.clearSelection()
 
     def mouseMoveEvent(self, event):
+        if self._anchor_placement is not None:
+            mm_pt = self._mm_pos(event.pos())
+            if mm_pt is not None:
+                self._update_anchor_preview(mm_pt)
+                self.update()
+            return
+
         if self._dragging:
             metrics = self._get_page_metrics()
             if not metrics:
@@ -607,6 +948,18 @@ class _PageWidget(QtWidgets.QWidget):
             self.setCursor(QtCore.Qt.OpenHandCursor)
 
     def wheelEvent(self, event):
+        if self._anchor_placement is not None:
+            delta_y = event.angleDelta().y()
+            if delta_y == 0:
+                event.ignore()
+                return
+            mods = QtWidgets.QApplication.keyboardModifiers()
+            step = 1.0 if mods & QtCore.Qt.ShiftModifier else 15.0
+            self._anchor_rot = round(self._anchor_rot / step + (-1 if delta_y > 0 else 1)) * step
+            self.update()
+            event.accept()
+            return
+
         child = self._hit_test(event.position())
         if not child:
             event.ignore()
@@ -633,6 +986,13 @@ class _PageWidget(QtWidgets.QWidget):
         self._page_obj.Document.commitTransaction()
         self.update_svg()
         event.accept()
+
+    def keyPressEvent(self, event):
+        if self._anchor_placement is not None and event.key() == QtCore.Qt.Key_Escape:
+            self._cancel_anchor_placement()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def closeEvent(self, event):
         try:
@@ -757,12 +1117,16 @@ class ViewProviderShaperSvgPage:
     def setupContextMenu(self, vobj, menu):
         from shaper_cutout_command.export_shaper_svg_page import export
         from shaper_cutout_command.edit_shaper_svg_page import open_page_task_panel
+        from shaper_cutout_command.add_shaper_anchor import open_add_anchor_dialog
 
         action = menu.addAction("Edit SVG Page")
         action.triggered.connect(lambda: open_page_task_panel(vobj.Object))
 
         action = menu.addAction("Export SVG Page")
         action.triggered.connect(lambda: export(vobj.Object))
+
+        action = menu.addAction("Add Custom Anchor")
+        action.triggered.connect(lambda: open_add_anchor_dialog(vobj.Object))
 
         action = menu.addAction("Add Cutout to Page")
         action.triggered.connect(lambda: self._add_cutout_to(vobj.Object))

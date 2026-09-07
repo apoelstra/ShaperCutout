@@ -665,6 +665,88 @@ def test_svg_page_anchor_single_across_children():
         App.closeDocument(doc.Name)
 
 
+def test_svg_page_anchor_frames():
+    """Manual anchor placement primitives: vertex frames, intersection frames,
+    and the stored-frame round trip."""
+    doc = App.newDocument("test_svg_page_anchor_frames")
+    try:
+        page = ShaperSvgPage.create("Frames_page")
+        page.Width = '24 in'
+        page.Height = '12 in'
+        cutout = make_rect_cutout(doc, "Frames")
+        image = ShaperSvgImage.create(page, cutout, "Frames_image")
+        image.OffsetX = 50
+        image.OffsetY = 50
+        doc.recompute()
+
+        # Snapping: a corner of the rect is a snap point.
+        segs = page.Proxy.page_line_segments(page)
+        assert_true(len(segs) >= 4, "page has line segments")
+        corner = segs[0][0]
+        snap = page.Proxy.snap_point_near(page, corner, 5.0)
+        assert_true(snap is not None and (snap - corner).Length < 1e-6,
+                    "corner point snaps")
+        far = page.Proxy.snap_point_near(page, App.Vector(-500, -500, 0), 5.0)
+        assert_true(far is None, "off-object point does not snap")
+
+        # Vertex frame aligns the long leg with an incident edge.
+        frame = page.Proxy.frame_for_vertex(page, corner)
+        assert_true((frame[0] - corner).Length < 1e-9, "vertex frame at the vertex")
+        aligned = any(abs(abs(d.dot(frame[1])) - 1.0) < 1e-6
+                      for p0, p1 in segs if (p0 - corner).Length < 1e-3 or
+                      (p1 - corner).Length < 1e-3
+                      for d in [(p1 - p0).normalize()])
+        assert_true(aligned, "vertex frame long leg aligns with an incident edge")
+
+        # Intersection frames: two perpendicular edges of the rect.
+        horiz = max(segs, key=lambda s: abs(s[1].x - s[0].x))
+        vert = max(segs, key=lambda s: abs(s[1].y - s[0].y))
+        frame, ortho = page.Proxy.frame_for_intersection(horiz, vert)
+        assert_true(frame is not None, "perpendicular edges intersect")
+        assert_true(ortho, "perpendicular edges report orthogonal")
+        # Long leg aligns with the FIRST clicked segment.
+        d1 = (horiz[1] - horiz[0]).normalize()
+        assert_true(abs(abs(d1.dot(frame[1])) - 1.0) < 1e-6,
+                    "intersection frame long leg aligns with first segment")
+
+        # Parallel segments have no intersection.
+        par = [s for s in segs if abs(abs(((s[1] - s[0]).normalize()).dot(d1)) - 1.0) < 1e-6]
+        assert_true(len(par) >= 2, "found two parallel segments")
+        frame, ortho = page.Proxy.frame_for_intersection(par[0], par[1])
+        assert_true(frame is None, "parallel lines produce no intersection")
+
+        # Non-orthogonal pair (a rotated second object provides an angled edge).
+        sketch = doc.addObject("Sketcher::SketchObject", "Diag")
+        sketch.AttachmentSupport = (doc.getObject("Frames_plane"), [''])
+        sketch.MapMode = 'FlatFace'
+        sketch.addGeometry(Part.LineSegment(App.Vector(0, 0, 0),
+                                            App.Vector(100, 30, 0)), False)
+        import ShaperSvgShape
+        shape = ShaperSvgShape.create(page, sketch, "Diag_shape")
+        shape.OffsetX = 400
+        doc.recompute()
+        segs = page.Proxy.page_line_segments(page)
+        diag = next(s for s in segs
+                    if abs((s[1] - s[0]).y) > 1 and abs((s[1] - s[0]).x) > 1)
+        frame, ortho = page.Proxy.frame_for_intersection(horiz, diag)
+        assert_true(frame is not None and not ortho,
+                    "angled pair reports non-orthogonal")
+
+        # Stored-frame round trip: anchor_triangle reproduces what was set.
+        page.Proxy.set_anchor_frame(page, frame)
+        tri = page.Proxy.anchor_triangle(page)
+        pts = tri.Vertexes
+        assert_true(len(pts) == 3, "anchor triangle has 3 vertices")
+        origin = App.Vector(page.AnchorX.Value, page.AnchorY.Value, 0)
+        assert_true(min((v.Point - origin).Length for v in pts) < 1e-9,
+                    "triangle vertex sits at stored origin")
+    except Exception as e:
+        App.Console.PrintError(f"  ERROR: {e}")
+        raise e
+    finally:
+        App.closeDocument(doc.Name)
+
+
 def test_export_to_svg_page():
     """'Export to ShaperSvgPage' creates a page sized to the cutout with one child."""
     from shaper_cutout_command.export_to_shaper_svg_page import create_page
@@ -721,4 +803,5 @@ def register_tests(all_tests):
     all_tests.append(test_svg_page_rotation_changes_svg)
     all_tests.append(test_svg_page_with_anchor)
     all_tests.append(test_svg_page_anchor_single_across_children)
+    all_tests.append(test_svg_page_anchor_frames)
     all_tests.append(test_export_to_svg_page)

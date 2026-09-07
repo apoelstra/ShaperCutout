@@ -143,9 +143,16 @@ lines with an encoded depth matching the dado depth. (I don't use "pocket" becau
 it's faster and cleaner to cut dados with a 1/4" bit by first offsetting the outline to cut out the
 center, then cutting the outline.
 
-SVG pages have an "Include Anchor" option. When enabled, if there is a 90 degree corner somewhere
-among all the objects on the page, a custom anchor will be added there, which hopefully will make it
-easier to define a grid on an already-cutout piece, e.g. to put dados on the reverse side.
+SVG pages can include a Shaper "custom anchor" (right-click the page, or use the page edit
+dialog, and choose "Add Custom Anchor"). The anchor can be placed automatically at the best
+90-degree corner of one of the page's cutouts, or interactively: "Place at Vertex" snaps to any
+vertex or circle center of the objects on the page; "Place at Intersection" takes two edge
+clicks (edges are highlighted as you hover, green when the hovered edge is perpendicular to the
+first one, red otherwise, with a live preview of the anchor). In the interactive modes the scroll
+wheel rotates the anchor preview, showing its axes extended as grey lines so you can check
+alignment against the drawing and the grid. Clicking places the anchor; Esc or right-click
+cancels. A placed anchor makes it easier to define a grid on an already-cut-out piece, e.g. to
+put dados on the reverse side.
 
 ## Tutorial
 
