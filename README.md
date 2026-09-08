@@ -113,10 +113,13 @@ Let's take a look at the workbench toolbar.
 On a new document, these are mostly disbled, but they are:
 
 * **Create Shaper Cutout** is the primary entry point to the workbench. Create a datum plane (or
-  a LCS plane) and select it. Then by clicking this button, it becomes a "shaper cutout", which
-  interprets the original plane as the center plane of a sheet of wood. You define a thickness,
-  and it creates front and back face planes for you. Then by dragging a parallel sketch onto it,
-  it becomes a solid piece, a cutout outlined by the sketch.
+  a LCS plane) and select it -- you can also select a sketch along with it, in which case the
+  sketch is pre-selected as the cutout's outline (sketches that can't be used, e.g. because they
+  aren't parallel to the plane, are reported when the dialog opens). Then by clicking this button,
+  it becomes a "shaper cutout", which interprets the original plane as the center plane of a sheet
+  of wood. You define a thickness, and it creates front and back face planes for you. You can also
+  select an existing cutout instead of a plane, to create a twin sharing its planes. Then by
+  dragging a parallel sketch onto it, it becomes a solid piece, a cutout outlined by the sketch.
 * **Create Dados** lets you attach a collection of "dado sketches" to a shaper cutout, choosing
   which face of the wood to cut into and to what depth. Dado sketches are wireframe sketches;
   the tool computes the actual cutouts from a provided width, depth and tolerance (which is
