@@ -29,6 +29,58 @@ def create_uninitialized(cutout, name):
     return obj
 
 
+# Settings copied when cloning a dado set onto another cutout (drag and drop).
+# Face/Invert are handled by apply_clone (the clone must point at the target
+# cutout's own face planes); DadoPlane, PocketShape and AutodrillFaces are
+# derived.
+_CLONE_PROPERTIES = ('Depth', 'Width', 'Tolerance',
+                     'MaxHolesPerLine', 'HoleDiameter', 'MinHoleDistance',
+                     'EndDistance')
+
+
+def clone_target_face(dados, cutout):
+    """The face of `cutout` corresponding to `dados`' face, so the clone cuts
+    into the same side of the new sheet. Returns None if the dado's geometry
+    cannot apply to this cutout (nonparallel or missing face)."""
+    if dados.Face is None:
+        return None
+    source = parent_cutout(dados, 'Dados')
+    if source is not None and dados.Face is source.FrontFace:
+        face = cutout.FrontFace
+    elif source is not None and dados.Face is source.BackFace:
+        face = cutout.BackFace
+    else:
+        # Face is some other plane; fall back to the Invert convention the
+        # face picker uses (Front pairs with Invert=True).
+        face = cutout.FrontFace if dados.Invert else cutout.BackFace
+    if face is None or not objects_are_parallel(dados.Face, face):
+        return None
+    return face
+
+
+def apply_clone(dados, clone, cutout) -> bool:
+    """Initialize `clone` as a copy of `dados` on `cutout`.
+
+    Plain value copies -- expressions are deliberately NOT copied, so the
+    clone is independent of the original ("actual copies, not a linkage").
+    The sketches are shared (as usual for dado sketches). Face is not
+    copied; the clone cuts into the target cutout's matching face. Returns
+    False (leaving `clone` untouched) if the dado's face isn't parallel to
+    the target cutout.
+    """
+    face = clone_target_face(dados, cutout)
+    if face is None:
+        return False
+
+    for prop in _CLONE_PROPERTIES:
+        clone.setExpression(prop, None)
+        setattr(clone, prop, getattr(dados, prop))
+    clone.Invert = dados.Invert
+    clone.Face = face
+    clone.Sketches = list(dados.Sketches or [])
+    return True
+
+
 def _wire_to_pipes(wire, normal, tol, width):
     # For open wires, we convert them into dados which use the edges as center
     # lines. It's an interesting question how we ought to consider edges that meet

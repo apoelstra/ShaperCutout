@@ -24,19 +24,37 @@ def _available_sketches(doc, already_linked):
     return [o for o in doc.Objects if _is_sketch(o) and o not in linked_set]
 
 
-def open_dados_task_panel(cutout, dados=None, initial_sketches=[]):
-    """Open the task panel. If dados is None, a new one will be created."""
+def open_dados_task_panel(cutout, dados=None, initial_sketches=[], clone_from=None):
+    """Open the task panel. If dados is None, a new one will be created.
+
+    If clone_from is given (with dados=None), the new dado set is
+    pre-populated with copies of clone_from's settings (drag-and-drop clone;
+    see ShaperDados.apply_clone). The clone is created immediately so the
+    panel can live-edit it, and is removed again if the user cancels.
+    """
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
-    panel = ShaperDadosTaskPanel(cutout, dados, initial_sketches)
+    panel = ShaperDadosTaskPanel(cutout, dados, initial_sketches, clone_from)
     Gui.Control.showDialog(panel)
 
 
 class ShaperDadosTaskPanel(ShaperTaskPanel):
-    def __init__(self, cutout, dados=None, initial_sketches=[]):
+    def __init__(self, cutout, dados=None, initial_sketches=[], clone_from=None):
         self._initialized = False
         self._cutout = cutout
         super().__init__("Dado Set", dados)
+
+        # A dropped dado set clones its settings into the freshly created
+        # object; do this before building any widgets so they all pick up the
+        # copied values.
+        self._clone_mode = False
+        if dados is None and clone_from is not None:
+            from ShaperDados import apply_clone
+            self._clone_mode = apply_clone(clone_from, self._object, cutout)
+            if self._clone_mode:
+                label = f"{clone_from.Label} (copy)"
+                self._object.Label = label
+                self.label_edit.setText(label)
 
         # Plywood plane (face selector)
         self.face_combo = QtWidgets.QComboBox()
@@ -48,8 +66,8 @@ class ShaperDadosTaskPanel(ShaperTaskPanel):
             self.face_combo.addItem(back.Label + " (Back)", (back, False))
         self._main_layout.addRow("Face:", self.face_combo)
 
-        # Set face combo from existing dados
-        if self._edit_mode:
+        # Set face combo from existing dados (or from the clone we just applied)
+        if self._edit_mode or self._clone_mode:
             for i in range(self.face_combo.count()):
                 (f, inv) = self.face_combo.itemData(i)
                 if f is self._object.Face and inv == self._object.Invert:

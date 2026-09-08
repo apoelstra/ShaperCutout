@@ -394,6 +394,10 @@ class ViewProviderShaperCutout:
         for dado in self.Object.Dados:
             if child in dado.Sketches:
                 return True
+        # Dragging a dado set itself onto another cutout clones it there (see
+        # dropObject). The original stays where it is.
+        if getattr(child, 'Type', '') == 'ShaperDados':
+            return True
         return child == self.Object.OutlineSketch
 
     def dragObject(self, vobj, child):
@@ -405,14 +409,33 @@ class ViewProviderShaperCutout:
         return True
 
     def canDropObject(self, child):
-        # Whether it's allowed to drop stuff in the child -- we allow only sketches. (Actually
-        # we have further restrictions but we defer them to when the user actually does the
-        # drop, since then we can output warnings and be sure they'll only be printed once.)
-        return is_sketch(child)
+        # Whether it's allowed to drop stuff in the child -- we allow sketches (to
+        # set the outline) and ShaperDados (to clone a dado set onto this cutout).
+        # (Actually we have further restrictions but we defer them to when the
+        # user actually does the drop, since then we can output warnings and be
+        # sure they'll only be printed once.)
+        return is_sketch(child) or getattr(child, 'Type', '') == 'ShaperDados'
 
-    # The only thing permissible to drop on a ShaperCutout is a sketch, which can be used
-    # to set the outline.
+    # Drops on a ShaperCutout: a sketch can be used to set the outline, and a
+    # ShaperDados is cloned onto this cutout (issue #12).
     def dropObject(self, vobj, child):
+        if getattr(child, 'Type', '') == 'ShaperDados':
+            from ShaperDados import clone_target_face, parent_cutout
+            from shaper_cutout_command.create_shaper_dados import open_dados_task_panel
+            if parent_cutout(child, 'Dados') is self.Object:
+                App.Console.PrintWarning(
+                    f"Dado set '{child.Label}': already on this Cutout.\n")
+                return
+            if clone_target_face(child, self.Object) is None:
+                App.Console.PrintWarning(
+                    f"Dado set '{child.Label}': its face is not parallel to Cutout;"
+                    f" rejecting.\n")
+                return
+            # Opens the (already populated) "Create Dados" dialog; the clone is
+            # created immediately and edited live, and aborts if the user cancels.
+            open_dados_task_panel(self.Object, clone_from=child)
+            return
+
         if not is_sketch(child):
             return
 

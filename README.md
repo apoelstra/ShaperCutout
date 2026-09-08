@@ -120,7 +120,10 @@ On a new document, these are mostly disbled, but they are:
 * **Create Dados** lets you attach a collection of "dado sketches" to a shaper cutout, choosing
   which face of the wood to cut into and to what depth. Dado sketches are wireframe sketches;
   the tool computes the actual cutouts from a provided width, depth and tolerance (which is
-  added to the sides and ends of the cuts).
+  added to the sides and ends of the cuts). You can also drag an existing dado *set* from one
+  cutout onto another: it is cloned onto the target cutout (plain copies of all the settings,
+  including autodrill, plus the same sketches) and the dialog opens pre-populated so you can
+  adjust before accepting.
 * **Miter** lets you miter a set of edges. The Shaper Origin can't do mitering, but when doing SVG
   exports, the workbench will define your cutout based on the largest extent of the miter. Then you
   can cut out the shape with the Origin then do the actual miter with a saw, or with a chamfer bit
@@ -257,7 +260,9 @@ in your dados.
 
 In the same way, create a second dado set with a vertical line that the back panel can fit into.
 Then drag both dado sketches (not the outline sketches!) from one side sheet to the other to
-create symmetric dados on the other side.
+create symmetric dados on the other side. (Or drag the whole *dado set* onto the other sheet:
+it gets cloned there -- a copy of the settings plus the same sketches -- with the dialog open
+so you can adjust it.)
 
 <center><img alt="Some Datum Planes" src="./tutorial-images/16-dado-drag.png" /></center>
 <center><img alt="Some Datum Planes" src="./tutorial-images/17-two-dados.png" /></center>
