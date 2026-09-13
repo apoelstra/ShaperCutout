@@ -78,8 +78,11 @@ def page_view_metrics(widget_w, widget_h, page_w_mm, page_h_mm, grid_mm):
     # Minimum padding so the viewport has a GUI border. One of the `pad_x`/`pad_y` padding
     # values will be equal to this; the other may be larger.
     min_pad = 2
-    if page_w_mm <= 0 or page_h_mm <= 0 \
+    if page_w_mm <= 0 or page_h_mm <= 0 or grid_mm <= 0 \
             or widget_w < 2 * min_pad or widget_h < 2 * min_pad:
+        # grid_mm == 0 is reachable (the property accepts it, e.g. via the
+        # property editor) and makes grid_px -- the px/mm scale for every
+        # mouse mapping -- zero, so treat it as degenerate like the others.
         return None
 
     # Determine padding, available viewport space, and grid size, all in pixels

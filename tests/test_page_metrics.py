@@ -127,6 +127,13 @@ def test_page_metrics_degenerate():
                 "negative page height -> None")
     assert_true(ShaperSvgPage.page_view_metrics(1, 700, 1000, 1000, 25) is None,
                 "widget narrower than 2*min_pad -> None")
+    # GridSpacing is an App::PropertyLength; the property editor (and restored
+    # documents) accept 0 even though the edit dialog's spinbox floors at
+    # 1e-7. grid_px would then be 0 and every px/mm mapping divides by zero.
+    assert_true(ShaperSvgPage.page_view_metrics(1000, 700, 1000, 1000, 0) is None,
+                "zero grid spacing -> None")
+    assert_true(ShaperSvgPage.page_view_metrics(1000, 700, 1000, 1000, -5) is None,
+                "negative grid spacing -> None")
 
 
 def register_tests(all_tests):
