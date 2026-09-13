@@ -49,6 +49,7 @@ try:
     import test_svg
     import test_svg_page_widget
     import test_svg_shape
+    import test_task_panel_rejection
 
     ALL_TESTS = []
     test_cutout_properties.register_tests(ALL_TESTS)
@@ -61,6 +62,7 @@ try:
     test_svg.register_tests(ALL_TESTS)
     test_svg_page_widget.register_tests(ALL_TESTS)
     test_svg_shape.register_tests(ALL_TESTS)
+    test_task_panel_rejection.register_tests(ALL_TESTS)
 
     Gui.setupWithoutGUI()
 except Exception as e:

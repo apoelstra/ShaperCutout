@@ -7,6 +7,12 @@ import FreeCAD as App
 import FreeCADGui as Gui
 
 
+class TaskPanelRejected(Exception):
+    """Raised by ShaperTaskPanel when the create flow declines to proceed
+    (e.g. an invalid selection). The subclass has already informed the user
+    why; the open_* helper should swallow this and not show the dialog."""
+
+
 class ShaperTaskPanel:
     """A Task Panel used to create or edit a ShaperCutout object.
 
@@ -31,6 +37,13 @@ class ShaperTaskPanel:
             self._object = doc_object
         else:
             self._object = self.create_uninitialized_object()
+            if self._object is None:
+                # The create flow declined to proceed (e.g. invalid selection);
+                # the subclass has already told the user why. Undo the
+                # transaction we just opened and unwind, instead of crashing
+                # below on self._object.Label with the transaction leaked open.
+                self._doc.abortTransaction()
+                raise TaskPanelRejected()
 
         # Build UI
         self.form = QtWidgets.QWidget()

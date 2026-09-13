@@ -5,7 +5,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtWidgets
 
-from .task_panel import ShaperTaskPanel
+from .task_panel import ShaperTaskPanel, TaskPanelRejected
 from shaper_cutout_util import _ICON_ROOT, global_normal, objects_are_parallel
 import ShaperSlot
 
@@ -60,7 +60,11 @@ def _determine_first_cutout(cutout1, cutout2, interface_plane):
 def open_slot_task_panel(slot=None):
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
-    panel = ShaperSlotTaskPanel(slot)
+    try:
+        panel = ShaperSlotTaskPanel(slot)
+    except TaskPanelRejected:
+        # Invalid selection/geometry; the panel already told the user why.
+        return
     Gui.Control.showDialog(panel)
 
 
@@ -185,8 +189,8 @@ class ShaperSlotTaskPanel(ShaperTaskPanel):
         if self._object is None:
             return
 
-        self._slot.Invert = self.invert_checkbox.isChecked()
-        self.recompute_objects()
+        self._object.Invert = self.invert_checkbox.isChecked()
+        self.recompute_objects('Invert')
 
 
 class CreateShaperSlotCmd:
