@@ -392,6 +392,30 @@ def test_svg_shape_selection_highlight():
         App.closeDocument(doc.Name)
 
 
+def test_svg_shape_source_deleted():
+    """Deleting the source object must remove the shape's geometry from the
+    page (view + exported SVG), not leave stale paths behind."""
+    doc = App.newDocument("t_svg_shape_srcdel")
+    try:
+        import Draft
+        page = _make_page(doc, "SrcDel")
+        line = Draft.makeLine(App.Vector(0, 0, 0), App.Vector(100, 50, 0))
+        doc.recompute()
+        shape = ShaperSvgShape.create(page, line, "LineShape")
+        doc.recompute()
+        assert_true(len(shape.Svg_Full) > 0, "shape renders with a source")
+
+        doc.removeObject(line.Name)
+        doc.recompute()
+        assert_true(shape.Svg_Full == '', "stale paths cleared after delete")
+        assert_true(shape.Svg_LocalShape.isNull(), "local shape cleared")
+        svg = page.Proxy.compute_svg(page)
+        assert_true('L 100' not in svg and 'L -100' not in svg,
+                    "deleted geometry is absent from the page SVG")
+    finally:
+        App.closeDocument(doc.Name)
+
+
 def register_tests(all_tests):
     all_tests.append(test_svg_shape_basic)
     all_tests.append(test_svg_shape_offset_normalization)
@@ -404,3 +428,4 @@ def register_tests(all_tests):
     all_tests.append(test_svg_shape_group_filter)
     all_tests.append(test_svg_shape_save_restore)
     all_tests.append(test_svg_shape_selection_highlight)
+    all_tests.append(test_svg_shape_source_deleted)

@@ -56,8 +56,23 @@ class ShaperSvgImage:
         # are applied by the parent SvgPage.
         self.needsRecompute = False
 
+    def _clear_svg(self, obj):
+        """Reset all rendered-SVG outputs (used when the cutout is gone)."""
+        obj.Svg_Full = ''
+        if hasattr(obj, 'Svg_Outline'):
+            obj.Svg_Outline = ''
+        obj.Svg_BBCenter = App.Vector(0, 0, 0)
+        obj.Svg_BBLength = App.Vector(0, 0, 0)
+        if hasattr(obj, 'Svg_TranslatedFace'):
+            obj.Svg_TranslatedFace = Part.Shape()
+
     def execute(self, obj):
-        if not self.needsRecompute or not obj.Cutout:
+        if not obj.Cutout:
+            # The cutout was deleted; don't keep rendering (and exporting)
+            # the stale face geometry from before the deletion.
+            self._clear_svg(obj)
+            return
+        if not self.needsRecompute:
             return
 
         from shaper_cutout_svg import SvgData

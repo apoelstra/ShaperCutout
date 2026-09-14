@@ -112,6 +112,10 @@ class ShaperSvgShape:
         # changed. This is cheap (projection + path string formatting; no
         # booleans like a full SvgData run), and dragging never reaches here.
         if not obj.Source:
+            # The source object was deleted. Don't leave stale paths behind
+            # that would keep rendering (and exporting) geometry the user
+            # already removed.
+            self._clear_svg(obj)
             return
 
         self._recompute_svg(obj)
@@ -124,6 +128,15 @@ class ShaperSvgShape:
                 if (getattr(parent, 'Type', None) == 'ShaperSvgPage'
                         and parent.ViewObject and parent.ViewObject.Proxy):
                     parent.ViewObject.Proxy.update_widget_svg()
+
+    def _clear_svg(self, obj):
+        """Reset all rendered-SVG outputs (used when the source is gone)."""
+        obj.Svg_Full = ''
+        if hasattr(obj, 'Svg_Outline'):
+            obj.Svg_Outline = ''
+        obj.Svg_LocalShape = Part.Shape()
+        obj.Svg_BBCenter = App.Vector(0, 0, 0)
+        obj.Svg_BBLength = App.Vector(0, 0, 0)
 
     def _recompute_svg(self, obj):
         from shaper_cutout_svg.misc import wire_to_svg

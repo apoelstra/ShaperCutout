@@ -835,6 +835,32 @@ def test_svg_page_min_distance_rotated():
     finally:
         App.closeDocument(doc.Name)
 
+
+def test_svg_image_cutout_deleted():
+    """Deleting the cutout behind a ShaperSvgImage must remove its stale
+    geometry from the page SVG (same round-5 fuzz bug class as the shape
+    wrapper: the image kept exporting the deleted piece's face)."""
+    doc = App.newDocument("t_svg_image_cutdel")
+    try:
+        cutout = make_rect_cutout(doc, "Piece")
+        doc.recompute()
+        page, image = make_svg_page_with_image(doc, cutout, "Del")
+        svg_before = page.Proxy.compute_svg(page)
+        assert_true(len(svg_before) > len('<svg') + 200,
+                    "image renders the cutout face")
+
+        doc.removeObject(cutout.Name)
+        doc.recompute()
+        assert_true(image.Svg_Full == '', "stale image paths cleared")
+        assert_true(image.Svg_TranslatedFace.isNull(),
+                    "translated-face cache cleared")
+        svg_after = page.Proxy.compute_svg(page)
+        assert_true(len(svg_after) < len(svg_before),
+                    "deleted piece disappears from the page SVG")
+    finally:
+        App.closeDocument(doc.Name)
+
+
 def register_tests(all_tests):
     # SVG export comparison tests
     all_tests.append(test_svg_export_simple_front)
@@ -857,3 +883,4 @@ def register_tests(all_tests):
     all_tests.append(test_svg_page_anchor_frames)
     all_tests.append(test_svg_page_min_distance_rotated)
     all_tests.append(test_export_to_svg_page)
+    all_tests.append(test_svg_image_cutout_deleted)
