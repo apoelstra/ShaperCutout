@@ -189,10 +189,21 @@ class ShaperSvgShape:
             return True
         return False
 
+    def _add_local_shape_property(self, obj):
+        """Add Svg_LocalShape to objects saved before the page-wide anchor
+        algorithm needed access to the projected wires."""
+        if not hasattr(obj, 'Svg_LocalShape'):
+            obj.addProperty('Part::PropertyPartShape', 'Svg_LocalShape', 'Svg',
+                            'The projected shape (on its local plane, in Svg space).')
+            obj.setPropertyStatus('Svg_LocalShape', 2)
+            return True
+        return False
+
     def onDocumentRestored(self, obj):
-        if self._add_svg_outline_property(obj):
-            if obj.Source:
-                self._recompute_svg(obj)
+        changed = self._add_svg_outline_property(obj)
+        changed = self._add_local_shape_property(obj) or changed
+        if changed and obj.Source:
+            self._recompute_svg(obj)
 
     def dumps(self):
         return None

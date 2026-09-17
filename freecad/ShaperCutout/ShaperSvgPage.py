@@ -177,6 +177,44 @@ class ShaperSvgPage:
         if hasattr(obj, 'Svg'):
             obj.removeProperty('Svg')
 
+        # Anchor state moved from a per-image boolean to a fully positioned page anchor.
+        # Migrate old documents, just dropping the legacy properties.
+        legacy_include = getattr(obj, 'IncludeAnchor', None)
+        for child in obj.Group:
+            if getattr(child, 'IncludeAnchor', False):
+                legacy_include = True
+            for prop in ('IncludeAnchor', 'Svg_Anchor'):
+                if hasattr(child, prop):
+                    child.removeProperty(prop)
+        if not hasattr(obj, 'HasAnchor'):
+            obj.addProperty('App::PropertyBool', 'HasAnchor', 'Base',
+                            'Whether to include a custom anchor in the page SVG.')
+            obj.HasAnchor = False
+        for prop, ptype, group, doc in (
+                ('AnchorX', 'App::PropertyDistance', 'Anchor',
+                 'X position of the custom anchor origin, mm from the '
+                 'page left edge.'),
+                ('AnchorY', 'App::PropertyDistance', 'Anchor',
+                 'Y position of the custom anchor origin, mm from the '
+                 'page top edge (SVG coordinates).'),
+                ('AnchorRotation', 'App::PropertyAngle', 'Anchor',
+                 'Angle of the anchor long leg in degrees (same sense '
+                 'as SVG rotate: clockwise on the page).'),
+                ('AnchorMirror', 'App::PropertyBool', 'Anchor',
+                 'Mirror the anchor short leg to the other side of the long leg.')):
+            if not hasattr(obj, prop):
+                obj.addProperty(ptype, prop, group, doc)
+                setattr(obj, prop, False if ptype == 'App::PropertyBool' else 0.0)
+
+        # A document which wanted an anchor but has no stored position gets one
+        # auto-placed at the best corner across the whole page. If the children
+        # aren't computed yet (very old documents), place it on first recompute.
+        if legacy_include:
+            obj.HasAnchor = True
+            if not self.auto_place_anchor(obj):
+                self._deferred_anchor = True
+                obj.touch()
+
         self.addDisplayProperties(obj)
 
     def _svg_to_page_matrix(self, obj: App.DocumentObject, child) -> App.Matrix:
