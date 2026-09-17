@@ -219,13 +219,11 @@ class SvgData:
         from shaper_cutout_svg import HIGHLIGHT_WIDTH
         return self._outer_wire_paths("none", HIGHLIGHT_WIDTH, color)
 
-    def svg_paths(self, include_anchor=False) -> str:
+    def svg_paths(self) -> str:
         paths_str = "\n".join(self._svg_paths)
-        if include_anchor and self.anchor_path:
-            paths_str += "\n" + self.anchor_path
         return paths_str
 
-    def extract_complete_svg(self, include_anchor=True) -> str:
+    def extract_complete_svg(self) -> str:
         """Build a complete SVG string."""
         vb_x0 = self.bounding_box.XMin
         vb_x1 = self.bounding_box.XMax
@@ -242,6 +240,6 @@ class SvgData:
      viewBox="{vb_x0:.4f} {vb_y0:.4f} {vb_w:.4f} {vb_h:.4f}"
      width="{vb_w:.4f}mm" height="{vb_h:.4f}mm">
 <g transform="rotate(180 {vb_cx:.4f} {vb_cy:.4f})">
-{self.svg_paths(include_anchor)}
+{self.svg_paths()}
 </g>
 </svg>'''
