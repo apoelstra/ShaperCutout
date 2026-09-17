@@ -784,6 +784,58 @@ def test_export_to_svg_page():
         App.closeDocument(doc.Name)
 
 
+def test_svg_page_min_distance_rotated():
+    """The 'minimum distance' display works for rotated images, not just
+    axis-aligned ones. distToShape returns two endpoint pairs only when the
+    closest features are parallel (axis-aligned placements); with a small
+    rotation the closest pair is unique, and compute_overlaps must still
+    report it (issue #24)."""
+    doc = App.newDocument("test_svg_page_min_dist")
+    try:
+        c1 = make_rect_cutout(doc, "MinDistA")
+        c2 = make_rect_cutout(doc, "MinDistB")
+        page = ShaperSvgPage.create("MinDist_page")
+        page.Width = '24 in'
+        page.Height = '12 in'
+        page.GridSpacing = '1 in'
+        i1 = ShaperSvgImage.create(page, c1, "MinDist_iA")
+        i1.OffsetX = 0
+        i1.OffsetY = 0
+        i2 = ShaperSvgImage.create(page, c2, "MinDist_iB")
+        # 4" (101.6mm) wide rects placed 131.6mm apart -> 30mm gap.
+        i2.OffsetX = 131.6
+        i2.OffsetY = 0
+        doc.recompute()
+
+        # Axis-aligned: closest features are parallel edges; 30mm apart.
+        _, close = page.Proxy.compute_overlaps(page)
+        assert_true(len(close) == 1, "axis-aligned pair reports a distance")
+        assert_true(abs(close[0][2].Value - 30.0) < 1e-6,
+                    f"axis-aligned gap is 30mm (got {close[0][2].Value})")
+
+        # Rotate the second image a few degrees: the closest feature is now a
+        # unique corner, so distToShape yields a single pair -- this must not
+        # break the distance display.
+        i2.Rotation = 3
+        doc.recompute()
+        _, close = page.Proxy.compute_overlaps(page)
+        assert_true(len(close) == 1, "rotated pair still reports a distance")
+        assert_true(close[0][2].Value < 30.0,
+                    "rotated gap is smaller than axis-aligned gap")
+
+        # Moving them out of range (> 50mm) hides the distance again.
+        i2.OffsetX = 0
+        i2.OffsetY = 400
+        doc.recompute()
+        _, close = page.Proxy.compute_overlaps(page)
+        assert_true(len(close) == 0, "far-apart rotated pair reports nothing")
+    except Exception as e:
+        App.Console.PrintError(f"  ERROR: {e}")
+        raise e
+    finally:
+        App.closeDocument(doc.Name)
+
+
 def register_tests(all_tests):
     # SVG export comparison tests
     all_tests.append(test_svg_export_simple_front)
@@ -804,4 +856,5 @@ def register_tests(all_tests):
     all_tests.append(test_svg_page_with_anchor)
     all_tests.append(test_svg_page_anchor_single_across_children)
     all_tests.append(test_svg_page_anchor_frames)
+    all_tests.append(test_svg_page_min_distance_rotated)
     all_tests.append(test_export_to_svg_page)

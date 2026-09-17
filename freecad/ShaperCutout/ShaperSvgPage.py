@@ -467,9 +467,13 @@ class ShaperSvgPage:
 
                 # If no overlap, check for close distance
                 # distToShape returns three objects -- a minimum distance then a list of
-                # (Vector, Vector) pairs where the two vectors are endpoints of min-dist lines.
+                # (Vector, Vector) pairs where the two vectors are endpoints of min-dist
+                # lines. Note the list only has more than one entry when the closest
+                # features happen to be parallel on both ends of the gap (axis-aligned
+                # placements); a rotated shape has a single unique closest pair, so we
+                # must accept len(pairs) >= 1 here.
                 dist, pairs, _ = face1.distToShape(face2)
-                if dist < 50.0 and len(pairs) > 1:  # 50mm threshold
+                if dist < 50.0 and len(pairs) >= 1:  # 50mm threshold
                     pt1 = pairs[0][0]
                     pt2 = pairs[0][1]
                     dist = App.Units.Quantity(f"{dist} mm")
