@@ -39,6 +39,7 @@ except Exception as e:
     sys.exit(1)
 
 try:
+    import test_cutout_properties
     import test_dados
     import test_dado_autodrill
     import test_miters
@@ -48,6 +49,7 @@ try:
     import test_svg_shape
 
     ALL_TESTS = []
+    test_cutout_properties.register_tests(ALL_TESTS)
     test_dados.register_tests(ALL_TESTS)
     test_dado_autodrill.register_tests(ALL_TESTS)
     test_miters.register_tests(ALL_TESTS)
