@@ -124,6 +124,14 @@ class ShaperSvgPage:
 
         self.addDisplayProperties(obj)
 
+    def _svg_to_page_matrix(self, obj: App.DocumentObject, child) -> App.Matrix:
+        """The matrix mapping a child's local Svg space into page space."""
+        cx, cy = child.Proxy.centerXY(child)
+        tx, ty = child.Proxy.translateXY(child, obj.Height.Value)
+        return App.Placement(App.Vector(tx, ty, 0),
+                             App.Rotation(App.Vector(0, 0, 1), child.Rotation.Value + 180),
+                             App.Vector(cx, cy, 0)).toMatrix()
+
     def compute_svg(self, obj):
         page_w = obj.Width.Value
         page_h = obj.Height.Value
@@ -199,21 +207,10 @@ class ShaperSvgPage:
         overlaps = []
         close_pairs = []
 
-        page_h = obj.Height.Value
         for i, img1 in enumerate(images):
             for img2 in images[i+1:]:
-                cx1, cy1 = img1.Proxy.centerXY(img1)
-                tx1, ty1 = img1.Proxy.translateXY(img1, page_h)
-                cx2, cy2 = img2.Proxy.centerXY(img2)
-                tx2, ty2 = img2.Proxy.translateXY(img2, page_h)
-                zvec = App.Vector(0, 0, 1)
-
-                face1 = img1.Svg_TranslatedFace \
-                    .rotated(App.Vector(cx1, cy1, 0), zvec, img1.Rotation.Value + 180) \
-                    .translated(App.Vector(tx1, ty1, 0))
-                face2 = img2.Svg_TranslatedFace \
-                    .rotated(App.Vector(cx2, cy2, 0), zvec, img2.Rotation.Value + 180) \
-                    .translated(App.Vector(tx2, ty2, 0))
+                face1 = img1.Svg_TranslatedFace.transformed(self._svg_to_page_matrix(obj, img1))
+                face2 = img2.Svg_TranslatedFace.transformed(self._svg_to_page_matrix(obj, img2))
 
                 # Check for overlap
                 bb1 = face1.BoundBox
