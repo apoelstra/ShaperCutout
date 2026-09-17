@@ -130,7 +130,15 @@ class ShaperSvgImage:
             obj.setPropertyStatus('Svg_TranslatedFace', 2)
 
     def onDocumentRestored(self, obj):
+        missing_face = (not hasattr(obj, 'Svg_TranslatedFace')
+                        or obj.Svg_TranslatedFace.isNull())
         self.addSvgProperties(obj)
+        if missing_face and obj.Cutout:
+            # Svg_TranslatedFace (used for overlap detection and the page's
+            # anchor algorithm) was added after this document was saved;
+            # recompute once to populate it.
+            self.needsRecompute = True
+            obj.touch()
 
     def dumps(self):
         return None
