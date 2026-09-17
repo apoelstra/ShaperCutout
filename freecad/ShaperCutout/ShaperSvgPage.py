@@ -5,9 +5,11 @@ import math
 
 import FreeCAD as App
 import FreeCADGui as Gui
+import Part
 from PySide import QtCore, QtGui, QtWidgets, QtSvg
 
 from shaper_cutout_util import _ICON_ROOT
+from shaper_cutout_svg import (anchor_triangle_wire, custom_anchor_frame)
 import ShaperSvgImage
 import ShaperSvgShape
 
@@ -74,9 +76,19 @@ class ShaperSvgPage:
                         'Page height')
         obj.addProperty('App::PropertyLength', 'GridSpacing', 'Base',
                         'Grid spacing for the page view')
-        obj.addProperty('App::PropertyBool', 'IncludeAnchor', 'Base',
-                        'Include a custom anchor, placed at the best 90-degree '
-                        'corner found across all objects on the page.')
+        obj.addProperty('App::PropertyBool', 'HasAnchor', 'Base',
+                        'Whether to include a custom anchor in the page SVG.')
+        obj.addProperty('App::PropertyDistance', 'AnchorX', 'Anchor',
+                        'X position of the custom anchor origin, mm from the '
+                        'page left edge.')
+        obj.addProperty('App::PropertyDistance', 'AnchorY', 'Anchor',
+                        'Y position of the custom anchor origin, mm from the '
+                        'page top edge (SVG coordinates).')
+        obj.addProperty('App::PropertyAngle', 'AnchorRotation', 'Anchor',
+                        'Angle of the anchor long leg in degrees (same sense '
+                        'as SVG rotate: clockwise on the page).')
+        obj.addProperty('App::PropertyBool', 'AnchorMirror', 'Anchor',
+                        'Mirror the anchor short leg to the other side of the long leg.')
 
         self.addDisplayProperties(obj)
 
@@ -84,7 +96,7 @@ class ShaperSvgPage:
         obj.Width = '8 ft'
         obj.Height = '4 ft'
         obj.GridSpacing = '1 in'
-        obj.IncludeAnchor = False
+        obj.HasAnchor = False
         obj.ShowOverlaps = True
         obj.ShowMinDistances = True
 
@@ -136,32 +148,56 @@ class ShaperSvgPage:
                              App.Rotation(App.Vector(0, 0, 1), child.Rotation.Value + 180),
                              App.Vector(cx, cy, 0)).toMatrix()
 
-    def compute_anchor_svg(self, obj: App.DocumentObject) -> str:
-        """Compute the page's custom anchor: the best 90-degree corner found
-        among *all* the wires of *all* the page's children, transformed into
-        page space. Returns '' if no anchor could be found."""
-        from shaper_cutout_svg import custom_anchor_wire
-
-        outer_wires = []
-        inner_wires = []
-        for child in obj.Group:
-            if not hasattr(child.Proxy, 'anchor_wires'):
+    # ------------------------------------------------------------------
+    # Anchor support
+    # ------------------------------------------------------------------
+    def collect_page_wires(self, obj: App.DocumentObject, child=None) -> ([Part.Wire], [Part.Wire]):
+        """Return (outer_wires, inner_wires) of the page's children, in page
+        space. If `child` is given, only that child's wires are returned."""
+        children = [child] if child is not None else obj.Group
+        outer_wires, inner_wires = [], []
+        for c in children:
+            if not hasattr(c.Proxy, 'anchor_wires'):
                 continue
-            child_outer, child_inner = child.Proxy.anchor_wires(child)
+            child_outer, child_inner = c.Proxy.anchor_wires(c)
+            m = self._svg_to_page_matrix(obj, c)
+            outer_wires.extend(w.transformed(m) for w in child_outer)
+            inner_wires.extend(w.transformed(m) for w in child_inner)
+        return outer_wires, inner_wires
 
-            m = self._svg_to_page_matrix(obj, child)
+    def set_anchor_frame(self, obj: App.DocumentObject, frame):
+        """Store an anchor (origin, long_dir, short_dir) in page space."""
+        origin, long_dir, short_dir = frame
+        obj.AnchorX = origin.x
+        obj.AnchorY = origin.y
+        obj.AnchorRotation = math.degrees(math.atan2(long_dir.y, long_dir.x))
+        ccw = App.Vector(-long_dir.y, long_dir.x, 0)
+        obj.AnchorMirror = short_dir.dot(ccw) < 0
+        obj.HasAnchor = True
 
-            for wires, dest in ((child_outer, outer_wires),
-                                (child_inner, inner_wires)):
-                dest.extend(w.transformed(m) for w in wires)
+    def auto_place_anchor(self, obj: App.DocumentObject, child=None) -> bool:
+        """Place the anchor using the automatic 'best 90-degree corner'
+        algorithm on the given child, or on all page children if none given.
+        Returns True if an anchor was placed."""
+        outer, inner = self.collect_page_wires(obj, child)
+        frame = custom_anchor_frame(outer)
+        if not frame:
+            frame = custom_anchor_frame(inner)
+        if not frame:
+            return False
+        self.set_anchor_frame(obj, frame)
+        return True
 
-        anchor_wire = custom_anchor_wire(outer_wires)
-        if not anchor_wire:
-            anchor_wire = custom_anchor_wire(inner_wires)
-        if not anchor_wire:
-            return ''
-        from shaper_cutout_svg import wire_to_svg
-        return wire_to_svg(anchor_wire, fill="red", stroke="none", stroke_width=None)
+    def anchor_triangle(self, obj: App.DocumentObject):
+        """The anchor triangle wire in page space, per the stored properties."""
+        r = math.radians(obj.AnchorRotation.Value)
+        long_dir = App.Vector(math.cos(r), math.sin(r), 0)
+        if getattr(obj, 'AnchorMirror', False):
+            short_dir = App.Vector(long_dir.y, -long_dir.x, 0)
+        else:
+            short_dir = App.Vector(-long_dir.y, long_dir.x, 0)
+        return anchor_triangle_wire(App.Vector(obj.AnchorX.Value, obj.AnchorY.Value, 0),
+                                    long_dir, short_dir)
 
     def compute_svg(self, obj):
         page_w = obj.Width.Value
@@ -214,10 +250,10 @@ class ShaperSvgPage:
             if hasattr(child, 'Svg_Outline'):
                 svg += f'{g}{child.Svg_Outline}</g>'
 
-        if getattr(obj, 'IncludeAnchor', False):
-            anchor_svg = self.compute_anchor_svg(obj)
-            if anchor_svg:
-                svg += anchor_svg
+        if getattr(obj, 'HasAnchor', False):
+            from shaper_cutout_svg import wire_to_svg
+            svg += wire_to_svg(self.anchor_triangle(obj),
+                               fill="red", stroke="none", stroke_width=None)
 
         svg += "</svg>"
         return svg
@@ -700,7 +736,9 @@ class ViewProviderShaperSvgPage:
 
     def updateData(self, fp, prop):
         if prop in ('Width', 'Height', 'Group', 'GridSpacing',
-                    'ShowOverlaps', 'ShowMinDistances', 'IncludeAnchor') \
+                    'ShowOverlaps', 'ShowMinDistances',
+                    'HasAnchor', 'AnchorX', 'AnchorY',
+                    'AnchorRotation', 'AnchorMirror') \
                 and self._subwindow_alive():
             self._subwindow.widget().update()
 

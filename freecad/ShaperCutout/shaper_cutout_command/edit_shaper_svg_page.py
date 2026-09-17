@@ -37,15 +37,20 @@ class ShaperSvgPageTaskPanel(ShaperTaskPanel):
             self._quantity_widget('GridSpacing', minimum=1e-7),
         )
 
-        # Include custom anchor
-        self.anchor_checkbox = QtWidgets.QCheckBox()
-        self.anchor_checkbox.setChecked(getattr(self._object, 'IncludeAnchor', False))
-        self.anchor_checkbox.setToolTip(
-            "Include a custom anchor, placed at the best 90-degree corner found "
-            "across all objects on the page."
-        )
-        self.anchor_checkbox.stateChanged.connect(self._on_anchor_changed)
-        self._main_layout.addRow("Include Anchor:", self.anchor_checkbox)
+        # Custom anchor
+        anchor_row = QtWidgets.QHBoxLayout()
+        self.add_anchor_button = QtWidgets.QPushButton("Add Custom Anchor...")
+        self.add_anchor_button.setToolTip(
+            "Place a custom anchor automatically, at a vertex, or at the "
+            "intersection of two edges.")
+        self.add_anchor_button.clicked.connect(self._on_add_anchor)
+        anchor_row.addWidget(self.add_anchor_button)
+        self.remove_anchor_button = QtWidgets.QPushButton("Remove Anchor")
+        self.remove_anchor_button.setEnabled(getattr(self._object, 'HasAnchor', False))
+        self.remove_anchor_button.clicked.connect(self._on_remove_anchor)
+        anchor_row.addWidget(self.remove_anchor_button)
+        anchor_row.addStretch()
+        self._main_layout.addRow("Custom Anchor:", anchor_row)
 
         # Show overlaps (may be slow)
         self.overlaps_checkbox = QtWidgets.QCheckBox()
@@ -75,9 +80,15 @@ class ShaperSvgPageTaskPanel(ShaperTaskPanel):
             return
         self._object.recompute()
 
-    def _on_anchor_changed(self):
-        self._object.IncludeAnchor = self.anchor_checkbox.isChecked()
-        self.recompute_objects('IncludeAnchor')
+    def _on_add_anchor(self):
+        # Will be replaced with dialog in the next commit
+        self._object.Proxy.auto_place_anchor(self._object)
+        self.remove_anchor_button.setEnabled(True)
+
+    def _on_remove_anchor(self):
+        self._object.HasAnchor = False
+        self.remove_anchor_button.setEnabled(False)
+        self.recompute_objects('HasAnchor')
 
     def _on_overlaps_changed(self):
         self._object.ShowOverlaps = self.overlaps_checkbox.isChecked()

@@ -356,7 +356,6 @@ def make_svg_page_with_image(doc, cutout, name, offset_x=0, offset_y=0,
     page.Width = '24 in'
     page.Height = '12 in'
     page.GridSpacing = '1 in'
-    page.IncludeAnchor = include_anchor
 
     image = ShaperSvgImage.create(page, cutout, name + "_image")
     image.OffsetX = offset_x
@@ -366,6 +365,9 @@ def make_svg_page_with_image(doc, cutout, name, offset_x=0, offset_y=0,
     image.Invert = invert
 
     doc.recompute()
+    if include_anchor:
+        assert page.Proxy.auto_place_anchor(page), "auto anchor placed"
+        doc.recompute()
     return page, image
 
 
@@ -577,17 +579,21 @@ def test_svg_page_rotation_changes_svg():
 
 
 def test_svg_page_with_anchor():
-    """Create an SVG page with a piece that includes an anchor."""
+    """Auto-placing an anchor stores a positioned anchor on the page."""
     doc = App.newDocument("test_svg_page_anchor")
     try:
         cutout = make_rect_cutout(doc, "Anchor")
-        page, image = make_svg_page_with_image(doc, cutout, "Anchor", include_anchor=True)
-        svg = page.Proxy.compute_svg(page)
-        assert_true(len(svg) > 0, "page SVG non-empty with anchor")
+        page, image = make_svg_page_with_image(doc, cutout, "Anchor")
 
-        # Verify SVG contains anchor (red fill, no stroke)
-        has_anchor = 'fill="red"' in svg
-        assert_true(has_anchor, "page SVG contains anchor")
+        # No anchor by default.
+        assert_true(not page.HasAnchor, "no anchor by default")
+        svg = page.Proxy.compute_svg(page)
+        assert_true('fill="red"' not in svg, "no anchor in SVG by default")
+
+        assert_true(page.Proxy.auto_place_anchor(page), "auto-place succeeds")
+        svg = page.Proxy.compute_svg(page)
+        assert_true(page.HasAnchor, "HasAnchor set after placing")
+        assert_true('fill="red"' in svg, "page SVG contains anchor")
 
         # The anchor lives on the page, not the image.
         assert_true(not hasattr(image, 'IncludeAnchor'),
@@ -595,18 +601,27 @@ def test_svg_page_with_anchor():
         assert_true(not hasattr(image, 'Svg_Anchor'),
                     "image has no per-image Svg_Anchor property")
 
-        # Toggling the page property toggles the anchor in the output.
-        page.IncludeAnchor = False
+        # The stored anchor is within the page, with a sensible orientation.
+        assert_true(-1e-6 <= page.AnchorX.Value <= page.Width.Value + 1e-6,
+                    "anchor X within page")
+        assert_true(-1e-6 <= page.AnchorY.Value <= page.Height.Value + 1e-6,
+                    "anchor Y within page")
+
+        # Disabling HasAnchor hides the anchor but keeps the stored position.
+        x0, y0 = page.AnchorX.Value, page.AnchorY.Value
+        page.HasAnchor = False
         svg_off = page.Proxy.compute_svg(page)
         assert_true('fill="red"' not in svg_off, "anchor absent when disabled")
+        assert_true(page.AnchorX.Value == x0 and page.AnchorY.Value == y0,
+                    "position retained when disabled")
+        page.HasAnchor = True
 
-        # Moving the piece moves the anchor (it tracks all wires on the page).
-        page.IncludeAnchor = True
-        svg_a = page.Proxy.compute_anchor_svg(page)
-        assert_true(len(svg_a) > 0, "page anchor computed")
+        # The anchor is a fixed point: moving the piece does not move it.
+        anchor_before = (page.AnchorX.Value, page.AnchorY.Value)
         image.OffsetX = 100
-        svg_b = page.Proxy.compute_anchor_svg(page)
-        assert_true(svg_a != svg_b, "anchor follows child movement")
+        doc.recompute()
+        assert_true((page.AnchorX.Value, page.AnchorY.Value) == anchor_before,
+                    "anchor stays put when the piece moves")
     except Exception as e:
         App.Console.PrintError(f"  ERROR: {e}")
         raise e
@@ -615,13 +630,12 @@ def test_svg_page_with_anchor():
 
 
 def test_svg_page_anchor_single_across_children():
-    """The page computes exactly one anchor across all children."""
+    """The page renders exactly one anchor, from one auto-placement."""
     doc = App.newDocument("test_svg_page_anchor_multi")
     try:
         page = ShaperSvgPage.create("AnchorMulti_page")
         page.Width = '24 in'
         page.Height = '12 in'
-        page.IncludeAnchor = True
 
         c1 = make_rect_cutout(doc, "AnchorMulti_c1")
         c2 = make_rect_cutout(doc, "AnchorMulti_c2")
@@ -633,14 +647,17 @@ def test_svg_page_anchor_single_across_children():
         i2.OffsetY = 0
         doc.recompute()
 
+        assert_true(page.Proxy.auto_place_anchor(page), "anchor placed")
         svg = page.Proxy.compute_svg(page)
-        # Exactly one anchor triangle in the whole page.
         anchor_count = svg.count('fill="red"')
         assert_true(anchor_count == 1,
                     f"exactly one anchor on page (got {anchor_count})")
 
-        anchor = page.Proxy.compute_anchor_svg(page)
-        assert_true(len(anchor) > 0, "anchor computed across multiple children")
+        # Per-child auto placement picks a corner of the chosen child only.
+        assert_true(page.Proxy.auto_place_anchor(page, i2), "per-child anchor placed")
+        bb_min_x = 200  # i2's left edge
+        assert_true(page.AnchorX.Value >= bb_min_x - 1e-6,
+                    f"per-child anchor lies on child 2 (x={page.AnchorX.Value})")
     except Exception as e:
         App.Console.PrintError(f"  ERROR: {e}")
         raise e

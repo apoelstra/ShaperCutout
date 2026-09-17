@@ -228,11 +228,3 @@ def anchor_triangle_wire(origin: App.Vector,
     p1 = origin + short_dir * ANCHOR_SHORT
     p2 = origin + long_dir * ANCHOR_LONG
     return Part.Wire(Part.makePolygon([p0, p1, p2, p0]))
-
-
-def custom_anchor_wire(outline_wires: [Part.Wire]) -> Part.Wire:
-    """Back-compat wrapper: the auto-placed anchor triangle wire, or None."""
-    frame = custom_anchor_frame(outline_wires)
-    if not frame:
-        return None
-    return anchor_triangle_wire(*frame)
