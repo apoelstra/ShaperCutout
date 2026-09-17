@@ -7,6 +7,12 @@ from draftfunctions.svgshapes import get_path
 import Part
 
 
+# The Shaper custom anchor is a right triangle with legs of these lengths
+# (short leg along the anchor's X axis, long leg along its Y axis).
+ANCHOR_SHORT = 15.0
+ANCHOR_LONG = 30.0
+
+
 def classify_wires(cutout_face: App.DocumentObject) -> ([Part.Wire], [Part.Wire]):
     """Return (outer_wires, inner_wires).
     We use a basic heuristic where a wire is 'inner' (i.e. a hole) if its first
@@ -105,9 +111,15 @@ def wire_to_svg(wire: Part.Wire, fill: str, stroke: str, cut_type: str = None,
             f'{width_attr}{cut_attrs}/>')
 
 
-def custom_anchor_wire(outline_wires: [Part.Wire]) -> Part.Wire:
+def custom_anchor_frame(outline_wires: [Part.Wire]):
     """Find the best 90-degree corner in the outline wires.
-    Returns a Part.Wire triangle in 3D representing the anchor, or None."""
+
+    Returns (origin, long_dir, short_dir) where `origin` is the corner point
+    and `long_dir`/`short_dir` are unit vectors along the anchor's two legs,
+    or None if no orthogonal pair of straight edges was found. Per the Shaper
+    custom anchor spec, the anchor triangle is origin,
+    origin + ANCHOR_SHORT * short_dir, origin + ANCHOR_LONG * long_dir.
+    """
     import math
 
     # Collect all straight edges from all outline wires
@@ -163,25 +175,10 @@ def custom_anchor_wire(outline_wires: [Part.Wire]) -> Part.Wire:
     edge1, edge2 = best_pair
 
     # Compute intersection of the two edge lines
-    p1_start = edge1.Vertexes[0].Point
-    p1_end = edge1.Vertexes[1].Point
-    p2_start = edge2.Vertexes[0].Point
-    p2_end = edge2.Vertexes[1].Point
-
-    # Line-line intersection in 2D (XY plane)
-    x1, y1 = p1_start.x, p1_start.y
-    x2, y2 = p1_end.x, p1_end.y
-    x3, y3 = p2_start.x, p2_start.y
-    x4, y4 = p2_end.x, p2_end.y
-
-    denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
-    if abs(denom) < 1e-10:
+    shared_pt = intersect_lines_2d(edge1.Vertexes[0].Point, edge1.Vertexes[1].Point,
+                                   edge2.Vertexes[0].Point, edge2.Vertexes[1].Point)
+    if shared_pt is None:
         return None
-
-    t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom
-    ix = x1 + t * (x2 - x1)
-    iy = y1 + t * (y2 - y1)
-    shared_pt = App.Vector(ix, iy, p1_start.z)  # all z coords will be the same, just pick one
 
     # Compute direction vectors
     def dir_away(edge, pt):
@@ -198,10 +195,44 @@ def custom_anchor_wire(outline_wires: [Part.Wire]) -> Part.Wire:
     # Shorter leg = X, longer = Y per Shaper spec
     short_dir = d1 if edge1.Length <= edge2.Length else d2
     long_dir = d2 if edge1.Length <= edge2.Length else d1
-    size_short = 15.0
-    size_long = 30.0
-    p0 = shared_pt
-    p1 = shared_pt + short_dir * size_short
-    p2 = shared_pt + long_dir * size_long
 
+    return (shared_pt, long_dir, short_dir)
+
+
+def intersect_lines_2d(p1_start: App.Vector, p1_end: App.Vector,
+                       p2_start: App.Vector, p2_end: App.Vector):
+    """Intersection of the two infinite lines through the given points, in the
+    XY plane. Returns an App.Vector, or None if the lines are parallel."""
+    x1, y1 = p1_start.x, p1_start.y
+    x2, y2 = p1_end.x, p1_end.y
+    x3, y3 = p2_start.x, p2_start.y
+    x4, y4 = p2_end.x, p2_end.y
+
+    denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    if abs(denom) < 1e-10:
+        return None
+
+    t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom
+    ix = x1 + t * (x2 - x1)
+    iy = y1 + t * (y2 - y1)
+    return App.Vector(ix, iy, p1_start.z)  # all z coords will be the same, just pick one
+
+
+def anchor_triangle_wire(origin: App.Vector,
+                         long_dir: App.Vector,
+                         short_dir: App.Vector) -> Part.Wire:
+    """Build the Shaper custom anchor triangle at `origin`, with its short leg
+    (ANCHOR_SHORT) along `short_dir` and its long leg (ANCHOR_LONG) along
+    `long_dir`. The two directions should be orthogonal unit vectors."""
+    p0 = origin
+    p1 = origin + short_dir * ANCHOR_SHORT
+    p2 = origin + long_dir * ANCHOR_LONG
     return Part.Wire(Part.makePolygon([p0, p1, p2, p0]))
+
+
+def custom_anchor_wire(outline_wires: [Part.Wire]) -> Part.Wire:
+    """Back-compat wrapper: the auto-placed anchor triangle wire, or None."""
+    frame = custom_anchor_frame(outline_wires)
+    if not frame:
+        return None
+    return anchor_triangle_wire(*frame)
