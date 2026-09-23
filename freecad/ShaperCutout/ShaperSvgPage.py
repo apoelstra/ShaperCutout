@@ -503,7 +503,15 @@ class _PageWidget(QtWidgets.QWidget):
         self._anchor_placement = None
         self._anchor_rot = 0.0  # wheel-applied rotation (degrees) on the preview
 
-        self._compute_overlap_timeout(page_obj)
+        # Setup timer to handle expensive overlap checks.
+        self._compute_overlap_timer = QtCore.QTimer()
+        self._compute_overlap_timer.setSingleShot(True)
+        self._compute_overlap_timer.timeout.connect(self._compute_overlap_timeout)
+        self._compute_overlap_timer.setInterval(1000)
+        # Manually trigger 'compute overlaps'. Later in self.update_svg it will be triggered by
+        # self._compute_overlap_timer.start() (which will reset the timer if it's already in
+        # progress, preventing updates from stalling the GUI while the user is moving stuff).
+        self._compute_overlap_timeout()
 
     # ------------------------------------------------------------------
     # Custom anchor interactive placement
@@ -683,16 +691,11 @@ class _PageWidget(QtWidgets.QWidget):
         self._svg = obj.Proxy.compute_svg(obj)
         self.update()
 
-        self._compute_overlap_timer.setInterval(100)
         self._compute_overlap_timer.start()
 
-    def _compute_overlap_timeout(self, obj):
-        self._compute_overlap_timer = QtCore.QTimer()
-        self._compute_overlap_timer.setSingleShot(True)
-        self._compute_overlap_timer.timeout.connect(lambda: self._compute_overlap_timeout(obj))
-
-        self._overlaps, self._close_pairs = obj.Proxy.compute_overlaps(obj)
-        self._svg = obj.Proxy.compute_svg(obj)
+    def _compute_overlap_timeout(self):
+        self._overlaps, self._close_pairs = self._page_obj.Proxy.compute_overlaps(self._page_obj)
+        self._svg = self._page_obj.Proxy.compute_svg(self._page_obj)
         self.update()
 
     def _get_page_metrics(self) -> (float, float, float, float, float, float, float):
