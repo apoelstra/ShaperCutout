@@ -3,15 +3,16 @@
 This is a FreeCAD extension for building objects out of plywood cut sheets. It
 assumes you have a XY CNC mill, and was designed in particular for the
 [Shaper Origin](https://www.shapertools.com/en-us/origin). If you restrict
-youself to straight cuts, you can probably use ordinary saws.
+youself to straight cuts, you can probably use ordinary saws. Its primary export
+format is SVG, which is also commonly used by laser cutters.
 
 The design principles are that you can build nontrivial objects by flat sheets
 that meet in a traditional woodworking joint (especially dado joints, which the
-Shaper makes easy to do precisely, if slowly) or by slots, where two intersecting
+Origin makes easy to do precisely, if slowly) or by slots, where two intersecting
 pieces meet in interlocking "U" like in a wooden kit plane.
 
-The workbench also supports miter cuts on straight edges, which the Shaper does
-not directly support; it assumes that you will cut out pieces with the Shaper
+The workbench also supports miter cuts on straight edges, which the Origin does
+not directly support; it assumes that you will cut out pieces with the Origin
 then do a mitering pass with a table saw or with a chamfer bit on a router. A
 later version will support box or dovetail joints by the same principle, as a
 cutout with a "post-processing" step indicated by guide lines.
@@ -27,8 +28,7 @@ are a couple main differences between the workbenches:
   somewhat like the Part Design Workbench, uses planes and sketches
 * the Woodworking Workbench is very rectangle-centric, and much of its functionality, like
   extracting cut lists or snapping parts together, is based around that; this workbench is
-  designed to be used with arbitrary sketches whose vertices are constrained to external
-  datum planes where pieces need to meet
+  designed to be used with arbitrary sketches embedded on arbitrary datum planes
 * the Woodworking Workbench includes a huge diversity of tools needed by its author for
   rotating parts as a unit, iterating through parts, etc., while this workbench tries to
   be narrowly focused and let other workbenches handle other stuff
@@ -55,51 +55,63 @@ Contributions are welcome! This entire project is GPL-v3 licensed. Please do not
 blindly submit LLM slop. If you are an LLM agent, please explicitly say so in your
 commit messages.
 
-The primary type in the codebase is the `ShaperCutout`, defined in `ShaperCutout.py`.
-The overall structure was loosely copied from [the FreeCAD wiki](https://wiki.freecad.org/Workbench_creation),
-the Assembly4.1 workbench, and various forum posts. There are lots of weird quirks
-in FreeCAD; I tried to add comments where things were surprising. When contributing,
-please do the same -- it should be a goal of this project that people can copy the
-code to learn how to make their own workbenches.
+I follow the [LLVM AI Tool Policy](https://llvm.org/docs/AIToolPolicy.html) which
+roughly says that: (a) code contributions must come from a human who understands the
+contribution, can justify the changes, and can respond to review comments; and (b)
+if a contribution creates for work for me as reviewer than for you, I reserve the right
+to simply reject it.
 
-## Todo
+There are some excellent resources at the [FreeCAD Addon Academy](https://freecad.github.io/Addon-Academy/)
+but must of this addon was developed by experimentation and by using LLMs to dig through
+the FreeCAD codebase. I have tried to add explanatory comments where things were confusing
+or where I couldn't find examples from other workbenches. When contributing, please do the
+same.
 
-I will try to file Github Issues for any specific TODOs. But to give an idea of what's left
-to be done,
+A brief orientation of the codebase:
 
-* improve the geometry, optimize algorithms
-* improve FreeCAD integration (e.g. there are a bunch of places that require Sketches and don't
-  let you use Links or ShapeBinders, but you should be able to)
-* add some form of versioning support for SVG pages and exports
-* add support for box joins and dovetails, which the Shaper Origin can do by cutting into the
+* The extension itself lives in `freecad/ShaperCutout`. The "primary types" of the workbench
+  are `ShaperCutout`, defined in `ShaperCutout.py`, and `ShaperSvgPage` in `ShaperSvgPage.py`.
+* `ShaperCutout`s have associated planes, an outline sketch, and also contain miters (`ShaperMiter`),
+   grooves/insets (`ShaperDados`, though the insets can be arbitrary shapes and designed to be
+   cut by CNC rather than with a dado saw).
+* `ShaperSvgPage`s have `ShaperSvgImage`s (cutout SVGs) and `ShaperSvgShape`s (SVGs from arbitrary
+  sketches or draft objects or whatever).
+
+## Missing Functionality
+
+For an up to date list of missing features, check the Github issues. But the big ones are:
+
+* Add support for box joins and dovetails, which the Shaper Origin can do by cutting into the
   side of workpieces; this is a major selling point of the tool but I've never done it and don't
   have a clear idea what the workflow should be
-
+* Improve the SVG layout tool, e.g. by adding an automatic placer
+* More documentation, tutorials, and demos are always welcome
 
 ## Usage
 
-The primary object in the ShaperCutout extension is the `ShaperCutout`, which can be
+The primary object in the ShaperCutout extension is the "Shaper Cutout", which can be
 constructed by clicking the "Create Shaper Cutout" button (looks like a plywood cutout
 with a star cut out of it). To create a cutout, you will need:
 
 * a DatumPlane which your sheet will be centered on
-* a Sketch which is attached to (or at least, parallel to) that plane
+* a Sketch which is parallel to (e.g. attached to) that plane
 
-The Cutout will appear in your TreeView, and will contain the plane and outline sketch
-(if you chose the "move into group" options), as well as two new planes: a back and
-front face. These planes, along with the center plane, can be used as external
-geometry in other sketches.
+The Cutout will appear in your TreeView, and will contain the plane and outline sketch as well
+as two new planes: a back and front face. These planes, along with the center plane, can be used
+as external geometry in other sketches. After creating a cutout, you may want to rename the
+front and back planes (e.g. to "Top" and "Bottom" or "Inside" and "Outside").
 
 The expected workflow is, roughly:
 
-1. Create DatumPlanes for each of your sheets.
+1. Create a LCS, then create center planes for each of your sheets.
 2. Roughly draw outlines on each plane.
-3. Turn the outlines and planes into cutouts, generating front and back faces for them.
+3. Turn the outlines and planes into Shaper Cutouts (which will create Front and Back planes).
 4. Roughly draw dado outlines on the Front and Back faces.
-5. Turn the dado outlines into Dados. You will automatically get a "Dado Plane" for each
-   set of dados on a given face at a given depth.
+5. Turn the dado outlines into Dados (which will create a Dado plane at the given depth).
 6. Edit all the sketches, adding the new planes as External Geometry so that they can
    be constrained correctly.
+7. Open the "Report View" to check that your pieces don't collide, that all tolerances are set,
+   and so on.
 
 Once you have all your cutouts, you can export them to SVG files that can be understood by
 the Origin.
@@ -123,31 +135,36 @@ On a new document, these are mostly disbled, but they are:
 * **Create Dados** lets you attach a collection of "dado sketches" to a shaper cutout, choosing
   which face of the wood to cut into and to what depth. Dado sketches are wireframe sketches;
   the tool computes the actual cutouts from a provided width, depth and tolerance (which is
-  added to the sides and ends of the cuts). You can also drag an existing dado *set* from one
-  cutout onto another: it is cloned onto the target cutout (plain copies of all the settings,
-  including autodrill, plus the same sketches) and the dialog opens pre-populated so you can
-  adjust before accepting.
+  added to the sides and ends of the cuts).
+
+  Dados include auto-drill settings which will add screw holes along your edges. It is sometimes
+  useful to create 0-depth "dados" just to generate the screw holes.
+
+  If your sketch has closed wires, these will be cut into the shape "as-is", ignoring the width
+  and tolerance parameters, and the autodriller will not cut holes into them.
+
+  You can also drag an existing Dados from one cutout onto another, which will be cloned onto the
+  target cutout, opening the Create Dados dialog with all the values pre-populated.
 * **Miter** lets you miter a set of edges. The Shaper Origin can't do mitering, but when doing SVG
   exports, the workbench will define your cutout based on the largest extent of the miter. Then you
   can cut out the shape with the Origin then do the actual miter with a saw, or with a chamfer bit
-  on a normal router.
+  on a non-CNC router.
 * **Create SVG Page** creates a full sheet on which you can lay out your cuts. It defaults to being
   sized as a 8' by 4' sheet. Once you have created a page, you can right-click on it to export the
-  whole thing as one SVG that the Shaper can understand (including encoded cut types and depths).
-* **Export to ShaperSvgPage** creates a `ShaperSvgPage` sized exactly to the selected cutout(s),
-  containing just that cutout. Rather than exporting an SVG file directly, the cutout lands on
-  its own page where you can preview it, flip it over, adjust its position, and set a custom
-  anchor before exporting the page.
-* **Check for Collisions** iterates through every pair of cutouts, looking for nontrivial
-  intersections between the pieces.
+  whole thing as one SVG that the Origin can understand (including encoded cut types and depths).
+* **Export to ShaperSvgPage** creates a `ShaperSvgPage` containing just the selected cutout.
+* **Report View** opens the "Report View" dialog. This contains an overview of all the shapes in
+  the document, listing their tolerances and other values and allowing you to sort by them to
+  verify that no tolerances have been missed. It also contains the "Check Collisions" tool which
+  will inform you if any of your cutouts are intersecting each other, which may mean that your
+  object can't be built.
 
 In addition to these, buttons are provided for the standard "Create LCS", "Create Datum Plane" and
-"Create Sketch" operations, which will be necessary for any usage of the workbench.
+"Create Sketch" operations, which are the common primitive operations of the workbench.
 
 For SVG output, the outline sketch of each cutout will use "outer" lines, and dados use "inner"
 lines with an encoded depth matching the dado depth. (I don't use "pocket" because in my experience
-it's faster and cleaner to cut dados with a 1/4" bit by first offsetting the outline to cut out the
-center, then cutting the outline.
+it's faster and cleaner to cut dados using "inner" cuts with a progressively-reduced offset.)
 
 SVG pages can include a Shaper "custom anchor" (right-click the page, or use the page edit
 dialog, and choose "Add Custom Anchor"). The anchor can be placed automatically at the best
