@@ -521,6 +521,7 @@ class _PageWidget(QtWidgets.QWidget):
 
     def start_anchor_placement(self, mode):
         """Enter interactive anchor placement mode ('vertex' or 'intersection')."""
+        assert mode == 'vertex' or mode == 'intersection'
         self._anchor_placement = {'mode': mode, 'hover_pt': None, 'hover_seg': None,
                                   'seg1': None, 'frame': None, 'ortho': False}
         self._anchor_rot = 0.0
@@ -1169,16 +1170,12 @@ class ViewProviderShaperSvgPage:
     def setupContextMenu(self, vobj, menu):
         from shaper_cutout_command.export_shaper_svg_page import export
         from shaper_cutout_command.edit_shaper_svg_page import open_page_task_panel
-        from shaper_cutout_command.add_shaper_anchor import open_add_anchor_dialog
 
         action = menu.addAction("Edit SVG Page")
         action.triggered.connect(lambda: open_page_task_panel(vobj.Object))
 
         action = menu.addAction("Export SVG Page")
         action.triggered.connect(lambda: export(vobj.Object))
-
-        action = menu.addAction("Add Custom Anchor")
-        action.triggered.connect(lambda: open_add_anchor_dialog(vobj.Object))
 
         action = menu.addAction("Add Cutout to Page")
         action.triggered.connect(lambda: self._add_cutout_to(vobj.Object))

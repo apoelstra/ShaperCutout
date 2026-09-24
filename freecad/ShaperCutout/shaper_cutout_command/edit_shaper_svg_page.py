@@ -1,12 +1,22 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from typing import Optional
-from PySide import QtCore, QtWidgets
+from PySide import QtWidgets
 
 import FreeCAD as App
 import FreeCADGui as Gui
 
 from .task_panel import ShaperTaskPanel
+
+
+def _page_view_widget(page_obj):
+    """Ensure the page's MDI view is open and return its _PageWidget."""
+    vobj = page_obj.ViewObject
+    if vobj is None or vobj.Proxy is None:
+        return None
+    vobj.Proxy._open_view(page_obj)
+    if not vobj.Proxy._subwindow_alive():
+        return None
+    return vobj.Proxy._subwindow.widget()
 
 
 class ShaperSvgPageTaskPanel(ShaperTaskPanel):
@@ -39,13 +49,17 @@ class ShaperSvgPageTaskPanel(ShaperTaskPanel):
 
         # Custom anchor
         anchor_row = QtWidgets.QHBoxLayout()
-        self.add_anchor_button = QtWidgets.QPushButton("Add Custom Anchor...")
-        self.add_anchor_button.setToolTip(
-            "Place a custom anchor automatically, at a vertex, or at the "
-            "intersection of two edges.")
-        self.add_anchor_button.clicked.connect(self._on_add_anchor)
-        anchor_row.addWidget(self.add_anchor_button)
-        self.remove_anchor_button = QtWidgets.QPushButton("Remove Anchor")
+        self.set_anchor_vertex_button = QtWidgets.QPushButton("Set At Vertex")
+        self.set_anchor_vertex_button.setToolTip("Place a custom anchor at a vertex")
+        self.set_anchor_vertex_button.clicked.connect(lambda: self._on_set_anchor('vertex'))
+        anchor_row.addWidget(self.set_anchor_vertex_button)
+        self.set_anchor_inter_button = QtWidgets.QPushButton("Set At Intersection")
+        self.set_anchor_inter_button.setToolTip(
+            "Place a custom anchor at the intersection of two edges")
+        self.set_anchor_inter_button.clicked.connect(lambda: self._on_set_anchor('intersection'))
+        anchor_row.addWidget(self.set_anchor_inter_button)
+
+        self.remove_anchor_button = QtWidgets.QPushButton("Remove")
         self.remove_anchor_button.setEnabled(getattr(self._object, 'HasAnchor', False))
         self.remove_anchor_button.clicked.connect(self._on_remove_anchor)
         anchor_row.addWidget(self.remove_anchor_button)
@@ -80,9 +94,15 @@ class ShaperSvgPageTaskPanel(ShaperTaskPanel):
             return
         self._object.recompute()
 
-    def _on_add_anchor(self):
-        from .add_shaper_anchor import open_add_anchor_dialog
-        open_add_anchor_dialog(self._object)
+    def _on_set_anchor(self, mode: str):
+        widget = _page_view_widget(self._object)
+        if widget is None:
+            QtWidgets.QMessageBox.warning(
+                self, "Page View Needed",
+                "Could not open the page view; double-click the page first.")
+            return
+        widget.start_anchor_placement(mode)
+        widget.setFocus()
 
     def _on_remove_anchor(self):
         self._object.HasAnchor = False
