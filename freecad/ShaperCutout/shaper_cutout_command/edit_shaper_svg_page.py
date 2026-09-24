@@ -5,6 +5,7 @@ from PySide import QtWidgets
 import FreeCAD as App
 import FreeCADGui as Gui
 
+from shaper_cutout_svg import SvgAnchorPlacerMode
 from .task_panel import ShaperTaskPanel
 
 
@@ -51,12 +52,14 @@ class ShaperSvgPageTaskPanel(ShaperTaskPanel):
         anchor_row = QtWidgets.QHBoxLayout()
         self.set_anchor_vertex_button = QtWidgets.QPushButton("Set At Vertex")
         self.set_anchor_vertex_button.setToolTip("Place a custom anchor at a vertex")
-        self.set_anchor_vertex_button.clicked.connect(lambda: self._on_set_anchor('vertex'))
+        self.set_anchor_vertex_button.clicked.connect(
+            lambda: self._on_set_anchor(SvgAnchorPlacerMode.VERTEX))
         anchor_row.addWidget(self.set_anchor_vertex_button)
         self.set_anchor_inter_button = QtWidgets.QPushButton("Set At Intersection")
         self.set_anchor_inter_button.setToolTip(
             "Place a custom anchor at the intersection of two edges")
-        self.set_anchor_inter_button.clicked.connect(lambda: self._on_set_anchor('intersection'))
+        self.set_anchor_inter_button.clicked.connect(
+            lambda: self._on_set_anchor(SvgAnchorPlacerMode.INTERSECTION))
         anchor_row.addWidget(self.set_anchor_inter_button)
 
         self.remove_anchor_button = QtWidgets.QPushButton("Remove")
@@ -94,14 +97,14 @@ class ShaperSvgPageTaskPanel(ShaperTaskPanel):
             return
         self._object.recompute()
 
-    def _on_set_anchor(self, mode: str):
+    def _on_set_anchor(self, mode: SvgAnchorPlacerMode):
         widget = _page_view_widget(self._object)
         if widget is None:
             QtWidgets.QMessageBox.warning(
                 self, "Page View Needed",
                 "Could not open the page view; double-click the page first.")
             return
-        widget.start_anchor_placement(mode)
+        widget.start_anchor_placement(self._object, mode)
         widget.setFocus()
 
     def _on_remove_anchor(self):

@@ -12,7 +12,7 @@ import ShaperSlot
 import ShaperSvgPage
 import ShaperSvgImage
 import Sketcher
-from shaper_cutout_svg import SvgData
+from shaper_cutout_svg import SvgData, SvgAnchorFrame, SvgAnchorPlacer, SvgAnchorPlacerMode
 
 from util import assert_true
 from util import make_plane, mm
@@ -366,8 +366,7 @@ def make_svg_page_with_image(doc, cutout, name, offset_x=0, offset_y=0,
 
     doc.recompute()
     if include_anchor:
-        frame, ortho = page.Proxy.frame_for_intersection(App.Vector(1, 0, 0), App.Vector(0, 1, 0))
-        assert ortho
+        frame = SvgAnchorFrame(App.Vector(0, 0, 0), App.Vector(1, 0, 0), App.Vector(0, 1, 0))
         page.Proxy.set_anchor_frame(page, frame)
         doc.recompute()
     return page, image
@@ -592,11 +591,7 @@ def test_svg_page_with_anchor():
         svg = page.Proxy.compute_svg(page)
         assert_true('fill="red"' not in svg, "no anchor in SVG by default")
 
-        frame, ortho = page.Proxy.frame_for_intersection(
-            [App.Vector(0, 0, 0), App.Vector(1, 0, 0)],
-            [App.Vector(0, 0, 0), App.Vector(0, 1, 0)],
-        )
-        assert ortho
+        frame = SvgAnchorFrame(App.Vector(0, 0, 0), App.Vector(1, 0, 0), App.Vector(0, 1, 0))
         page.Proxy.set_anchor_frame(page, frame)
         svg = page.Proxy.compute_svg(page)
         assert_true(page.HasAnchor, "HasAnchor set after placing")
@@ -642,6 +637,7 @@ def test_svg_page_anchor_frames():
     doc = App.newDocument("test_svg_page_anchor_frames")
     try:
         page = ShaperSvgPage.create("Frames_page")
+        placer = SvgAnchorPlacer(SvgAnchorPlacerMode.VERTEX)  # mode irrelevant the way we use it
         page.Width = '24 in'
         page.Height = '12 in'
         cutout = make_rect_cutout(doc, "Frames")
@@ -651,19 +647,20 @@ def test_svg_page_anchor_frames():
         doc.recompute()
 
         # Snapping: a corner of the rect is a snap point.
-        segs = page.Proxy.page_line_segments(page)
+        placer.set_page_data(page.Width, page.Height, page.Proxy._collect_snap_wires(page))
+        segs = placer._line_segments
         assert_true(len(segs) >= 4, "page has line segments")
         corner = segs[0][0]
-        snap = page.Proxy.snap_point_near(page, corner, 5.0)
+        snap = placer._snap_point_near(corner, 5.0)
         assert_true(snap is not None and (snap - corner).Length < 1e-6,
                     "corner point snaps")
-        far = page.Proxy.snap_point_near(page, App.Vector(-500, -500, 0), 5.0)
+        far = placer._snap_point_near(App.Vector(-500, -500, 0), 5.0)
         assert_true(far is None, "off-object point does not snap")
 
         # Vertex frame aligns the long leg with an incident edge.
-        frame = page.Proxy.frame_for_vertex(page, corner)
-        assert_true((frame[0] - corner).Length < 1e-9, "vertex frame at the vertex")
-        aligned = any(abs(abs(d.dot(frame[1])) - 1.0) < 1e-6
+        frame = placer._frame_for_vertex(corner)
+        assert_true((frame.vertex - corner).Length < 1e-9, "vertex frame at the vertex")
+        aligned = any(abs(abs(d.dot(frame.long_dir())) - 1.0) < 1e-6
                       for p0, p1 in segs if (p0 - corner).Length < 1e-3 or
                       (p1 - corner).Length < 1e-3
                       for d in [(p1 - p0).normalize()])
@@ -672,18 +669,18 @@ def test_svg_page_anchor_frames():
         # Intersection frames: two perpendicular edges of the rect.
         horiz = max(segs, key=lambda s: abs(s[1].x - s[0].x))
         vert = max(segs, key=lambda s: abs(s[1].y - s[0].y))
-        frame, ortho = page.Proxy.frame_for_intersection(horiz, vert)
+        frame, ortho = placer._frame_for_intersection(horiz, vert)
         assert_true(frame is not None, "perpendicular edges intersect")
         assert_true(ortho, "perpendicular edges report orthogonal")
         # Long leg aligns with the FIRST clicked segment.
         d1 = (horiz[1] - horiz[0]).normalize()
-        assert_true(abs(abs(d1.dot(frame[1])) - 1.0) < 1e-6,
+        assert_true(abs(abs(d1.dot(frame.long_dir())) - 1.0) < 1e-6,
                     "intersection frame long leg aligns with first segment")
 
         # Parallel segments have no intersection.
         par = [s for s in segs if abs(abs(((s[1] - s[0]).normalize()).dot(d1)) - 1.0) < 1e-6]
         assert_true(len(par) >= 2, "found two parallel segments")
-        frame, ortho = page.Proxy.frame_for_intersection(par[0], par[1])
+        frame, ortho = placer._frame_for_intersection(par[0], par[1])
         assert_true(frame is None, "parallel lines produce no intersection")
 
         # Non-orthogonal pair (a rotated second object provides an angled edge).
@@ -696,10 +693,11 @@ def test_svg_page_anchor_frames():
         shape = ShaperSvgShape.create(page, sketch, "Diag_shape")
         shape.OffsetX = 400
         doc.recompute()
-        segs = page.Proxy.page_line_segments(page)
+        placer.set_page_data(page.Width, page.Height, page.Proxy._collect_snap_wires(page))
+        segs = placer._line_segments
         diag = next(s for s in segs
                     if abs((s[1] - s[0]).y) > 1 and abs((s[1] - s[0]).x) > 1)
-        frame, ortho = page.Proxy.frame_for_intersection(horiz, diag)
+        frame, ortho = placer._frame_for_intersection(horiz, diag)
         assert_true(frame is not None and not ortho,
                     "angled pair reports non-orthogonal")
 
