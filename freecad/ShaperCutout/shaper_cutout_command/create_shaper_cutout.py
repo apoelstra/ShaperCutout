@@ -35,8 +35,8 @@ def _dado_parents(obj):
 
     result = set()
     for parent in obj.InList:
-        if getattr(parent, 'Type', '') == 'ShaperDado':
-            result.extend(_cutout_parents(parent))
+        if getattr(parent, 'Type', '') == 'ShaperDados':
+            result.update(_cutout_parents(parent))
 
     return sorted(list(result), key=lambda x: x.Label)
 
@@ -50,8 +50,8 @@ def _cutout_parents(obj):
     for parent in obj.InList:
         if getattr(parent, 'Type', '') == 'ShaperCutout':
             result.add(parent)
-        elif getattr(parent, 'Type', '') == 'ShaperDado':
-            result.extend(_cutout_parents(parent))
+        elif getattr(parent, 'Type', '') == 'ShaperDados':
+            result.update(_cutout_parents(parent))
 
     return sorted(list(result), key=lambda x: x.Label)
 
