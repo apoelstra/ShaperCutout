@@ -8,10 +8,8 @@ import FreeCADGui as Gui
 import Part
 from PySide import QtCore, QtGui, QtWidgets, QtSvg
 
-from shaper_cutout_svg import (anchor_triangle_wire, custom_anchor_frame,
-                               intersect_lines_2d)
+from shaper_cutout_svg import anchor_triangle_wire, intersect_lines_2d
 from shaper_cutout_util import _ICON_ROOT
-from shaper_cutout_svg import (anchor_triangle_wire, custom_anchor_frame)
 import ShaperSvgImage
 import ShaperSvgShape
 
@@ -180,12 +178,11 @@ class ShaperSvgPage:
         if hasattr(obj, 'Svg'):
             obj.removeProperty('Svg')
 
-        # Anchor state moved from a per-image boolean to a fully positioned page anchor.
-        # Migrate old documents, just dropping the legacy properties.
-        legacy_include = getattr(obj, 'IncludeAnchor', None)
+        # The old "IncludeAnchor" and "Svg_Anchor" properties of images should just be dropped.
+        # They were booleans that would trigger a complicated since-deleted auto-placement
+        # algorithm, and had complicated logic to prevent multiple anchors in one page. Now
+        # the anchor is placed in the Page (not Image) and the user has to choose where.
         for child in obj.Group:
-            if getattr(child, 'IncludeAnchor', False):
-                legacy_include = True
             for prop in ('IncludeAnchor', 'Svg_Anchor'):
                 if hasattr(child, prop):
                     child.removeProperty(prop)
@@ -209,15 +206,6 @@ class ShaperSvgPage:
                 obj.addProperty(ptype, prop, group, doc)
                 setattr(obj, prop, False if ptype == 'App::PropertyBool' else 0.0)
 
-        # A document which wanted an anchor but has no stored position gets one
-        # auto-placed at the best corner across the whole page. If the children
-        # aren't computed yet (very old documents), place it on first recompute.
-        if legacy_include:
-            obj.HasAnchor = True
-            if not self.auto_place_anchor(obj):
-                self._deferred_anchor = True
-                obj.touch()
-
         self.addDisplayProperties(obj)
 
     def _svg_to_page_matrix(self, obj: App.DocumentObject, child) -> App.Matrix:
@@ -231,20 +219,6 @@ class ShaperSvgPage:
     # ------------------------------------------------------------------
     # Anchor support
     # ------------------------------------------------------------------
-    def collect_page_wires(self, obj: App.DocumentObject, child=None) -> ([Part.Wire], [Part.Wire]):
-        """Return (outer_wires, inner_wires) of the page's children, in page
-        space. If `child` is given, only that child's wires are returned."""
-        children = [child] if child is not None else obj.Group
-        outer_wires, inner_wires = [], []
-        for c in children:
-            if not hasattr(c.Proxy, 'anchor_wires'):
-                continue
-            child_outer, child_inner = c.Proxy.anchor_wires(c)
-            m = self._svg_to_page_matrix(obj, c)
-            outer_wires.extend(w.transformed(m) for w in child_outer)
-            inner_wires.extend(w.transformed(m) for w in child_inner)
-        return outer_wires, inner_wires
-
     def collect_snap_wires(self, obj: App.DocumentObject) -> [Part.Wire]:
         """All wires (open ones included) of all page children, in page space,
         for interactive anchor-placement snapping."""
@@ -353,19 +327,6 @@ class ShaperSvgPage:
         ccw = App.Vector(-long_dir.y, long_dir.x, 0)
         obj.AnchorMirror = short_dir.dot(ccw) < 0
         obj.HasAnchor = True
-
-    def auto_place_anchor(self, obj: App.DocumentObject, child=None) -> bool:
-        """Place the anchor using the automatic 'best 90-degree corner'
-        algorithm on the given child, or on all page children if none given.
-        Returns True if an anchor was placed."""
-        outer, inner = self.collect_page_wires(obj, child)
-        frame = custom_anchor_frame(outer)
-        if not frame:
-            frame = custom_anchor_frame(inner)
-        if not frame:
-            return False
-        self.set_anchor_frame(obj, frame)
-        return True
 
     def anchor_triangle(self, obj: App.DocumentObject):
         """The anchor triangle wire in page space, per the stored properties."""

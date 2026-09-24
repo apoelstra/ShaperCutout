@@ -366,7 +366,9 @@ def make_svg_page_with_image(doc, cutout, name, offset_x=0, offset_y=0,
 
     doc.recompute()
     if include_anchor:
-        assert page.Proxy.auto_place_anchor(page), "auto anchor placed"
+        frame, ortho = page.Proxy.frame_for_intersection(App.Vector(1, 0, 0), App.Vector(0, 1, 0))
+        assert ortho
+        page.Proxy.set_anchor_frame(page, frame)
         doc.recompute()
     return page, image
 
@@ -590,7 +592,12 @@ def test_svg_page_with_anchor():
         svg = page.Proxy.compute_svg(page)
         assert_true('fill="red"' not in svg, "no anchor in SVG by default")
 
-        assert_true(page.Proxy.auto_place_anchor(page), "auto-place succeeds")
+        frame, ortho = page.Proxy.frame_for_intersection(
+            [App.Vector(0, 0, 0), App.Vector(1, 0, 0)],
+            [App.Vector(0, 0, 0), App.Vector(0, 1, 0)],
+        )
+        assert ortho
+        page.Proxy.set_anchor_frame(page, frame)
         svg = page.Proxy.compute_svg(page)
         assert_true(page.HasAnchor, "HasAnchor set after placing")
         assert_true('fill="red"' in svg, "page SVG contains anchor")
@@ -622,42 +629,6 @@ def test_svg_page_with_anchor():
         doc.recompute()
         assert_true((page.AnchorX.Value, page.AnchorY.Value) == anchor_before,
                     "anchor stays put when the piece moves")
-    except Exception as e:
-        App.Console.PrintError(f"  ERROR: {e}")
-        raise e
-    finally:
-        App.closeDocument(doc.Name)
-
-
-def test_svg_page_anchor_single_across_children():
-    """The page renders exactly one anchor, from one auto-placement."""
-    doc = App.newDocument("test_svg_page_anchor_multi")
-    try:
-        page = ShaperSvgPage.create("AnchorMulti_page")
-        page.Width = '24 in'
-        page.Height = '12 in'
-
-        c1 = make_rect_cutout(doc, "AnchorMulti_c1")
-        c2 = make_rect_cutout(doc, "AnchorMulti_c2")
-        i1 = ShaperSvgImage.create(page, c1, "AnchorMulti_i1")
-        i1.OffsetX = 0
-        i1.OffsetY = 0
-        i2 = ShaperSvgImage.create(page, c2, "AnchorMulti_i2")
-        i2.OffsetX = 200
-        i2.OffsetY = 0
-        doc.recompute()
-
-        assert_true(page.Proxy.auto_place_anchor(page), "anchor placed")
-        svg = page.Proxy.compute_svg(page)
-        anchor_count = svg.count('fill="red"')
-        assert_true(anchor_count == 1,
-                    f"exactly one anchor on page (got {anchor_count})")
-
-        # Per-child auto placement picks a corner of the chosen child only.
-        assert_true(page.Proxy.auto_place_anchor(page, i2), "per-child anchor placed")
-        bb_min_x = 200  # i2's left edge
-        assert_true(page.AnchorX.Value >= bb_min_x - 1e-6,
-                    f"per-child anchor lies on child 2 (x={page.AnchorX.Value})")
     except Exception as e:
         App.Console.PrintError(f"  ERROR: {e}")
         raise e
@@ -879,7 +850,6 @@ def register_tests(all_tests):
     all_tests.append(test_svg_page_multiple_pieces)
     all_tests.append(test_svg_page_rotation_changes_svg)
     all_tests.append(test_svg_page_with_anchor)
-    all_tests.append(test_svg_page_anchor_single_across_children)
     all_tests.append(test_svg_page_anchor_frames)
     all_tests.append(test_svg_page_min_distance_rotated)
     all_tests.append(test_export_to_svg_page)
