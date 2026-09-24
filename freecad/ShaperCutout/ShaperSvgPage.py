@@ -486,6 +486,8 @@ class ShaperSvgPage:
 
 
 class _PageWidget(QtWidgets.QWidget):
+    closed = QtCore.Signal()
+
     def __init__(self, page_obj, parent=None):
         super().__init__(parent)
         self._page_obj = page_obj
@@ -1043,11 +1045,8 @@ class _PageWidget(QtWidgets.QWidget):
         super().keyPressEvent(event)
 
     def closeEvent(self, event):
-        try:
-            self._page_obj.ViewObject.Proxy._subwindow = None
-        except NameError:
-            # When closing the document, we'll fail to access self._page_obj.
-            pass
+        self.closed.emit()
+        super().closeEvent(event)
 
 
 # This ViewProvider, which creates a new MDI window similar to what TechView and Spreadsheet
@@ -1130,13 +1129,18 @@ class ViewProviderShaperSvgPage:
 
         mdi_area = Gui.getMainWindow().centralWidget()
         sub = QtWidgets.QMdiSubWindow()
-        sub.setWidget(_PageWidget(self._vobj.Object))
+        widget = _PageWidget(obj)
+        widget.closed.connect(self._on_view_closed)
+        sub.setWidget(widget)
         sub.setWindowTitle(obj.Label)
         sub.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         mdi_area.addSubWindow(sub)
         sub.show()
         self._subwindow = sub
         self.update_widget_svg()
+
+    def _on_view_closed(self):
+        self._subwindow = None
 
     def update_widget_svg(self):
         if self._subwindow_alive():
