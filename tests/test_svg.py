@@ -835,7 +835,6 @@ def test_svg_page_min_distance_rotated():
     finally:
         App.closeDocument(doc.Name)
 
-
 def register_tests(all_tests):
     # SVG export comparison tests
     all_tests.append(test_svg_export_simple_front)

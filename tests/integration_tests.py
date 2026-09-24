@@ -46,6 +46,7 @@ try:
     import test_page_metrics
     import test_slots
     import test_svg
+    import test_svg_page_widget
     import test_svg_shape
 
     ALL_TESTS = []
@@ -56,6 +57,7 @@ try:
     test_page_metrics.register_tests(ALL_TESTS)
     test_slots.register_tests(ALL_TESTS)
     test_svg.register_tests(ALL_TESTS)
+    test_svg_page_widget.register_tests(ALL_TESTS)
     test_svg_shape.register_tests(ALL_TESTS)
 
     Gui.setupWithoutGUI()
