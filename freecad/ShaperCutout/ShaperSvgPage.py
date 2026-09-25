@@ -777,8 +777,12 @@ class _PageWidget(QtWidgets.QWidget):
                 dy_mm = min(dy_mm, max_y - orig_offset_y)
 
         for dragging, orig_offset_x, orig_offset_y in self._dragging:
+            # Racy update: when we change OffsetX or Y, the image marks itself with a flag that
+            # it doesn't need a recompute. Then when we call recompute(), it clears itself and
+            # does nothing else. This way the user doesn't see a "needs recompute" checkbox.
             dragging.OffsetX = orig_offset_x + dx_mm
             dragging.OffsetY = orig_offset_y + dy_mm
+            dragging.recompute()
 
         if self._dragging:
             self.update_svg()

@@ -55,7 +55,7 @@ class ShaperSvgImage:
         # using mouse dragging without triggering an expensive SVG recomputation. The SVG
         # only needs to be recomputed when a "real" change happens; the transformations
         # are applied by the parent SvgPage.
-        self.needsRecompute = False
+        self.needsRecompute = True
 
     def _clear_svg(self, obj):
         """Reset all rendered-SVG outputs (used when the cutout is gone)."""
@@ -74,6 +74,7 @@ class ShaperSvgImage:
             self._clear_svg(obj)
             return
         if not self.needsRecompute:
+            self.needsRecompute = True
             return
 
         from shaper_cutout_svg import SvgData
@@ -89,17 +90,8 @@ class ShaperSvgImage:
         if svg_data.translated_face:
             obj.Svg_TranslatedFace = svg_data.translated_face
 
-        self.needsRecompute = False
-
     def onChanged(self, obj, prop):
-        if prop == 'Type':
-            return
-        if prop in ('OffsetX', 'OffsetY', 'Rotation'):
-            for parent in obj.InList:
-                if getattr(parent, 'Type', None) == 'ShaperSvgPage':
-                    parent.touch()
-        else:
-            self.needsRecompute = True
+        self.needsRecompute = prop not in ('OffsetX', 'OffsetY', 'Rotation')
 
     def addSvgProperties(self, obj):
         if not hasattr(obj, 'Svg_Full'):
