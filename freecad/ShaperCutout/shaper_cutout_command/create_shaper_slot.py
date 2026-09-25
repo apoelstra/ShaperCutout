@@ -124,7 +124,7 @@ class ShaperSlotTaskPanel(ShaperTaskPanel):
         self.label_edit.textChanged.connect(self._on_label_changed)
         self.invert_checkbox.toggled.connect(self._on_invert_changed)
         self._initialized = True
-        self._on_changed()
+        self._on_invert_changed()
 
     def create_uninitialized_object(self) -> Optional[App.DocumentObject]:
         selection = _selected_cutouts_and_plane()
