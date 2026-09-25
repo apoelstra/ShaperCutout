@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import re
+from typing import Optional
 
 import FreeCAD as App
 from draftfunctions.svgshapes import get_path
@@ -61,7 +62,7 @@ def _get_path_element(wire: Part.Wire) -> str:
     )
 
 
-def wire_to_svg(wire: Part.Wire, fill: str, stroke: str, cut_type: str = None,
+def wire_to_svg(wire: Part.Wire, fill: str, stroke: str, cut_type: Optional[str] = None,
                 depth_attr: str = '', stroke_width: float = 1) -> str:
     """Return a complete SVG element string for a single projected wire, or ''
     if the wire produces no output.

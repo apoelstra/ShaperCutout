@@ -26,6 +26,8 @@ class ShaperTaskPanel:
        - recomputes relevant document objects to show a live display of changes
     """
     def __init__(self, name: str, doc_object: Optional[App.DocumentObject] = None):
+        assert App.ActiveDocument is not None
+
         self._doc = App.ActiveDocument
         self._edit_mode = doc_object is not None
         self._initialized = False
@@ -34,16 +36,18 @@ class ShaperTaskPanel:
         self._doc.openTransaction(f"{action} {name}")
 
         if self._edit_mode:
+            assert doc_object is not None
             self._object = doc_object
         else:
-            self._object = self.create_uninitialized_object()
-            if self._object is None:
+            obj = self.create_uninitialized_object()
+            if obj is None:
                 # The create flow declined to proceed (e.g. invalid selection);
                 # the subclass has already told the user why. Undo the
                 # transaction we just opened and unwind, instead of crashing
                 # below on self._object.Label with the transaction leaked open.
                 self._doc.abortTransaction()
                 raise TaskPanelRejected()
+            self._object = obj
 
         # Build UI
         self.form = QtWidgets.QWidget()
@@ -56,6 +60,9 @@ class ShaperTaskPanel:
         self.label_edit.setEnabled(not self._edit_mode)
         self.label_edit.textChanged.connect(self._on_label_changed)
         self._main_layout.addRow("Label:", self.label_edit)
+
+    def create_uninitialized_object(self) -> Optional[App.DocumentObject]:
+        raise NotImplementedError
 
     def _on_label_changed(self):
         if not self._edit_mode:

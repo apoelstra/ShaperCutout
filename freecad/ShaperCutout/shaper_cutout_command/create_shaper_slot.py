@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import os
+from typing import Optional
 import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtWidgets
@@ -124,14 +125,14 @@ class ShaperSlotTaskPanel(ShaperTaskPanel):
         self.invert_checkbox.toggled.connect(self._on_invert_changed)
         self._initialized = True
 
-    def create_uninitialized_object(self) -> App.DocumentObject:
+    def create_uninitialized_object(self) -> Optional[App.DocumentObject]:
         selection = _selected_cutouts_and_plane()
         if selection is None:
             QtWidgets.QMessageBox.warning(
                 None, "Invalid Selection",
                 "Please select exactly two ShaperCutouts and one interface plane.")
             Gui.Control.closeDialog()
-            return
+            return None
 
         cutout_a, cutout_b, interface_plane = selection
 
@@ -141,7 +142,7 @@ class ShaperSlotTaskPanel(ShaperTaskPanel):
                 None, "Invalid Cutout",
                 "Both cutouts must have an outline sketch and front/back faces.")
             Gui.Control.closeDialog()
-            return
+            return None
 
         # Planes must be orthogonal. (Otherwise the slot sides would need to be miters, which
         # (a) will require some complicated tooling to manufacture, and (b) would require some
@@ -157,7 +158,7 @@ class ShaperSlotTaskPanel(ShaperTaskPanel):
                 None, "Non-Orthogonal Cutouts",
                 "Cutout planes are not orthogonal; cannot create slot.")
             Gui.Control.closeDialog()
-            return
+            return None
 
         # If the interface plane is parallel to a cutout, the slot is ill-defined and there's
         # nothing we can do about it even in principle. (Again, will need to check again during
@@ -168,7 +169,7 @@ class ShaperSlotTaskPanel(ShaperTaskPanel):
                 None, "Parallel Plane",
                 "Interface plane is parallel to a cutout center plane; cannot create slot.")
             Gui.Control.closeDialog()
-            return
+            return None
 
         # Determine "first" cutout
         self._cutout1 = _determine_first_cutout(cutout_a, cutout_b, interface_plane)

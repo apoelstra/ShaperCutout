@@ -71,7 +71,7 @@ def copy_property(
             expression = ee_value
             break
 
-    # None removes any existing expression.
+    # None removes any existing expression (despite mypy complaining that None is not allowed)
     target.setExpression(target_name, expression)
     # Even if we set an expression, we have to copy the value (or we
     # could recompute the object, but this is cheaper).

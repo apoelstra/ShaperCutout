@@ -188,7 +188,7 @@ class ShaperMiter:
         """Given a 3D cutout shape extruded from an outline sketch, apply the miters to it."""
         if not miter.Edges or miter.Angle is None:
             # Skip uninitialized/null/broken miters. (Should we warn here?)
-            return
+            return Part.Shape()
 
         for (linked_obj, subnames) in miter.Edges:
             for subname in subnames:
