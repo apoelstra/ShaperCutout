@@ -481,7 +481,7 @@ class _PageWidget(QtWidgets.QWidget):
             draw_extended(frame.vertex, long_dir, grey, True)
             draw_extended(frame.vertex, short_dir, grey, True)
 
-            tri = frame.triangle_wire()
+            tri = frame.triangle_wire(scale=3.0)
             self._draw_shape(painter, tri, pad_x, pad_y, ratio,
                              QtGui.QColor(255, 0, 0, 128))
 

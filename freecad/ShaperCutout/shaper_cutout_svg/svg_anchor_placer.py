@@ -78,13 +78,13 @@ class SvgAnchorFrame:
         self._cos = math.cos(self._rotation)
         self._sin = math.sin(self._rotation)
 
-    def triangle_wire(self) -> Part.Wire:
+    def triangle_wire(self, scale: float = 1.0) -> Part.Wire:
         """Build the Shaper custom anchor triangle at `self.vertex`, with its short leg
         (ANCHOR_SHORT) along `short_dir` and its long leg (ANCHOR_LONG) along
         `long_dir`."""
         p0 = self.vertex
-        p1 = p0 + self.short_dir() * self.ANCHOR_SHORT
-        p2 = p0 + self.long_dir() * self.ANCHOR_LONG
+        p1 = p0 + self.short_dir() * scale * self.ANCHOR_SHORT
+        p2 = p0 + self.long_dir() * scale * self.ANCHOR_LONG
         return Part.Wire(Part.makePolygon([p0, p1, p2, p0]))
 
 
