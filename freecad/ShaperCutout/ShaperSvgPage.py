@@ -426,20 +426,17 @@ class _PageWidget(QtWidgets.QWidget):
 
     def _apply_anchor(self):
         """Store the placed anchor in the document (undoable) and leave the mode."""
-
         frame = self._anchor_placement.frame()
-        self._page_obj.Document.openTransaction("Place custom anchor")
-        try:
-            self._page_obj.Proxy.set_anchor_frame(self._page_obj, frame)
-            self._page_obj.touch()
-            self._page_obj.Document.recompute()
-            self._page_obj.Document.commitTransaction()
-        except Exception:
-            self._page_obj.Document.abortTransaction()
-            raise
         self._anchor_placement = None
         self.unsetCursor()
         self.update_svg()
+
+        self._page_obj.Document.openTransaction("Place custom anchor")
+        try:
+            self._page_obj.Proxy.set_anchor_frame(self._page_obj, frame)
+        except Exception:
+            self._page_obj.Document.abortTransaction()
+            raise
 
     def _draw_anchor_placement(self, painter, metrics):
         """Overlay for the interactive anchor placement mode."""
