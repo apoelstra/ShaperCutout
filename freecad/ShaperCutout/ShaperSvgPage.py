@@ -9,7 +9,6 @@ import FreeCADGui as Gui
 import Part
 from PySide import QtCore, QtGui, QtWidgets, QtSvg
 
-from shaper_cutout_svg import anchor_triangle_wire
 from shaper_cutout_svg import SvgAnchorFrame, SvgAnchorPlacerAction, SvgAnchorPlacerMode, \
         SvgAnchorPlacer
 from shaper_cutout_util import _ICON_ROOT
@@ -245,8 +244,11 @@ class ShaperSvgPage:
             short_dir = App.Vector(long_dir.y, -long_dir.x, 0)
         else:
             short_dir = App.Vector(-long_dir.y, long_dir.x, 0)
-        return anchor_triangle_wire(App.Vector(obj.AnchorX.Value, obj.AnchorY.Value, 0),
-                                    long_dir, short_dir)
+        return SvgAnchorFrame(
+            App.Vector(obj.AnchorX.Value, obj.AnchorY.Value, 0),
+            long_dir,
+            short_dir
+        ).triangle_wire()
 
     def compute_svg(self, obj):
         page_w = obj.Width.Value
@@ -479,7 +481,7 @@ class _PageWidget(QtWidgets.QWidget):
             draw_extended(frame.vertex, long_dir, grey, True)
             draw_extended(frame.vertex, short_dir, grey, True)
 
-            tri = anchor_triangle_wire(frame.vertex, long_dir, short_dir)
+            tri = frame.triangle_wire()
             self._draw_shape(painter, tri, pad_x, pad_y, ratio,
                              QtGui.QColor(255, 0, 0, 128))
 

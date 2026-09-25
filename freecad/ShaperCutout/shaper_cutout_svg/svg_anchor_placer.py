@@ -44,6 +44,11 @@ class SvgAnchorPlacerAction(Enum):
 class SvgAnchorFrame:
     """The "frame" of a custom anchor."""
 
+    # The Shaper custom anchor is a right triangle with legs of these lengths
+    # (short leg along the anchor's X axis, long leg along its Y axis).
+    ANCHOR_SHORT = 15.0
+    ANCHOR_LONG = 30.0
+
     def __init__(
         self,
         vertex: App.Vector,
@@ -52,29 +57,35 @@ class SvgAnchorFrame:
     ):
         self.vertex = vertex
         self._rotation = 0.0
-        assert long_dir.z < 1e-8
+        self._cos = 1.0
+        self._sin = 0.0
+
         self._long_dir = long_dir
-        if short_dir is None:
-            self._short_dir = App.Vector(-long_dir.y, long_dir.x, 0)
-        else:
-            assert short_dir.z < 1e-8
-            self._short_dir = short_dir
+        self._short_dir = short_dir or App.Vector(-long_dir.y, long_dir.x, 0)
+        assert self._long_dir.z < 1e-8
+        assert self._short_dir.z < 1e-8
 
     def long_dir(self) -> App.Vector:
-        r = math.radians(self._rotation)
-        cos_r, sin_r = math.cos(r), math.sin(r)
-
-        def rot(v):
-            return App.Vector(v.x * cos_r - v.y * sin_r, v.x * sin_r + v.y * cos_r, 0)
-        return rot(self._long_dir)
+        v = self._long_dir
+        return App.Vector(v.x * self._cos - v.y * self._sin, v.x * self._sin + v.y * self._cos, 0)
 
     def short_dir(self) -> App.Vector:
-        r = math.radians(self._rotation)
-        cos_r, sin_r = math.cos(r), math.sin(r)
+        v = self._short_dir
+        return App.Vector(v.x * self._cos - v.y * self._sin, v.x * self._sin + v.y * self._cos, 0)
 
-        def rot(v):
-            return App.Vector(v.x * cos_r - v.y * sin_r, v.x * sin_r + v.y * cos_r, 0)
-        return rot(self._short_dir)
+    def set_rotation(self, degrees: float):
+        self._rotation = math.radians(degrees)
+        self._cos = math.cos(self._rotation)
+        self._sin = math.sin(self._rotation)
+
+    def triangle_wire(self) -> Part.Wire:
+        """Build the Shaper custom anchor triangle at `self.vertex`, with its short leg
+        (ANCHOR_SHORT) along `short_dir` and its long leg (ANCHOR_LONG) along
+        `long_dir`."""
+        p0 = self.vertex
+        p1 = p0 + self.short_dir() * self.ANCHOR_SHORT
+        p2 = p0 + self.long_dir() * self.ANCHOR_LONG
+        return Part.Wire(Part.makePolygon([p0, p1, p2, p0]))
 
 
 class SvgAnchorPlacer:
@@ -111,9 +122,13 @@ class SvgAnchorPlacer:
     def ortho(self) -> bool:
         return self._ortho
 
-    def step_rotation(self, step: float):
-        assert self._frame is not None
-        self._frame._rotation += step
+    def step_rotation(self, step_deg: float):
+        if self._frame is None:
+            return
+
+        current_deg = math.degrees(self._frame._rotation)
+        current_deg = step_deg * round(current_deg / step_deg)
+        self._frame.set_rotation(current_deg + step_deg)
 
     def set_page_data(
         self,

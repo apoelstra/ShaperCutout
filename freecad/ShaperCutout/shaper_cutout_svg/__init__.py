@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from .misc import anchor_triangle_wire, classify_wires, intersect_lines_2d, \
-        wire_to_svg  # noqa: F401
+from .misc import classify_wires, intersect_lines_2d, wire_to_svg  # noqa: F401
 from .svg_data import SvgData  # noqa: F401
 from .svg_anchor_placer import SvgAnchorFrame, SvgAnchorPlacerAction, SvgAnchorPlacerMode, \
         SvgAnchorPlacer  # noqa: F401

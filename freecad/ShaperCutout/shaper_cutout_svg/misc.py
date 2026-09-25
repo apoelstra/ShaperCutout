@@ -7,11 +7,6 @@ from draftfunctions.svgshapes import get_path
 import Part
 
 
-# The Shaper custom anchor is a right triangle with legs of these lengths
-# (short leg along the anchor's X axis, long leg along its Y axis).
-ANCHOR_SHORT = 15.0
-ANCHOR_LONG = 30.0
-
 
 def classify_wires(cutout_face: App.DocumentObject) -> ([Part.Wire], [Part.Wire]):
     """Return (outer_wires, inner_wires).
@@ -128,15 +123,3 @@ def intersect_lines_2d(p1_start: App.Vector, p1_end: App.Vector,
     ix = x1 + t * (x2 - x1)
     iy = y1 + t * (y2 - y1)
     return App.Vector(ix, iy, p1_start.z)  # all z coords will be the same, just pick one
-
-
-def anchor_triangle_wire(origin: App.Vector,
-                         long_dir: App.Vector,
-                         short_dir: App.Vector) -> Part.Wire:
-    """Build the Shaper custom anchor triangle at `origin`, with its short leg
-    (ANCHOR_SHORT) along `short_dir` and its long leg (ANCHOR_LONG) along
-    `long_dir`. The two directions should be orthogonal unit vectors."""
-    p0 = origin
-    p1 = origin + short_dir * ANCHOR_SHORT
-    p2 = origin + long_dir * ANCHOR_LONG
-    return Part.Wire(Part.makePolygon([p0, p1, p2, p0]))
