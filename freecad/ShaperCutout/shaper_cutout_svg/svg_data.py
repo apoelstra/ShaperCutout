@@ -2,12 +2,13 @@
 
 import FreeCAD as App
 import Part
+from typing import List
 from shaper_cutout_svg import classify_wires, wire_to_svg
 from shaper_cutout_util import cleanFaces, global_normal
 from ShaperDados import ZERO_DEPTH_TOLERANCE, _wire_to_pipes
 
 
-def _miter_rectangles(cutout: App.DocumentObject, xy_matrix: App.Matrix) -> [Part.Wire]:
+def _miter_rectangles(cutout: App.DocumentObject, xy_matrix: App.Matrix) -> List[Part.Wire]:
     """Compute miter rectangles in projected (XY) space. Returns a list of wires,
     one per rectangle."""
     thickness = cutout.Thickness.Value

@@ -5,10 +5,11 @@ import re
 import FreeCAD as App
 from draftfunctions.svgshapes import get_path
 import Part
+from typing import List, Tuple
 
 
 
-def classify_wires(cutout_face: App.DocumentObject) -> ([Part.Wire], [Part.Wire]):
+def classify_wires(cutout_face: App.DocumentObject) -> Tuple[List[Part.Wire], List[Part.Wire]]:
     """Return (outer_wires, inner_wires).
     We use a basic heuristic where a wire is 'inner' (i.e. a hole) if its first
     vertex lies inside another wire's face. In cases where this fails we don't

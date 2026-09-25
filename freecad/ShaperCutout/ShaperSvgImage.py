@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import os
+from typing import List, Tuple
 
 import FreeCAD as App
 import Part
@@ -141,10 +142,10 @@ class ShaperSvgImage:
     def loads(self, state):
         return None
 
-    def centerXY(self, obj: App.DocumentObject) -> (float, float):
+    def centerXY(self, obj: App.DocumentObject) -> Tuple[float, float]:
         return (obj.Svg_BBCenter.x, obj.Svg_BBCenter.y)
 
-    def anchor_wires(self, obj: App.DocumentObject) -> ([Part.Wire], [Part.Wire]):
+    def anchor_wires(self, obj: App.DocumentObject) -> Tuple[List[Part.Wire], List[Part.Wire]]:
         """Return (outer_wires, inner_wires) of the cutout face in this image's
         local Svg space, for the page's custom-anchor algorithm."""
         from shaper_cutout_svg import classify_wires
@@ -153,14 +154,14 @@ class ShaperSvgImage:
             return [], []
         return classify_wires(obj.Svg_TranslatedFace)
 
-    def snap_wires(self, obj: App.DocumentObject) -> [Part.Wire]:
+    def snap_wires(self, obj: App.DocumentObject) -> List[Part.Wire]:
         """All wires in this image's local Svg space, for the page's
         interactive anchor-placement snapping."""
         if not hasattr(obj, 'Svg_TranslatedFace') or obj.Svg_TranslatedFace.isNull():
             return []
         return list(obj.Svg_TranslatedFace.Wires)
 
-    def translateXY(self, obj, page_h: float) -> (float, float):
+    def translateXY(self, obj, page_h: float) -> Tuple[float, float]:
         return (
             obj.OffsetX.Value - obj.Svg_BBCenter.x + obj.Svg_BBLength.x / 2,
             page_h - obj.Svg_BBCenter.y - obj.Svg_BBLength.y / 2 - obj.OffsetY.Value,

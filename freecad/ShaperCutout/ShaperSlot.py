@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import os
-from typing import Optional
+from typing import List, Optional
 import FreeCAD as App
 import Part
 from PySide import QtGui
@@ -60,7 +60,7 @@ class SlotData:
 
         return Part.Wire(Part.makePolygon([surf0, surf1, top1, top0, surf0]))
 
-    def dado_faces(self, cutout_face: Part.Shape) -> [Part.Face]:
+    def dado_faces(self, cutout_face: Part.Shape) -> List[Part.Face]:
         # Differs from slot_wire in that we don't reduce by dado depth, we reverse the
         # slot direction, and we intersect with the cutout face rather than just swagging
         # a bound and making a giant rectangle.

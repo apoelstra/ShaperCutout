@@ -2,7 +2,7 @@
 
 import os
 import math
-from typing import List
+from typing import List, Tuple
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -503,7 +503,7 @@ class _PageWidget(QtWidgets.QWidget):
         self._svg = self._page_obj.Proxy.compute_svg(self._page_obj)
         self.update()
 
-    def _get_page_metrics(self) -> (float, float, float, float, float, float, float):
+    def _get_page_metrics(self) -> Tuple[float, float, float, float, float, float, float]:
         """Computes various properties of the display window for the SVG.
 
         Returns `pad_x`, `pad_y`, `grid_px`, `avail_w`, `avail_h`.

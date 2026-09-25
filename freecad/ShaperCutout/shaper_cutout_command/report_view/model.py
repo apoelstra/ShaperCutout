@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from typing import Callable
+from typing import Callable, List, Tuple
 
 import FreeCAD as App
 from PySide import QtCore, QtWidgets
@@ -9,10 +9,10 @@ from PySide import QtCore, QtWidgets
 class ReportTableModel(QtCore.QAbstractTableModel):
     def __init__(
         self,
-        data_columns: [(
+        data_columns: List[Tuple[
             str,
             Callable[[App.DocumentObject], str | int | App.Units.Quantity],
-        )] = []
+        ]] = []
     ):
         super().__init__()
         self._doc_objs = []
@@ -107,7 +107,7 @@ class ReportTableModel(QtCore.QAbstractTableModel):
         self._doc_objs.sort(key=get_sort_key, reverse=reverse)
         self.layoutChanged.emit()
 
-    def _emit_data_changed(self, roles: [QtCore.Qt.ItemDataRole]):
+    def _emit_data_changed(self, roles: List[QtCore.Qt.ItemDataRole]):
         if self._doc_objs:
             top_left = self.index(0, 0)
             bottom_right = self.index(self.rowCount() - 1, self.columnCount() - 1)
@@ -119,7 +119,7 @@ class ReportTableModel(QtCore.QAbstractTableModel):
         self._check_states = {}
         self.endResetModel()
 
-    def getCheckedObjects(self) -> [App.DocumentObject]:
+    def getCheckedObjects(self) -> List[App.DocumentObject]:
         return [obj for obj in self._doc_objs
                 if self._check_states.get(obj, QtCore.Qt.Unchecked) == QtCore.Qt.Checked]
 
@@ -179,7 +179,7 @@ class ReportTableWidget(QtWidgets.QGroupBox):
     def refresh_display(self):
         self._model._emit_data_changed([QtCore.Qt.DisplayRole])
 
-    def get_checked_objects(self) -> [App.DocumentObject]:
+    def get_checked_objects(self) -> List[App.DocumentObject]:
         return self._model.getCheckedObjects()
 
     def _on_check_all(self, state):

@@ -2,6 +2,7 @@
 
 import math
 import os
+from typing import List
 
 import FreeCAD as App
 import Part
@@ -126,7 +127,7 @@ class ShaperMiter:
         miter: App.DocumentObject,
         plane_normal: App.Vector,
         thickness: App.Units.Quantity,
-    ) -> [Part.Wire]:
+    ) -> List[Part.Wire]:
         """Given the 3D normal vector and thickness of the cutout the miter applies to, and
         a matrix which projects the cutout into XY space, return its rectangles in XY space."""
         if not miter.Edges or not miter.Angle:

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import os
+from typing import Tuple
 import FreeCAD as App
 import Part
 from PySide import QtGui, QtWidgets, QtCore
@@ -297,7 +298,7 @@ class ShaperCutout:
 
         return obj.FrontFace
 
-    def xyBoundBox(self, obj: App.DocumentObject) -> (App.Units.Quantity, App.Units.Quantity):
+    def xyBoundBox(self, obj: App.DocumentObject) -> Tuple[App.Units.Quantity, App.Units.Quantity]:
         if not obj.OutlineSketch or obj.CutoutFace.isNull():
             return (
                 App.Units.Quantity(0, App.Units.Length),

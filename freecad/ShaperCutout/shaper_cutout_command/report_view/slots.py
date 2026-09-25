@@ -2,6 +2,7 @@
 
 import FreeCAD as App
 import FreeCADGui as Gui
+from typing import List
 from PySide import QtCore, QtGui, QtWidgets
 
 from .model import ReportTableModel, ReportTableWidget
@@ -89,7 +90,7 @@ class ReportViewSlots(QtGui.QWidget):
         # Connect signals
         self._table.checkedStateChanged.connect(self._on_table_checked_state_changed)
 
-    def _on_table_checked_state_changed(self, checked: [App.DocumentObject]):
+    def _on_table_checked_state_changed(self, checked: List[App.DocumentObject]):
         has_selection = len(checked) > 0
         self.length_tolerance_widget.setEnabled(has_selection)
         self.width_tolerance_widget.setEnabled(has_selection)
