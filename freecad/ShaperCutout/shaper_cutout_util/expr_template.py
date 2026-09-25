@@ -40,7 +40,7 @@ class _ExprTemplate:
         # widget destroyed signals at once.
         try:
             self._template.Document.removeObject(self._template)
-        except ReferenceError:
+        except Exception:
             pass
 
 
