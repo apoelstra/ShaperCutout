@@ -83,6 +83,7 @@ class ShaperMiterTaskPanel(ShaperTaskPanel):
         self.edge_list.itemSelectionChanged.connect(self._on_changed)
         self.axis_combo.currentIndexChanged.connect(self._on_changed)
         self._initialized = True
+        self._on_changed()
 
     def recompute_objects(self, updated_prop_name: str):
         if self._initialized:

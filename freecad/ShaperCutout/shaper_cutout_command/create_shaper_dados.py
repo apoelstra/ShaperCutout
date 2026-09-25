@@ -142,6 +142,7 @@ class ShaperDadosTaskPanel(ShaperTaskPanel):
         self.remove_btn.clicked.connect(self._on_remove)
 
         self._initialized = True
+        self._on_changed()
 
     def create_uninitialized_object(self) -> App.DocumentObject:
         from ShaperDados import create_uninitialized

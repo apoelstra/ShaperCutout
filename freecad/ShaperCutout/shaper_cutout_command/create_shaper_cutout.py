@@ -193,9 +193,9 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
 
         self._own_front = None
         self._own_back = None
+        self._initialized = True
         self._on_plane_changed()
         self._on_changed()
-        self._initialized = True
 
     def create_uninitialized_object(self) -> App.DocumentObject:
         from ShaperCutout import create_uninitialized
