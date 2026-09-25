@@ -16,6 +16,7 @@ def create_uninitialized(name=None):
     obj_name = 'ShaperCutout' if name is None else name
     obj = doc.addObject('Part::FeaturePython', obj_name)
     ShaperCutout(obj)
+    obj.Thickness = 25.4  # default to 1 inch so the user can see something
     if App.GuiUp:
         ViewProviderShaperCutout(obj.ViewObject)
 
