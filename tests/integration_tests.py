@@ -42,6 +42,7 @@ try:
     import test_cutout_properties
     import test_dados
     import test_dado_autodrill
+    import test_dados_rollback
     import test_create_cutout_selection
     import test_miters
     import test_page_metrics
@@ -55,6 +56,7 @@ try:
     test_cutout_properties.register_tests(ALL_TESTS)
     test_dados.register_tests(ALL_TESTS)
     test_dado_autodrill.register_tests(ALL_TESTS)
+    test_dados_rollback.register_tests(ALL_TESTS)
     test_create_cutout_selection.register_tests(ALL_TESTS)
     test_miters.register_tests(ALL_TESTS)
     test_page_metrics.register_tests(ALL_TESTS)
