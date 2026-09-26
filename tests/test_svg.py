@@ -344,6 +344,30 @@ def test_svg_export_with_circle_front():
         App.closeDocument(doc.Name)
 
 
+def test_non_tangent_dado_svg_output():
+    """Regression: this exercises the cleanFaces algorithm that a first attempt at
+    rewriting failed, but the existing test suite passed."""
+    import os
+    path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "input", "non-tangent-dados.FCStd")
+
+    doc = App.openDocument(path)
+    try:
+        shape = doc.getObject("ShaperCutout")
+        svg = export_svg_front(shape)
+        test_file = os.path.join(OUTPUT_DIR, "svg_non-tangent-dados.master")
+        with open(test_file, 'w') as f:
+            f.write(svg)
+
+        master_file = os.path.join(MASTER_DIR, "svg_non-tangent-dados.master")
+        assert_svg_eq(svg, master_file)
+    except Exception as e:
+        App.Console.PrintError(f"  ERROR: {e}")
+        raise e
+    finally:
+        App.closeDocument(doc.Name)
+
+
 # ============================================================================
 # 2. ShaperSvgPage layout tests
 # ============================================================================
@@ -838,6 +862,7 @@ def register_tests(all_tests):
     all_tests.append(test_svg_export_with_slot_front)
     all_tests.append(test_svg_export_back_is_mirrored)
     all_tests.append(test_svg_export_with_circle_front)
+    all_tests.append(test_non_tangent_dado_svg_output)
     # SVG page layout tests
     all_tests.append(test_svg_page_single_piece)
     all_tests.append(test_svg_page_offset_positions)
