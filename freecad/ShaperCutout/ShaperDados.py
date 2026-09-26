@@ -237,6 +237,12 @@ class ShaperDados:
         if not hasattr(obj, 'DadoPlane'):
             return
 
+        # Don't attempt to create dado planes or do other updates during undo/redo. This
+        # is bad form and also it causes a FreeCAD segfault (on weeklies around 2026-10).
+        # See next commit for regression test.
+        if obj.Document is None or obj.Document.Transacting:
+            return
+
         if prop == 'MaxHolesPerLine':
             if getattr(obj, 'MaxHolesPerLine', 0) < 0:
                 obj.MaxHolesPerLine = 0

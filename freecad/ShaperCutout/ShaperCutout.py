@@ -69,6 +69,12 @@ class ShaperCutout:
         if getattr(obj, 'Thickness', None) is None:
             return
 
+        # Don't attempt to create planes or do other updates during undo/redo. This
+        # is bad form and also it causes a FreeCAD segfault (on weeklies around 2026-10).
+        # See next commit for regression test.
+        if obj.Document is None or obj.Document.Transacting:
+            return
+
         # When updating the center plane or thickness, re-place computed faces.
         if prop in ('CenterPlane', 'Thickness'):
             self.ensure_front_face(obj)
