@@ -5,6 +5,7 @@ import os
 import FreeCADGui as Gui
 
 from shaper_cutout_util import _ADDON_ROOT, _ICON_ROOT
+from task_watcher import clear_watchers, set_watchers
 
 
 class ShaperCutoutWorkbench(Gui.Workbench):
@@ -17,9 +18,13 @@ class ShaperCutoutWorkbench(Gui.Workbench):
 
     def Activated(self):
         "This function is executed when the workbench is activated"
+        # Show a "Create Objects" / "Modify Objects" task panel while no
+        # other task panel is open (same as the Draft workbench).
+        set_watchers()
 
     def Deactivated(self):
         "This function is executed when the workbench is deactivated"
+        clear_watchers()
 
     def GetClassName(self):
         # this function is mandatory if this is a full python workbench
