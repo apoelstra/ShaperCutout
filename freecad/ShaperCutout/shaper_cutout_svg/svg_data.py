@@ -16,7 +16,8 @@ def _miter_rectangles(cutout: App.DocumentObject, xy_matrix: App.Matrix) -> List
 
     ret_wires = []
     for member in cutout.Miters:
-        new_wires = member.Proxy.rectangles(member, normal_3d, thickness)
+        new_wires = member.Proxy.rectangles(member, normal_3d, thickness,
+                                            cutout.CenterPlane)
         for wire in new_wires:
             ret_wires.append(wire.transformed(xy_matrix))
 

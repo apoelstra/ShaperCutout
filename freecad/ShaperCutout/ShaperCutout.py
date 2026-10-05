@@ -148,7 +148,8 @@ class ShaperCutout:
                 continue
             shape = member.Proxy.apply_miter_to_shape(member, shape, obj.CenterPlane, thickness)
 
-            for rect_wire in member.Proxy.rectangles(member, normal, thickness):
+            for rect_wire in member.Proxy.rectangles(member, normal, thickness,
+                                                     obj.CenterPlane):
                 cutout_face = cutout_face.fuse(Part.Face(rect_wire))
 
         # Cut slots

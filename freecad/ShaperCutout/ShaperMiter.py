@@ -7,7 +7,21 @@ from typing import List
 import FreeCAD as App
 import Part
 
-from shaper_cutout_util import _ICON_ROOT, parent_cutout
+from shaper_cutout_util import _ICON_ROOT, global_normal, parent_cutout
+
+
+def _plane_offset_translation(sketch, center_plane):
+    """Translation from the sketch's plane onto the cutout's center plane.
+
+    The cutout solid is extruded from the center plane (ShaperCutout::execute
+    translates the sketch face by this amount before extruding), so geometry
+    derived from sketch-space edge points must get the same translation when
+    the sketch lives on a parallel plane offset from the center plane."""
+    normal = global_normal(center_plane)
+    plane_origin = center_plane.getGlobalPlacement().Base
+    sketch_origin = sketch.getGlobalPlacement().Base
+    dist = (plane_origin - sketch_origin).dot(normal)
+    return dist * normal
 
 
 def create(cutout, edges, angle, miter_axis, name="ShaperMiter"):
@@ -35,8 +49,13 @@ def create(cutout, edges, angle, miter_axis, name="ShaperMiter"):
     return obj
 
 
-def _miter_edge(shape, edge_shape, angle_deg, miter_axis, center_plane, thickness):
-    """Manipulates `shape` in place to add a miter"""
+def _miter_edge(shape, edge_shape, angle_deg, miter_axis, center_plane, thickness,
+                sketch=None):
+    """Manipulates `shape` in place to add a miter.
+
+    sketch -- the outline sketch the edge belongs to; used to translate the edge
+    onto the center plane when the sketch sits on a parallel offset plane.
+    When None, the edge is assumed to already lie on the center plane."""
     if not isinstance(edge_shape.Curve, Part.Line):
         App.Console.PrintWarning("ShaperMiter: edge is not straight, skipping.\n")
         return shape
@@ -52,6 +71,12 @@ def _miter_edge(shape, edge_shape, angle_deg, miter_axis, center_plane, thicknes
 
     p0 = edge_shape.Vertexes[0].Point
     p1 = edge_shape.Vertexes[1].Point
+    # Edge points are in the sketch's space; the solid we are cutting was
+    # extruded from the center plane. Translate the wedge onto the center plane.
+    if sketch is not None:
+        offset_t = _plane_offset_translation(sketch, center_plane)
+        p0 = p0 + offset_t
+        p1 = p1 + offset_t
     edge_vec = p1 - p0
 
     # Face normal: perpendicular to both the edge and the extrusion direction
@@ -127,9 +152,14 @@ class ShaperMiter:
         miter: App.DocumentObject,
         plane_normal: App.Vector,
         thickness: App.Units.Quantity,
+        center_plane: App.DocumentObject = None,
     ) -> List[Part.Wire]:
         """Given the 3D normal vector and thickness of the cutout the miter applies to, and
-        a matrix which projects the cutout into XY space, return its rectangles in XY space."""
+        a matrix which projects the cutout into XY space, return its rectangles in XY space.
+
+        When center_plane is given, edge points taken from a sketch that lies on a
+        parallel plane offset from the center plane are translated onto the center
+        plane first (matching how ShaperCutout::execute builds the solid)."""
         if not miter.Edges or not miter.Angle:
             return []  # cannot compute the miter
         angle_deg = miter.Angle.Value
@@ -143,6 +173,9 @@ class ShaperMiter:
 
         ret_wires = []
         for (linked_obj, subnames) in miter.Edges:
+            # Translate edges onto the center plane when the sketch is offset from it.
+            offset_t = (_plane_offset_translation(linked_obj, center_plane)
+                        if center_plane is not None else App.Vector(0, 0, 0))
             for subname in subnames:
                 if not subname.startswith('Edge'):
                     continue
@@ -153,8 +186,8 @@ class ShaperMiter:
                 if not isinstance(edge_shape.Curve, Part.Line):
                     continue
 
-                p0_3d = edge_shape.Vertexes[0].Point
-                p1_3d = edge_shape.Vertexes[1].Point
+                p0_3d = edge_shape.Vertexes[0].Point + offset_t
+                p1_3d = edge_shape.Vertexes[1].Point + offset_t
                 edge_vec_3d = p1_3d - p0_3d
                 face_normal_3d = edge_vec_3d.cross(plane_normal).normalize()
 
@@ -204,7 +237,7 @@ class ShaperMiter:
                     continue
 
                 shape = _miter_edge(shape, edge, miter.Angle, miter.MiterAxis, center_plane,
-                                    thickness)
+                                    thickness, sketch=linked_obj)
 
         return shape
 
