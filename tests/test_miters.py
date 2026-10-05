@@ -88,6 +88,12 @@ def _test_miter_single_angle(
 
         doc.recompute()
         assert_volume(cutout, target_volume)
+
+        # Try offsetting the sketch. Should have no effect on miters.
+        offset = mm(10.0)
+        sketch.AttachmentOffset = App.Placement(App.Vector(0, 0, offset), App.Rotation())
+        doc.recompute()
+        assert_volume(cutout, target_volume)
     except Exception as e:
         App.Console.PrintError(f"  ERROR: {e}")
         raise e
