@@ -8,58 +8,91 @@ PropertyLinkBase::breakLinks. The rollback clears Dados.DadoPlane, which
 re-entered ShaperDados.onChanged -> ensure_dado_plane -> Document.addObject
 while breakLinks was still iterating the document's object array. The fix
 guards ensure_dado_plane on Document.Transacting.
-
-This test must run the scenario in a SUBPROCESS: pre-fix, the failure mode
-is a hard SIGSEGV that would take the whole test harness down with it.
 """
 
-import os
-import subprocess
-import sys
-
 import FreeCAD as App
+import ShaperDados
 
-from util import assert_true
-
-
-def print_stdout(msg):
-    os.write(2, msg.encode("utf-8", errors="backslashreplace"))
+from util import assert_true, make_plane, make_sketch, make_cutout
 
 
-def _child_binary():
-    """Locate the FreeCADCmd-style binary we are running under."""
-    cand = sys.executable
-    if os.path.exists(cand):
-        return cand
-    cand = os.path.join(App.getHomePath(), 'bin', 'FreeCADCmd')
-    if os.path.exists(cand):
-        return cand
-    return None
+def dados_objects(doc):
+    return [o.Name for o in doc.Objects
+            if getattr(o, 'Type', '') == 'ShaperDados']
 
 
 def test_dados_transaction_rollback_child():
-    """Child script (abort/undo Dados) exits 0 and prints CHILD-OK."""
-    binary = _child_binary()
-    if binary is None:
-        print_stdout("skipped (cannot locate FreeCAD binary for subprocess)")
-        return
-    child = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                         'child_dados_rollback.py')
-    try:
-        proc = subprocess.run(
-            [binary, child], capture_output=True, text=True, timeout=300)
-    except subprocess.TimeoutExpired:
-        raise AssertionError("child Dados-rollback test hung (timeout 300s)")
+    doc = App.newDocument("rollback_probe")
+    plane = make_plane(doc, "P")
+    sketch = make_sketch(doc, plane, "S")
+    dsk = make_sketch(doc, plane, "DS")
+    cutout = make_cutout(doc, plane, "C")
+    cutout.OutlineSketch = sketch
+    doc.recompute()
 
-    output = proc.stdout + proc.stderr
-    if proc.returncode != 0 or 'CHILD-OK' not in proc.stdout:
-        raise AssertionError(
-            f"child Dados-rollback test failed (exit {proc.returncode}); "
-            f"a SIGSEGV here is the DadoPlane-recreation crash:\n"
-            f"--- child output ---\n{output[-4000:]}")
-    assert_true('scenario1 ok' in proc.stdout, "scenario1 missing")
-    assert_true('scenario2 ok' in proc.stdout, "scenario2 missing")
-    assert_true('scenario3 ok' in proc.stdout, "scenario3 missing")
+    # -- scenario 1: abort a create-Dados transaction (the dialog Cancel path)
+    doc.openTransaction("Create Dados")
+    dados = ShaperDados.create_uninitialized(cutout, "Dados")
+    dados.Face = cutout.FrontFace
+    dados.Invert = True
+    dados.Sketches = [dsk]
+    dados.recompute()
+    cutout.recompute()
+    doc.abortTransaction()
+    assert_true(
+        not dados_objects(doc),
+        f"CHILD-FAIL: Dados survived abort: {dados_objects(doc)}",
+    )
+    assert_true(
+        not list(cutout.Dados),
+        f"CHILD-FAIL: cutout.Dados not restored: {list(cutout.Dados)}",
+    )
+    assert_true(
+        cutout.FrontFace is not None and cutout.BackFace is not None,
+        "CHILD-FAIL: cutout face planes damaged by abort",
+    )
+    print("scenario1 ok (abort)", flush=True)
+
+    # -- scenario 2: undo an accepted create-Dados transaction (Ctrl+Z)
+    doc.openTransaction("Create Dados")
+    dados = ShaperDados.create_uninitialized(cutout, "Dados")
+    dados.Face = cutout.FrontFace
+    dados.Sketches = [dsk]
+    dados.recompute()
+    cutout.recompute()
+    doc.commitTransaction()
+    assert_true(dados_objects(doc), "CHILD-FAIL: Dados missing after commit")
+    doc.undo()
+    assert_true(not dados_objects(doc), f"CHILD-FAIL: Dados survived undo: {dados_objects(doc)}")
+    assert_true(
+        not list(cutout.Dados),
+        f"CHILD-FAIL: cutout.Dados not restored after undo: {list(cutout.Dados)}",
+    )
+
+    # -- scenario 3: undo a depth tweak must restore the dado plane position
+    doc.openTransaction("Create Dados")
+    dados = ShaperDados.create_uninitialized(cutout, "Dados")
+    dados.Face = cutout.FrontFace
+    dados.Sketches = [dsk]
+    doc.commitTransaction()
+    z_before = dados.DadoPlane.Placement.Base.z
+    doc.openTransaction("Change Depth")
+    dados.Depth = 12.7
+    dados.recompute()
+    cutout.recompute()
+    doc.commitTransaction()
+    z_after = dados.DadoPlane.Placement.Base.z
+    assert_true(
+        abs(z_after - z_before) > 1e-6,
+        "CHILD-FAIL: depth change did not move the dado plane",
+    )
+    doc.undo()
+    z_restored = dados.DadoPlane.Placement.Base.z
+    assert_true(
+        abs(z_restored - z_before) < 1e-6,
+        f"CHILD-FAIL: undo did not restore plane z {z_restored} != {z_before}"
+    )
+    print("scenario3 ok (undo depth tweak)", flush=True)
 
 
 ALL_TESTS = [test_dados_transaction_rollback_child]
