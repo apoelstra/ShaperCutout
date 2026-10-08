@@ -65,8 +65,6 @@ def test_page_view_close_after_page_deleted_2():
     App.closeDocument(doc.Name)
 
 
-
-
 def test_page_widget_pending_overlap_timer_after_doc_close():
     """Regression: the page view's overlap-recompute timer chains itself every
     100ms with a captured page reference. Closing the document inside a timer
@@ -78,6 +76,11 @@ def test_page_widget_pending_overlap_timer_after_doc_close():
     widget = _make_widget(page)
     widget.update_svg()          # arms the pending 100ms timer
     App.closeDocument(doc.Name)  # page dies while the timer is still queued
+
+    assert_true(
+        not widget._compute_overlap_timer.isActive(),
+        "document closure did not stop the overlap timer",
+    )
 
     errors = []
     old_hook = sys.excepthook

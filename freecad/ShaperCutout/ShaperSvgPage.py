@@ -363,6 +363,7 @@ class _PageWidget(QtWidgets.QWidget):
     def __init__(self, page_obj, parent=None):
         super().__init__(parent)
         self._page_obj = page_obj
+        self._document = page_obj.Document
         self._svg = ''
         self._overlaps = []
         self._close_pairs = []
@@ -378,11 +379,21 @@ class _PageWidget(QtWidgets.QWidget):
         self._compute_overlap_timer = QtCore.QTimer()
         self._compute_overlap_timer.setSingleShot(True)
         self._compute_overlap_timer.timeout.connect(self._compute_overlap_timeout)
-        self._compute_overlap_timer.setInterval(1000)
+        self._compute_overlap_timer.setInterval(150)
         # Manually trigger 'compute overlaps'. Later in self.update_svg it will be triggered by
         # self._compute_overlap_timer.start() (which will reset the timer if it's already in
         # progress, preventing updates from stalling the GUI while the user is moving stuff).
         self._compute_overlap_timeout()
+
+        App.addDocumentObserver(self)
+
+    def slotDeletedDocument(self, doc):
+        if doc is self._document:
+            self._compute_overlap_timer.stop()
+
+    def slotDeletedObject(self, obj):
+        if obj is self._page_obj:
+            self._compute_overlap_timer.stop()
 
     # ------------------------------------------------------------------
     # Custom anchor interactive placement
@@ -872,10 +883,9 @@ class ViewProviderShaperSvgPage:
 
     def attach(self, vobj):
         self._vobj = vobj
+        self._page_obj = vobj.Object
         self._subwindow = None
-        # Cache document name so we can check it in slotDeletedDocument, even though
-        # self._vobj will have been deleted
-        self._doc_name = self._vobj.Object.Document.Name
+        self._document = self._vobj.Object.Document
         # Arguably I should have a dummy object which only implements slotDeletedDocument,
         # so that I don't accidentally observe other events, but meh.
         App.addDocumentObserver(self)
@@ -891,14 +901,15 @@ class ViewProviderShaperSvgPage:
     def slotRedoDocument(self, doc):
         self.update_widget_svg()
 
+    def slotDeletedObject(self, obj):
+        """Method to allow this ViewProviderShaperSvgPage to act as a document observer"""
+        if obj is self._page_obj and self._subwindow_alive():
+            self._subwindow.close()
+
     def slotDeletedDocument(self, doc):
         """Method to allow this ViewProviderShaperSvgPage to act as a document observer"""
-        try:
-            if doc.Name == self._doc_name:
-                if self._subwindow_alive():
-                    self._subwindow.close()
-        except RuntimeError:
-            pass
+        if doc is self._document and self._subwindow_alive():
+            self._subwindow.close()
 
     def addSelection(self, doc_name, obj_name, sub_name, pnt):
         """Called when selection changes in the document."""
