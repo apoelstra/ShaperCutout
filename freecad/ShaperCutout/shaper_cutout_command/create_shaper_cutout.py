@@ -9,8 +9,8 @@ from PySide import QtWidgets
 
 from .task_panel import ShaperTaskPanel
 import shaper_cutout_util
-from shaper_cutout_util import _ICON_ROOT, all_objects, copy_property, \
-        force_combo_to_value, objects_are_parallel, Objects, ShaperCutoutType
+from shaper_cutout_util import _ICON_ROOT, all_objects, copy_property, objects_are_parallel, \
+    Objects, ShaperCutoutType
 
 
 def _selection_center_and_sketches(selected: Optional[Objects] = None):
@@ -106,8 +106,7 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
         all_doc_objects = all_objects(self._doc)
 
         # Plane combo
-        self.plane_combo = QtWidgets.QComboBox()
-        for o in all_doc_objects.dict[ShaperCutoutType.PLANE]:
+        def plane_label(o: App.DocumentObject) -> Optional[str]:
             parents = _cutout_parents(o)
             is_current = False
             shared_with = []
@@ -128,7 +127,7 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
                 # planes, and if the user really wants to do this he can add another plane in
                 # the same position. (Though if you are reading this comment and disagree,
                 # please file a bug!)
-                continue
+                return None
 
             suffix = " (current" if is_current else ""
             if len(shared_with) > 0:
@@ -138,12 +137,20 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
 
             lcs_owner = _lcs_parent(o)
             if lcs_owner:
-                self.plane_combo.addItem(f"{lcs_owner.Label}.{o.Label}{suffix}", o)
+                return f"{lcs_owner.Label}.{o.Label}{suffix}"
             else:
-                self.plane_combo.addItem(f"{o.Label}{suffix}", o)
+                return f"{o.Label}{suffix}"
 
-        force_combo_to_value(self.plane_combo, self._object.CenterPlane)
-        self._main_layout.addRow("Center Plane:", self.plane_combo)
+        self.plane_combo = self._link_widget(
+            "CenterPlane",
+            ShaperCutoutType.PLANE,
+            None,
+            all_doc_objects,
+            selected_value=self._sel_center,
+            labelfn=plane_label,
+        )
+
+        self._main_layout.addRow("Center Plane:", self.plane_combo._widget)
 
         # Thickness
         self._main_layout.addRow(
@@ -160,7 +167,7 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
                     f"multiple sketches were selected; using '{sketches[0].Label}'"
                     f" as the outline sketch and ignoring '{item.Label}'")
 
-            center = self.plane_combo.currentData()
+            center = self.plane_combo._widget.currentData()
             parent_dados = Objects(sk.InList).dict[ShaperCutoutType.DADOS]
             if any(sk in getattr(d, 'Sketches', []) for d in parent_dados):
                 self.preselect_warnings.append(
@@ -171,7 +178,8 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
                     f"sketch '{sk.Label}' is not parallel to the center plane")
 
         def sketch_label(s: App.DocumentObject) -> Optional[str]:
-            if objects_are_parallel(self.plane_combo.currentData(), s) and not _has_dado_parent(s):
+            if objects_are_parallel(self.plane_combo._widget.currentData(), s) \
+                    and not _has_dado_parent(s):
                 return s.Label
             return None
 
@@ -184,15 +192,10 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
             labelfn=sketch_label,
         )
 
-        # Open transaction and create/reference cutout
-        if self._edit_mode:
-            if self._object.CenterPlane:
-                force_combo_to_value(self.plane_combo, self._object.CenterPlane)
-
         self._main_layout.addRow("Outline Sketch:", self.sketch_combo._widget)
 
         # Connect signals AFTER populating
-        self.plane_combo.currentIndexChanged.connect(self._on_plane_changed)
+        self.plane_combo._widget.currentIndexChanged.connect(self._on_plane_changed)
 
         self._front = None
         self._back = None
@@ -232,7 +235,8 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
             self._object.recompute()
 
     def _on_plane_changed(self):
-        self._object.CenterPlane = self.plane_combo.currentData()
+        # This should've been run after the LinkWidget signal handler.
+        assert self._object.CenterPlane == self.plane_combo._widget.currentData()
         # If any other cutouts share this CenterPlane, also share their front and back planes.
         sharing_center = False
         parents = _cutout_parents(self._object.CenterPlane)
