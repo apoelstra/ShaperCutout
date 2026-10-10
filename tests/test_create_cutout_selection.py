@@ -26,6 +26,7 @@ import ShaperCutout  # noqa: F401
 from shaper_cutout_command.create_shaper_cutout import (
     CreateShaperCutoutCmd, ShaperCutoutTaskPanel, _selection_center_and_sketches)
 from shaper_cutout_command.task_panel import ShaperTaskPanel
+from shaper_cutout_util import Objects
 
 from util import assert_true, make_cutout, make_plane, make_sketch, mm
 
@@ -98,39 +99,39 @@ def test_selection_parse_plane_plus_sketch():
     plane2 = make_plane(doc, "Plane2")
     cube = doc.addObject("Part::Box", "Box")
 
-    center, sketches = _selection_center_and_sketches([plane])
+    center, sketches = _selection_center_and_sketches(Objects([plane]))
     assert_true(center is plane and sketches == [], "plane alone -> plane center")
 
-    center, sketches = _selection_center_and_sketches([plane, sketch])
+    center, sketches = _selection_center_and_sketches(Objects([plane, sketch]))
     assert_true(center is plane and sketches == [sketch],
                 "plane + sketch is a valid selection")
 
-    center, sketches = _selection_center_and_sketches([cutout])
+    center, sketches = _selection_center_and_sketches(Objects([cutout]))
     assert_true(center is plane and sketches == [],
                 "cutout alone -> its center plane")
 
-    center, sketches = _selection_center_and_sketches([cutout, plane])
+    center, sketches = _selection_center_and_sketches(Objects([cutout, plane]))
     assert_true(center is plane and sketches == [],
                 "cutout + own center plane de-dupes to one candidate")
 
-    center, sketches = _selection_center_and_sketches([cutout, plane, sketch])
+    center, sketches = _selection_center_and_sketches(Objects([cutout, plane, sketch]))
     assert_true(center is plane and sketches == [sketch],
                 "cutout + own center plane + sketch")
 
-    center, _ = _selection_center_and_sketches([plane, plane2])
+    center, _ = _selection_center_and_sketches(Objects([plane, plane2]))
     assert_true(center is None, "two planes is not a valid center")
 
-    center, _ = _selection_center_and_sketches([cutout, plane2])
+    center, _ = _selection_center_and_sketches(Objects([cutout, plane2]))
     assert_true(center is None,
                 "cutout + a different plane is ambiguous, not a valid center")
 
-    center, _ = _selection_center_and_sketches([sketch])
+    center, _ = _selection_center_and_sketches(Objects([sketch]))
     assert_true(center is None, "sketch alone has no center")
 
-    center, _ = _selection_center_and_sketches([plane, cube])
+    center, _ = _selection_center_and_sketches(Objects([plane, cube]))
     assert_true(center is None, "unrelated object disqualifies selection")
 
-    center, _ = _selection_center_and_sketches([])
+    center, _ = _selection_center_and_sketches(Objects([]))
     assert_true(center is None, "empty selection")
 
     App.closeDocument(doc.Name)

@@ -8,13 +8,10 @@ from PySide import QtWidgets
 
 from .task_panel import ShaperTaskPanel
 from shaper_cutout_util import _ICON_ROOT, all_objects, copy_property, \
-        force_combo_to_value, objects_are_parallel, Objects, ShaperCutoutType
+        force_combo_to_value, objects_are_parallel, selection, Objects, ShaperCutoutType
 
 
-_SUPPORTED_PLANE_TYPES = ['App::Plane', 'Part::Plane', 'Part::DatumPlane', 'PartDesign::Plane']
-
-
-def _selection_center_and_sketches(sel):
+def _selection_center_and_sketches(selected: Objects):
     """Parse a selection for the Create Shaper Cutout command.
 
     Accepts exactly one center-plane candidate -- a supported plane, or a
@@ -23,26 +20,21 @@ def _selection_center_and_sketches(sel):
     counts as one candidate. Returns (center_plane, sketches), or
     (None, []) if the selection is not usable.
     """
-    centers = []
-    sketches = []
-    for o in sel:
-        if getattr(o, 'Type', '') == 'ShaperCutout':
-            if o.CenterPlane is None:
-                return None, []
-            centers.append(o.CenterPlane)
-        elif getattr(o, 'TypeId', '') in _SUPPORTED_PLANE_TYPES:
-            centers.append(o)
-        elif ShaperCutoutType.SKETCH.is_type_of(o):
-            sketches.append(o)
-        else:
-            return None, []
+    n_objects = len(selected.dict[ShaperCutoutType.CUTOUT]) \
+        + len(selected.dict[ShaperCutoutType.PLANE]) \
+        + len(selected.dict[ShaperCutoutType.SKETCH])
+    if selected.total_count != n_objects:
+        # Extra stuff selected.
+        return None, []
 
-    # De-duplicate (e.g. a cutout selected along with its own center plane),
-    # keeping order.
-    centers = list(dict.fromkeys(centers))
+    centers = set(o.CenterPlane for o in selected.dict[ShaperCutoutType.CUTOUT]).union(
+        set(selected.dict[ShaperCutoutType.PLANE]))
+    sketches = selected.dict[ShaperCutoutType.SKETCH]
+
+    # More than one plane selected.
     if len(centers) != 1:
         return None, []
-    return centers[0], sketches
+    return list(centers)[0], sketches
 
 
 def _lcs_parent(obj):
@@ -102,8 +94,7 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
         # plane and sketch(es) to use as the outline (issue #15).
         self.preselect_warnings = []
         if cutout is None:
-            self._sel_center, self._sel_sketches = _selection_center_and_sketches(
-                Gui.Selection.getSelection())
+            self._sel_center, self._sel_sketches = _selection_center_and_sketches(selection())
         else:
             self._sel_center, self._sel_sketches = cutout.CenterPlane, []
         super().__init__("Cutout", cutout)
@@ -192,13 +183,7 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
     def create_uninitialized_object(self) -> App.DocumentObject:
         from ShaperCutout import create_uninitialized
         center = self._sel_center
-        if center is None:
-            # Should not happen (the command is only active with a usable
-            # selection); fall back to the old "first selection is a plane"
-            # behavior rather than creating an object with no center.
-            sel = Gui.Selection.getSelection()
-            center = sel[0].CenterPlane if getattr(sel[0], 'Type', '') == 'ShaperCutout' \
-                else sel[0]
+        assert (center is not None)
         _cutout = create_uninitialized()
         _cutout.CenterPlane = center
 
@@ -352,7 +337,7 @@ class CreateShaperCutoutCmd:
         # One plane (or cutout), optionally with sketches (issue #15). The
         # dialog pre-selects a usable sketch as the outline; unusable ones
         # (nonparallel, dado sketches) are reported when it opens.
-        center, _sketches = _selection_center_and_sketches(Gui.Selection.getSelection())
+        center, _sketches = _selection_center_and_sketches(selection())
         return center is not None
 
     def Activated(self):
