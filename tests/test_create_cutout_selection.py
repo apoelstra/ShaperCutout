@@ -17,7 +17,6 @@ import types
 
 import FreeCAD as App
 import FreeCADGui as Gui
-import Part
 from PySide import QtWidgets
 
 import ShaperDados  # noqa: F401  (registers the ShaperDados type)
@@ -183,7 +182,7 @@ def test_create_panel_preselects_selected_sketch():
         assert_true(obj.CenterPlane is plane, "center plane from selection")
         assert_true(obj.OutlineSketch is sketch,
                     "selected sketch pre-set as outline sketch")
-        assert_true(panel.sketch_combo.currentData() is sketch,
+        assert_true(panel.sketch_combo._widget.currentData() is sketch,
                     "sketch combo shows the selected sketch")
         assert_true(panel.preselect_warnings == [],
                     f"no warnings expected, got {panel.preselect_warnings}")
@@ -237,8 +236,8 @@ def test_create_panel_dado_sketch_warns():
                     and "dado" in panel.preselect_warnings[0],
                     f"dado warning expected, got {panel.preselect_warnings}")
         # Dado sketches should also be absent from the combo entirely.
-        entries = [panel.sketch_combo.itemData(i)
-                   for i in range(panel.sketch_combo.count())]
+        entries = [panel.sketch_combo._widget.itemData(i)
+                   for i in range(panel.sketch_combo._widget.count())]
         assert_true(sketch not in entries, "dado sketch not offered in combo")
 
     App.closeDocument(doc.Name)
@@ -272,7 +271,7 @@ def test_create_panel_plane_only_unchanged():
         obj = panel._object
         assert_true(obj.CenterPlane is plane, "center plane from selection")
         assert_true(obj.OutlineSketch is None, "no outline without a sketch")
-        assert_true(panel.sketch_combo.currentData() is None,
+        assert_true(panel.sketch_combo._widget.currentData() is None,
                     "combo defaults to '(No outline sketch)'")
         assert_true(panel.preselect_warnings == [], "no warnings")
 

@@ -1,16 +1,55 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from typing import Optional
+from typing import Callable, List, Optional, Tuple
 from PySide import QtCore, QtWidgets
 
 import FreeCAD as App
 import FreeCADGui as Gui
+
+import shaper_cutout_util
+from shaper_cutout_util import Objects, ShaperCutoutType, force_combo_to_value
 
 
 class TaskPanelRejected(Exception):
     """Raised by ShaperTaskPanel when the create flow declines to proceed
     (e.g. an invalid selection). The subclass has already informed the user
     why; the open_* helper should swallow this and not show the dialog."""
+
+
+class LinkWidget:
+    """A combo-box widget which controls a PropertyLink property."""
+
+    def __init__(
+        self,
+        ty: ShaperCutoutType,
+        none_item: Optional[str] = None,
+        all_doc_objects: Objects = None,
+        labelfn: Optional[Callable[[App.DocumentObject], str]] = None,
+        filterfn: Optional[Callable[[App.DocumentObject], bool]] = None,
+    ):
+        self._ty = ty
+        self._none_item = none_item
+        self._labelfn = labelfn
+        self._filterfn = filterfn
+
+        self._widget = QtWidgets.QComboBox()
+        self._refresh(all_doc_objects)
+
+    def _refresh(self, all_doc_objects: Objects):
+        previous = self._widget.currentData()
+
+        self._widget.clear()
+        if self._none_item is not None:
+            self._widget.addItem(self._none_item, None)
+
+        idx = 1
+        for obj in all_doc_objects.dict[self._ty]:
+            if self._filterfn is None or self._filterfn(obj):
+                label = obj.Label if self._labelfn is None else self._labelfn(obj)
+                self._widget.addItem(label, obj)
+                if previous == obj:
+                    self._widget.setCurrentIndex(idx)
+                idx += 1
 
 
 class ShaperTaskPanel:
@@ -87,6 +126,34 @@ class ShaperTaskPanel:
 
     def _on_quantity_changed(self, prop_name, value):
         setattr(self._object, prop_name, value)
+        self.recompute_objects(prop_name)
+
+    def _link_widget(
+        self,
+        prop_name: str,
+        ty: ShaperCutoutType,
+        none_item: Optional[str] = None,
+        all_doc_objects: Optional[Objects] = None,
+        selected_value: Optional[App.DocumentObject] = None,
+        labelfn: Optional[Callable[[App.DocumentObject], str]] = None,
+        filterfn: Optional[Callable[[App.DocumentObject], bool]] = None,
+    ) -> Tuple[LinkWidget, List[str]]:
+        initial_value = None
+        if getattr(self._object, prop_name, None) is not None:
+            initial_value = getattr(self._object, prop_name)
+        else:
+            initial_value = selected_value
+
+        widget = LinkWidget(ty, none_item, all_doc_objects, labelfn, filterfn)
+        if initial_value is not None:
+            force_combo_to_value(widget._widget, initial_value)
+            self._on_link_changed(prop_name, widget)
+
+        widget._widget.currentIndexChanged.connect(lambda: self._on_link_changed(prop_name, widget))
+        return widget
+
+    def _on_link_changed(self, prop_name, link_widget):
+        setattr(self._object, prop_name, link_widget._widget.currentData())
         self.recompute_objects(prop_name)
 
     def accept(self):

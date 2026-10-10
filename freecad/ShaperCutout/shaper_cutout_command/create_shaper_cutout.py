@@ -1,17 +1,19 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import os
+from typing import Optional
 
 import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtWidgets
 
 from .task_panel import ShaperTaskPanel
+import shaper_cutout_util
 from shaper_cutout_util import _ICON_ROOT, all_objects, copy_property, \
-        force_combo_to_value, objects_are_parallel, selection, Objects, ShaperCutoutType
+        force_combo_to_value, objects_are_parallel, Objects, ShaperCutoutType
 
 
-def _selection_center_and_sketches(selected: Objects):
+def _selection_center_and_sketches(selected: Optional[Objects] = None):
     """Parse a selection for the Create Shaper Cutout command.
 
     Accepts exactly one center-plane candidate -- a supported plane, or a
@@ -20,6 +22,9 @@ def _selection_center_and_sketches(selected: Objects):
     counts as one candidate. Returns (center_plane, sketches), or
     (None, []) if the selection is not usable.
     """
+    if selected is None:
+        selected = shaper_cutout_util.selection()
+
     n_objects = len(selected.dict[ShaperCutoutType.CUTOUT]) \
         + len(selected.dict[ShaperCutoutType.PLANE]) \
         + len(selected.dict[ShaperCutoutType.SKETCH])
@@ -34,7 +39,7 @@ def _selection_center_and_sketches(selected: Objects):
     # More than one plane selected.
     if len(centers) != 1:
         return None, []
-    return list(centers)[0], sketches
+    return centers.pop(), sketches
 
 
 def _lcs_parent(obj):
@@ -78,8 +83,7 @@ def open_cutout_task_panel(cutout=None):
         Gui.Control.closeDialog()
     panel = ShaperCutoutTaskPanel(cutout)
     Gui.Control.showDialog(panel)
-    # Report sketches the GUI selection carried that we declined to use
-    # (issue #15).
+
     if panel.preselect_warnings:
         QtWidgets.QMessageBox.warning(
             None, "Sketch Not Usable",
@@ -90,19 +94,16 @@ def open_cutout_task_panel(cutout=None):
 class ShaperCutoutTaskPanel(ShaperTaskPanel):
     def __init__(self, cutout=None):
         self._initialized = False
-        # When creating (not editing), the GUI selection can provide the center
-        # plane and sketch(es) to use as the outline (issue #15).
         self.preselect_warnings = []
+        selection = shaper_cutout_util.selection()
         if cutout is None:
-            self._sel_center, self._sel_sketches = _selection_center_and_sketches(selection())
+            self._sel_center, sketches = _selection_center_and_sketches(selection)
         else:
-            self._sel_center, self._sel_sketches = cutout.CenterPlane, []
+            self._sel_center, sketches = cutout.CenterPlane, []
         super().__init__("Cutout", cutout)
 
         # Collect available planes and sketches
         all_doc_objects = all_objects(self._doc)
-        self._all_sketches = [sk for sk in all_doc_objects.dict[ShaperCutoutType.SKETCH]
-                              if not _has_dado_parent(sk)]
 
         # Plane combo
         self.plane_combo = QtWidgets.QComboBox()
@@ -151,34 +152,49 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
         )
 
         # Sketch combo
-        self.sketch_combo = QtWidgets.QComboBox()
-        self.sketch_combo.addItem('(No outline sketch)', None)
+        sk = None
+        if len(sketches) > 0:
+            sk = sketches[0]
+            for item in sketches[1:]:
+                self.preselect_warnings.append(
+                    f"multiple sketches were selected; using '{sketches[0].Label}'"
+                    f" as the outline sketch and ignoring '{item.Label}'")
+
+            center = self.plane_combo.currentData()
+            parent_dados = Objects(sk.InList).dict[ShaperCutoutType.DADOS]
+            if any(sk in getattr(d, 'Sketches', []) for d in parent_dados):
+                self.preselect_warnings.append(
+                    f"sketch '{sketches[0].Label}' belongs to a dado set and is not usable"
+                    " as an outline sketch")
+            elif not objects_are_parallel(center, sk):
+                self.preselect_warnings.append(
+                    f"sketch '{sk.Label}' is not parallel to the center plane")
+
+        self.sketch_combo = self._link_widget(
+            "OutlineSketch",
+            ShaperCutoutType.SKETCH,
+            "(No outline sketch)",
+            all_doc_objects,
+            selected_value=sk,
+            labelfn=None,
+            filterfn=lambda obj: objects_are_parallel(self.plane_combo.currentData(), obj)
+            and not _has_dado_parent(obj),
+        )
 
         # Open transaction and create/reference cutout
         if self._edit_mode:
             if self._object.CenterPlane:
                 force_combo_to_value(self.plane_combo, self._object.CenterPlane)
-            if self._object.OutlineSketch:
-                force_combo_to_value(self.sketch_combo, self._object.OutlineSketch)
 
-        for s in self._all_sketches:
-            if objects_are_parallel(self.plane_combo.currentData(), s):
-                self.sketch_combo.addItem(s.Label, s)
-        self._main_layout.addRow("Outline Sketch:", self.sketch_combo)
-
-        # Pre-select sketches that came in with the GUI selection.
-        if not self._edit_mode:
-            self._preselect_selected_sketch()
+        self._main_layout.addRow("Outline Sketch:", self.sketch_combo._widget)
 
         # Connect signals AFTER populating
         self.plane_combo.currentIndexChanged.connect(self._on_plane_changed)
-        self.sketch_combo.currentIndexChanged.connect(self._on_changed)
 
         self._own_front = None
         self._own_back = None
         self._initialized = True
         self._on_plane_changed()
-        self._on_changed()
 
     def create_uninitialized_object(self) -> App.DocumentObject:
         from ShaperCutout import create_uninitialized
@@ -196,40 +212,6 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
                 break
 
         return _cutout
-
-    def _preselect_selected_sketch(self):
-        """Select the Outline Sketch combo entry for sketches that came in
-        with the GUI selection (issue #15). Sketches we decline to use are
-        recorded in self.preselect_warnings for the command to report."""
-        if not self._sel_sketches:
-            return
-
-        center = self.plane_combo.currentData()
-        picked = None
-        for s in self._sel_sketches:
-            if s in self._sketch_combo_entries():
-                if picked is None:
-                    picked = s
-                else:
-                    self.preselect_warnings.append(
-                        f"multiple sketches were selected; using '{picked.Label}'"
-                        f" as the outline sketch and ignoring '{s.Label}'")
-                continue
-
-            parent_dados = Objects(s.InList).dict[ShaperCutoutType.DADOS]
-            if any(s in getattr(d, 'Sketches', []) for d in parent_dados):
-                self.preselect_warnings.append(
-                    f"sketch '{s.Label}' belongs to a dado set and is not usable"
-                    " as an outline sketch")
-            elif not objects_are_parallel(center, s):
-                self.preselect_warnings.append(
-                    f"sketch '{s.Label}' is not parallel to the center plane")
-        if picked is not None:
-            force_combo_to_value(self.sketch_combo, picked)
-
-    def _sketch_combo_entries(self):
-        return [self.sketch_combo.itemData(i)
-                for i in range(self.sketch_combo.count())]
 
     def recompute_objects(self, updated_prop_name: str):
         if not self._initialized:
@@ -294,21 +276,7 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
                 self._own_back = None
         self._object.CenterPlane = new_plane
 
-        # Update sketch combo
-        selected_sketch = self.sketch_combo.currentData()
-        self.sketch_combo.clear()
-        self.sketch_combo.addItem('(No outline sketch)', None)
-        idx = 1
-        for s in self._all_sketches:
-            if objects_are_parallel(self.plane_combo.currentData(), s):
-                self.sketch_combo.addItem(s.Label, s)
-                if selected_sketch == s:
-                    self.sketch_combo.setCurrentIndex(idx)
-                idx += 1
-
-    def _on_changed(self):
-        self._object.OutlineSketch = self.sketch_combo.currentData()
-        self.recompute_objects('OutlineSketch')
+        self.sketch_combo._refresh(all_objects(self._doc))
 
     def accept(self):
         if self._own_front:
@@ -337,7 +305,7 @@ class CreateShaperCutoutCmd:
         # One plane (or cutout), optionally with sketches (issue #15). The
         # dialog pre-selects a usable sketch as the outline; unusable ones
         # (nonparallel, dado sketches) are reported when it opens.
-        center, _sketches = _selection_center_and_sketches(selection())
+        center, _ = _selection_center_and_sketches()
         return center is not None
 
     def Activated(self):
