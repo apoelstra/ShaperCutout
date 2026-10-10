@@ -194,8 +194,8 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
         # Connect signals AFTER populating
         self.plane_combo.currentIndexChanged.connect(self._on_plane_changed)
 
-        self._own_front = None
-        self._own_back = None
+        self._front = None
+        self._back = None
         self._initialized = True
         self._on_plane_changed()
 
@@ -232,62 +232,44 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
             self._object.recompute()
 
     def _on_plane_changed(self):
-        # Doing `self._object.CenterPlane = <X>` will trigger `ShaperCutout::onChanged` which will
-        # update an update the computed planes. We don't want this to happen until the end of this
-        # function, so we need to be a bit careful.
-        #
-        # We do this because when editing from the dialog, we (a) want to implement the "if the
-        # user chooses another cutout's center, we atomically link to the other cutout's planes
-        # rather than computing our own" logic, and (b) we want that when the user starts from
-        # uniquely-owned planes, switches to shared planes, then switches back, they recover the
-        # original uniquely-owned planes rather than having now ones be created. This only really
-        # makes sense within the dialog so we can't move this logic into ShaperCutout::onChanged.
-        new_plane = self.plane_combo.currentData()
-        # Record current planes if they're unique to us
-        if len(_cutout_parents(self._object.FrontFace)) == 1:
-            self._own_front = self._object.FrontFace
-            if self._own_front.ViewObject:
-                self._own_front.ViewObject.ShowInTree = False
-        if len(_cutout_parents(self._object.BackFace)) == 1:
-            self._own_back = self._object.BackFace
-            if self._own_back.ViewObject:
-                self._own_back.ViewObject.ShowInTree = False
-
-        # Disable thickness dialog if we are sharing a plane
+        self._object.CenterPlane = self.plane_combo.currentData()
+        # If any other cutouts share this CenterPlane, also share their front and back planes.
         sharing_center = False
-        parents = _cutout_parents(new_plane)
+        parents = _cutout_parents(self._object.CenterPlane)
         for par in parents:
-            if par == self._object or par.CenterPlane != new_plane:
+            if par == self._object or par.CenterPlane != self._object.CenterPlane:
                 continue
             self._object.FrontFace = par.FrontFace
             self._object.BackFace = par.BackFace
-            sharing_center = True
+
+            if self._front is not None:
+                self._doc.removeObject(self._front)
+                self._front = None
+            if self._back is not None:
+                self._doc.removeObject(self._back)
+                self._back = None
             break
 
+        # If not, create new planes if they don't already exist.
         if not sharing_center:
-            self._object.FrontFace = None
-            self._object.BackFace = None
-            if self._own_front is not None:
-                self._object.FrontFace = self._own_front
-                if self._own_front.ViewObject:
-                    self._own_front.ViewObject.ShowInTree = True
-                self._own_front = None
-            if self._own_back is not None:
-                self._object.BackFace = self._own_back
-                if self._own_back.ViewObject:
-                    self._own_back.ViewObject.ShowInTree = True
-                self._own_back = None
-        self._object.CenterPlane = new_plane
+            if self._front is None:
+                self._front = self._doc.addObject('Part::DatumPlane', f'{self._object.Name}_Front')
+                self._front.setPropertyStatus('AttachmentSupport', 2)
+                self._front.setPropertyStatus('AttachmentOffset', 2)
+                self._front.setPropertyStatus('MapMode', 2)
+            if self._back is None:
+                self._back = self._doc.addObject('Part::DatumPlane', f'{self._object.Name}_Back')
+                self._back.setPropertyStatus('AttachmentSupport', 2)
+                self._back.setPropertyStatus('AttachmentOffset', 2)
+                self._back.setPropertyStatus('MapMode', 2)
+            self._object.FrontFace = self._front
+            self._object.BackFace = self._back
 
+        # Then move the plane(s).
+        self._object.Proxy._propagate_thickness(self._object)
+
+        # And update the sketch combo since our set of parallel sketches may have changed.
         self.sketch_combo._refresh(all_objects(self._doc))
-
-    def accept(self):
-        if self._own_front:
-            self._doc.removeObject(self._own_front)
-        if self._own_back:
-            self._doc.removeObject(self._own_back)
-
-        super().accept()
 
 
 class CreateShaperCutoutCmd:

@@ -89,6 +89,5 @@ def make_cutout(doc, plane, name, thickness=mm(0.5)):
     cutout.Label = name
     cutout.CenterPlane = plane
     cutout.Thickness = thickness
-    cutout.Proxy.ensure_front_face(cutout)
-    cutout.Proxy.ensure_back_face(cutout)
+    cutout.Proxy._propagate_thickness(cutout)
     return cutout
