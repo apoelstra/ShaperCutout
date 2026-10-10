@@ -415,14 +415,6 @@ class ShaperDados:
             self.addV4Properties(obj)
             obj.Version = "4"
 
-        # Old versions stored the plane in the group, but this is wrong/redundant. We only want
-        # sketches -- and also let's not use Group, because we want to be able to share sketches
-        # between dado sets. We already have the Sketches list.
-        group = []
-        for gchild in getattr(obj, 'Group', []):
-            if is_sketch(gchild):
-                group.append(gchild)
-
     def ensure_dado_plane(self, obj):
         """Recreate dado plane if missing or link broken, and update its position."""
         if not hasattr(obj, 'Face') or not hasattr(obj, 'Depth') or not hasattr(obj, 'Invert'):
