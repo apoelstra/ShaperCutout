@@ -7,7 +7,17 @@ from enum import Enum
 from typing import List, Iterable, Optional
 
 
-SUPPORTED_PLANE_TYPES = ['App::Plane', 'Part::Plane', 'Part::DatumPlane', 'PartDesign::Plane']
+SUPPORTED_PLANE_TYPES = [
+    'App::Plane',
+    'Part::Plane',
+    'Part::DatumPlane',
+    'PartDesign::Plane',
+]
+SUPPORTED_SKETCH_TYPES = [
+    'Sketcher::SketchObject',
+    'Part::Part2DObject',
+    'Part::Part2DObjectPython',
+]
 
 
 class ShaperCutoutType(Enum):
@@ -20,6 +30,7 @@ class ShaperCutoutType(Enum):
     SVG_IMAGE = 11
     SVG_SHAPE = 12
     PLANE = 20
+    SKETCH = 21
     OTHER = 99
 
     @staticmethod
@@ -39,6 +50,8 @@ class ShaperCutoutType(Enum):
             return ShaperCutoutType.SVG_SHAPE
         elif tyid in SUPPORTED_PLANE_TYPES:
             return ShaperCutoutType.PLANE
+        elif tyid in SUPPORTED_SKETCH_TYPES:
+            return ShaperCutoutType.SKETCH
         else:
             return ShaperCutoutType.OTHER
 

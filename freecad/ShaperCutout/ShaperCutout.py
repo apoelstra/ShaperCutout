@@ -7,8 +7,8 @@ import Part
 from PySide import QtGui, QtWidgets, QtCore
 
 from shaper_cutout_command import open_cutout_task_panel
-from shaper_cutout_util import _ICON_ROOT, cleanFaces, copy_property, global_normal, is_sketch, \
-    objects_are_parallel
+from shaper_cutout_util import _ICON_ROOT, cleanFaces, copy_property, global_normal, \
+    objects_are_parallel, ShaperCutoutType
 
 
 def create_uninitialized(name=None):
@@ -423,12 +423,14 @@ class ViewProviderShaperCutout:
         # (Actually we have further restrictions but we defer them to when the
         # user actually does the drop, since then we can output warnings and be
         # sure they'll only be printed once.)
-        return is_sketch(child) or getattr(child, 'Type', '') == 'ShaperDados'
+        child_ty = ShaperCutoutType.type_of(child)
+        return child_ty in [ShaperCutoutType.SKETCH, ShaperCutoutType.DADOS]
 
     # Drops on a ShaperCutout: a sketch can be used to set the outline, and a
     # ShaperDados is cloned onto this cutout (issue #12).
     def dropObject(self, vobj, child):
-        if getattr(child, 'Type', '') == 'ShaperDados':
+        child_ty = ShaperCutoutType.type_of(child)
+        if child_ty == ShaperCutoutType.DADOS:
             from ShaperDados import clone_target_face, parent_cutout
             from shaper_cutout_command.create_shaper_dados import open_dados_task_panel
             if parent_cutout(child, 'Dados') is self.Object:
@@ -445,7 +447,7 @@ class ViewProviderShaperCutout:
             open_dados_task_panel(self.Object, clone_from=child)
             return
 
-        if not is_sketch(child):
+        if child_ty != ShaperCutoutType.SKETCH:
             return
 
         if not objects_are_parallel(self.Object.CenterPlane, child):

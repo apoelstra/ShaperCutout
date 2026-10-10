@@ -10,18 +10,10 @@ from .task_panel import ShaperTaskPanel
 from shaper_cutout_util import _ICON_ROOT, selection, ShaperCutoutType
 
 
-def _is_sketch(obj):
-    return obj.TypeId in (
-        'Sketcher::SketchObject',
-        'Part::Part2DObject',
-        'Part::Part2DObjectPython',
-    )
-
-
 def _available_sketches(doc, already_linked):
     """Return sketches in doc not already in the linked set."""
     linked_set = set(already_linked)
-    return [o for o in doc.Objects if _is_sketch(o) and o not in linked_set]
+    return [o for o in doc.Objects if ShaperCutoutType.SKETCH.is_type_of(o) and o not in linked_set]
 
 
 def open_dados_task_panel(cutout, dados=None, initial_sketches=[], clone_from=None):

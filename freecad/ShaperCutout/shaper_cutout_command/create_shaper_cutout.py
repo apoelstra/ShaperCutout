@@ -7,8 +7,8 @@ import FreeCADGui as Gui
 from PySide import QtWidgets
 
 from .task_panel import ShaperTaskPanel
-from shaper_cutout_util import _ICON_ROOT, copy_property, is_sketch, \
-        force_combo_to_value, objects_are_parallel
+from shaper_cutout_util import _ICON_ROOT, copy_property, \
+        force_combo_to_value, objects_are_parallel, ShaperCutoutType
 
 
 _SUPPORTED_PLANE_TYPES = ['App::Plane', 'Part::Plane', 'Part::DatumPlane', 'PartDesign::Plane']
@@ -32,7 +32,7 @@ def _selection_center_and_sketches(sel):
             centers.append(o.CenterPlane)
         elif getattr(o, 'TypeId', '') in _SUPPORTED_PLANE_TYPES:
             centers.append(o)
-        elif is_sketch(o):
+        elif ShaperCutoutType.SKETCH.is_type_of(o):
             sketches.append(o)
         else:
             return None, []
@@ -116,7 +116,7 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
 
         # Collect available planes and sketches
         self._all_sketches = [o for o in self._doc.Objects
-                              if is_sketch(o) and not _dado_parents(o)]
+                              if ShaperCutoutType.SKETCH.is_type_of(o) and not _dado_parents(o)]
 
         # Plane combo
         self.plane_combo = QtWidgets.QComboBox()

@@ -3,14 +3,6 @@
 import FreeCAD as App
 
 
-def is_sketch(obj):
-    return obj.TypeId in (
-        'Sketcher::SketchObject',
-        'Part::Part2DObject',
-        'Part::Part2DObjectPython',
-    )
-
-
 def global_normal(obj):
     """Determines the normal vector to the plane of the object's global placement.
 

@@ -7,8 +7,8 @@ import Part
 from PySide import QtGui
 
 from shaper_cutout_command.create_shaper_dados import open_dados_task_panel
-from shaper_cutout_util import _ICON_ROOT, global_normal, is_sketch, objects_are_parallel, \
-    parent_cutout
+from shaper_cutout_util import _ICON_ROOT, global_normal, objects_are_parallel, \
+    parent_cutout, ShaperCutoutType
 
 ZERO_DEPTH_TOLERANCE = 1e-5
 
@@ -482,7 +482,7 @@ class ViewProviderShaperDados:
         return None
 
     def canDragObject(self, child):
-        return is_sketch(child)
+        return ShaperCutoutType.SKETCH.is_type_of(child)
 
     def dragObject(self, vobj, child):
         # Similar to cutouts, dados act kinda like groups except that sketches can live in
@@ -493,10 +493,10 @@ class ViewProviderShaperDados:
         # Don't print warnings here, this event triggers many times while the user is hovering.
         # Just filter to "sketches only" which is easy for the user to understand, and do further
         # filters in `dropChild` where we can print warnings to explain why we reject things.
-        return is_sketch(child)
+        return ShaperCutoutType.SKETCH.is_type_of(child)
 
     def dropObject(self, vobj, child):
-        if not is_sketch(child):
+        if not ShaperCutoutType.SKETCH.is_type_of(child):
             return
 
         if not objects_are_parallel(self.Object.DadoPlane, child):
