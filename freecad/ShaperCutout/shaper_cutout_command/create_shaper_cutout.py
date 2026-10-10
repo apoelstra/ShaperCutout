@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import os
-from typing import Optional
+from typing import Optional, Tuple
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -9,18 +9,17 @@ from PySide import QtWidgets
 
 from .task_panel import ShaperTaskPanel
 import shaper_cutout_util
-from shaper_cutout_util import _ICON_ROOT, all_objects, copy_property, objects_are_parallel, \
-    Objects, ShaperCutoutType
+from shaper_cutout_util import _ICON_ROOT, all_objects, copy_property, \
+    get_or_create_attachment_plane, objects_are_parallel, Objects, ShaperCutoutType
 
 
-def _selection_center_and_sketches(selected: Optional[Objects] = None):
+def _selection_center_and_sketch(
+    selected: Optional[Objects] = None
+) -> Tuple[Optional[App.DocumentObject], Optional[App.DocumentObject]]:
     """Parse a selection for the Create Shaper Cutout command.
 
-    Accepts exactly one center-plane candidate -- a supported plane, or a
-    ShaperCutout (which contributes its own center plane) -- plus any number
-    of sketches. Selecting a cutout together with its own center plane
-    counts as one candidate. Returns (center_plane, sketches), or
-    (None, []) if the selection is not usable.
+    Accepts exactly one center-plane candidate (either a ShaperCutout (interpreted as its
+    center plane) or an actual plane) and one sketch candidate.
     """
     if selected is None:
         selected = shaper_cutout_util.selection()
@@ -30,16 +29,18 @@ def _selection_center_and_sketches(selected: Optional[Objects] = None):
         + len(selected.dict[ShaperCutoutType.SKETCH])
     if selected.total_count != n_objects:
         # Extra stuff selected.
-        return None, []
+        return None, None
 
     centers = set(o.CenterPlane for o in selected.dict[ShaperCutoutType.CUTOUT]).union(
         set(selected.dict[ShaperCutoutType.PLANE]))
     sketches = selected.dict[ShaperCutoutType.SKETCH]
 
     # More than one plane selected.
-    if len(centers) != 1:
-        return None, []
-    return centers.pop(), sketches
+    if len(centers) > 1 or len(sketches) > 1:
+        return None, None
+
+    return centers.pop() if len(centers) == 1 else None, \
+        sketches.pop() if len(sketches) == 1 else None
 
 
 def _lcs_parent(obj):
@@ -97,9 +98,9 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
         self.preselect_warnings = []
         selection = shaper_cutout_util.selection()
         if cutout is None:
-            self._sel_center, sketches = _selection_center_and_sketches(selection)
+            self._sel_center, self._sel_sketch = _selection_center_and_sketch(selection)
         else:
-            self._sel_center, sketches = cutout.CenterPlane, []
+            self._sel_center, self._sel_sketch = cutout.CenterPlane, None
         super().__init__("Cutout", cutout)
 
         # Collect available planes and sketches
@@ -159,23 +160,16 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
         )
 
         # Sketch combo
-        sk = None
-        if len(sketches) > 0:
-            sk = sketches[0]
-            for item in sketches[1:]:
-                self.preselect_warnings.append(
-                    f"multiple sketches were selected; using '{sketches[0].Label}'"
-                    f" as the outline sketch and ignoring '{item.Label}'")
-
+        if self._sel_sketch:
             center = self.plane_combo._widget.currentData()
-            parent_dados = Objects(sk.InList).dict[ShaperCutoutType.DADOS]
-            if any(sk in getattr(d, 'Sketches', []) for d in parent_dados):
+            parent_dados = Objects(self._sel_sketch.InList).dict[ShaperCutoutType.DADOS]
+            if any(self._sel_sketch in getattr(d, 'Sketches', []) for d in parent_dados):
                 self.preselect_warnings.append(
-                    f"sketch '{sketches[0].Label}' belongs to a dado set and is not usable"
+                    f"sketch '{self._sel_sketch.Label}' belongs to a dado set and is not usable"
                     " as an outline sketch")
-            elif not objects_are_parallel(center, sk):
+            elif not objects_are_parallel(center, self._sel_sketch):
                 self.preselect_warnings.append(
-                    f"sketch '{sk.Label}' is not parallel to the center plane")
+                    f"sketch '{self._sel_sketch.Label}' is not parallel to the center plane")
 
         def sketch_label(s: App.DocumentObject) -> Optional[str]:
             if objects_are_parallel(self.plane_combo._widget.currentData(), s) \
@@ -188,7 +182,7 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
             ShaperCutoutType.SKETCH,
             "(No outline sketch)",
             all_doc_objects,
-            selected_value=sk,
+            selected_value=self._sel_sketch,
             labelfn=sketch_label,
         )
 
@@ -202,10 +196,17 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
         self._initialized = True
         self._on_plane_changed()
 
-    def create_uninitialized_object(self) -> App.DocumentObject:
+    def create_uninitialized_object(self) -> Optional[App.DocumentObject]:
         from ShaperCutout import create_uninitialized
         center = self._sel_center
-        assert (center is not None)
+        if center is None:
+            if self._sel_sketch is None:
+                return None
+
+            center = get_or_create_attachment_plane(self._sel_sketch)
+            if center is None:
+                return None
+
         _cutout = create_uninitialized()
         _cutout.CenterPlane = center
 
@@ -289,13 +290,8 @@ class CreateShaperCutoutCmd:
         }
 
     def IsActive(self):
-        if not App.ActiveDocument:
-            return False
-        # One plane (or cutout), optionally with sketches (issue #15). The
-        # dialog pre-selects a usable sketch as the outline; unusable ones
-        # (nonparallel, dado sketches) are reported when it opens.
-        center, _ = _selection_center_and_sketches()
-        return center is not None
+        center, sketch = _selection_center_and_sketch()
+        return center is not None or sketch is not None
 
     def Activated(self):
         open_cutout_task_panel()

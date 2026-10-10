@@ -3,7 +3,6 @@
 from typing import Optional
 
 import FreeCAD as App
-import FreeCADGui as Gui
 
 
 def force_combo_to_value(combo_widget, val):

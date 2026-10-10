@@ -23,8 +23,8 @@ import ShaperDados  # noqa: F401  (registers the ShaperDados type)
 import ShaperCutout  # noqa: F401
 
 from shaper_cutout_command.create_shaper_cutout import (
-    CreateShaperCutoutCmd, ShaperCutoutTaskPanel, _selection_center_and_sketches)
-from shaper_cutout_command.task_panel import ShaperTaskPanel
+    CreateShaperCutoutCmd, ShaperCutoutTaskPanel, _selection_center_and_sketch)
+from shaper_cutout_command.task_panel import ShaperTaskPanel, TaskPanelRejected
 from shaper_cutout_util import Objects
 
 from util import assert_true, make_cutout, make_plane, make_sketch, mm
@@ -98,39 +98,39 @@ def test_selection_parse_plane_plus_sketch():
     plane2 = make_plane(doc, "Plane2")
     cube = doc.addObject("Part::Box", "Box")
 
-    center, sketches = _selection_center_and_sketches(Objects([plane]))
-    assert_true(center is plane and sketches == [], "plane alone -> plane center")
+    center, sketchx = _selection_center_and_sketch(Objects([plane]))
+    assert_true(center is plane and sketchx is None, "plane alone -> plane center")
 
-    center, sketches = _selection_center_and_sketches(Objects([plane, sketch]))
-    assert_true(center is plane and sketches == [sketch],
+    center, sketchx = _selection_center_and_sketch(Objects([plane, sketch]))
+    assert_true(center is plane and sketchx is sketch,
                 "plane + sketch is a valid selection")
 
-    center, sketches = _selection_center_and_sketches(Objects([cutout]))
-    assert_true(center is plane and sketches == [],
+    center, sketchx = _selection_center_and_sketch(Objects([cutout]))
+    assert_true(center is plane and sketchx is None,
                 "cutout alone -> its center plane")
 
-    center, sketches = _selection_center_and_sketches(Objects([cutout, plane]))
-    assert_true(center is plane and sketches == [],
+    center, sketchx = _selection_center_and_sketch(Objects([cutout, plane]))
+    assert_true(center is plane and sketchx is None,
                 "cutout + own center plane de-dupes to one candidate")
 
-    center, sketches = _selection_center_and_sketches(Objects([cutout, plane, sketch]))
-    assert_true(center is plane and sketches == [sketch],
+    center, sketchx = _selection_center_and_sketch(Objects([cutout, plane, sketch]))
+    assert_true(center is plane and sketchx is sketch,
                 "cutout + own center plane + sketch")
 
-    center, _ = _selection_center_and_sketches(Objects([plane, plane2]))
+    center, _ = _selection_center_and_sketch(Objects([plane, plane2]))
     assert_true(center is None, "two planes is not a valid center")
 
-    center, _ = _selection_center_and_sketches(Objects([cutout, plane2]))
+    center, _ = _selection_center_and_sketch(Objects([cutout, plane2]))
     assert_true(center is None,
                 "cutout + a different plane is ambiguous, not a valid center")
 
-    center, _ = _selection_center_and_sketches(Objects([sketch]))
+    center, _ = _selection_center_and_sketch(Objects([sketch]))
     assert_true(center is None, "sketch alone has no center")
 
-    center, _ = _selection_center_and_sketches(Objects([plane, cube]))
+    center, _ = _selection_center_and_sketch(Objects([plane, cube]))
     assert_true(center is None, "unrelated object disqualifies selection")
 
-    center, _ = _selection_center_and_sketches(Objects([]))
+    center, _ = _selection_center_and_sketch(Objects([]))
     assert_true(center is None, "empty selection")
 
     App.closeDocument(doc.Name)
@@ -151,7 +151,7 @@ def test_create_cmd_isactive():
         _stub_selection([plane, sketch])
         assert_true(cmd.IsActive(), "plane + sketch: command active (issue #15)")
         _stub_selection([sketch])
-        assert_true(not cmd.IsActive(), "sketch alone: not active")
+        assert_true(cmd.IsActive(), "sketch alone: active")
         _stub_selection([plane, plane2])
         assert_true(not cmd.IsActive(), "two planes: not active")
         _stub_selection([plane, cube])
@@ -250,14 +250,13 @@ def test_create_panel_multiple_sketches():
     sketch_b = make_sketch(doc, plane, "SketchB")
     doc.recompute()
 
-    with _PanelFixture([plane, sketch_b, sketch_a]) as panel:
-        obj = panel._object
-        # First selected sketch wins; the rest are reported.
-        assert_true(obj.OutlineSketch is sketch_b,
-                    "first selected sketch used as outline")
-        assert_true(len(panel.preselect_warnings) == 1
-                    and "SketchA" in panel.preselect_warnings[0],
-                    f"ignored-sketch warning expected, got {panel.preselect_warnings}")
+    got_rejected = False
+    try:
+        with _PanelFixture([plane, sketch_b, sketch_a]) as _:
+            pass
+    except TaskPanelRejected:
+        got_rejected = True
+    assert_true(got_rejected, "task panel should reject multiple sketches")
 
     App.closeDocument(doc.Name)
 
@@ -278,6 +277,147 @@ def test_create_panel_plane_only_unchanged():
     App.closeDocument(doc.Name)
 
 
+def _stub_question(answers):
+    """Replace QMessageBox.question with a canned-answer recorder.
+
+    `answers` is a list consumed front to back; each entry is returned as
+    the answer to one question() call. Returns (stub, restore_fn)."""
+    calls = []
+
+    def fake(parent, title, text, *a, **k):
+        calls.append((title, str(text)))
+        return answers.pop(0)
+
+    real = QtWidgets.QMessageBox.question
+    QtWidgets.QMessageBox.question = staticmethod(fake)
+
+    def restore():
+        QtWidgets.QMessageBox.question = real
+
+    return calls, restore
+
+
+def test_create_sketch_on_plane_backs_cutout():
+    """Sketch-only selection, sketch attached to a plane: the cutout is
+    backed by the sketch's own plane (no question asked)."""
+    doc = App.newDocument("sel_sketchonly_plane")
+    plane = make_plane(doc, "Plane1")
+    sketch = make_sketch(doc, plane, "Sketch1")
+    doc.recompute()
+
+    calls, restore = _stub_question([QtWidgets.QMessageBox.Yes])
+    try:
+        with _PanelFixture([sketch]) as panel:
+            obj = panel._object
+            assert_true(obj.Type == 'ShaperCutout', "created a cutout")
+            assert_true(obj.CenterPlane is plane,
+                        "backed by the sketch's own plane")
+            assert_true(obj.OutlineSketch is sketch,
+                        "selected sketch used as outline")
+            assert_true(len(calls) == 0,
+                        f"no question expected for an attached sketch, got {calls}")
+            obj.Thickness = mm(0.5)
+            doc.recompute()
+            assert_true(len(obj.Shape.Solids) == 1, "cutout computed a solid")
+    finally:
+        restore()
+
+    App.closeDocument(doc.Name)
+
+
+def test_create_sketch_detached_creates_new_plane():
+    """Sketch-only selection, sketch not attached to any plane (e.g. drawn
+    with a bare placement): with consent, a fresh datum plane is created,
+    attached to the sketch, and backs the cutout."""
+    doc = App.newDocument("sel_sketchonly_newplane")
+    plane = make_plane(doc, "Plane1")
+    sketch = make_sketch(doc, plane, "Sketch1")
+    # Detach: the user drew this sketch without attaching it to anything.
+    sketch.AttachmentSupport = []
+    sketch.MapMode = 'Deactivated'
+    doc.recompute()
+    n_objects = len(doc.Objects)
+
+    calls, restore = _stub_question([QtWidgets.QMessageBox.Yes])
+    try:
+        with _PanelFixture([sketch]) as panel:
+            obj = panel._object
+            assert_true(obj.Type == 'ShaperCutout', "created a cutout")
+            assert_true(len(calls) == 1,
+                        f"one question expected, got {calls}")
+            center = obj.CenterPlane
+            assert_true(center is not plane,
+                        "a new plane was created, not the sketch's old plane")
+            assert_true(center.TypeId == 'Part::DatumPlane',
+                        f"center is a datum plane, got {center.TypeId}")
+            target = sketch.AttachmentSupport[0]
+            assert_true(target[0] is center and target[1][0] == '',
+                        "sketch is attached to the new plane")
+            assert_true(len(center.AttachmentSupport) == 0,
+                        "center not attached (no cycle)")
+            doc.recompute()
+            assert_true(obj.Thickness > 0, "thickness set")
+            assert_true(len(obj.Shape.Solids) == 1, "cutout computed a solid")
+            # Exactly the new plane, the cutout, and its front/back faces
+            # were added.
+            assert_true(len(doc.Objects) == n_objects + 4,
+                        f"expected {n_objects + 4} objects, got {len(doc.Objects)}")
+    finally:
+        restore()
+
+    App.closeDocument(doc.Name)
+
+
+def test_create_sketch_detached_declined_aborts():
+    """Declining the new-plane question cancels the command cleanly: no
+    cutout, no leaked transaction (TaskPanelRejected path)."""
+    doc = App.newDocument("sel_sketchonly_decline")
+    plane = make_plane(doc, "Plane1")
+    sketch = make_sketch(doc, plane, "Sketch1")
+    sketch.AttachmentSupport = []
+    sketch.MapMode = 'Deactivated'
+    doc.recompute()
+    n_objects = len(doc.Objects)
+
+    calls, restore = _stub_question([QtWidgets.QMessageBox.No])
+    old_widget = ShaperTaskPanel._quantity_widget
+    old_sel = getattr(Gui, 'Selection', None)
+    try:
+        _qapp()
+        ShaperTaskPanel._quantity_widget = \
+            lambda self, prop, minimum=None, maximum=None: QtWidgets.QWidget()
+        _stub_selection([sketch])
+        raised = False
+        try:
+            ShaperCutoutTaskPanel()
+        except TaskPanelRejected:
+            raised = True
+        assert_true(raised, "declining the question raises TaskPanelRejected")
+        assert_true(len(calls) == 1, f"one question expected, got {calls}")
+        assert_true([o for o in doc.Objects
+                     if getattr(o, 'Type', '') == 'ShaperCutout'] == [],
+                    "no cutout created")
+        assert_true(len(doc.Objects) == n_objects, "no leftover objects")
+        # The transaction must have been aborted: undo is a no-op (a leaked
+        # open transaction would swallow the next undo).
+        doc.undo()
+        doc.recompute()
+        assert_true(len(doc.Objects) == n_objects,
+                    "undo after rejection changed objects (leaked transaction)")
+    finally:
+        ShaperTaskPanel._quantity_widget = old_widget
+        if old_sel is None:
+            try:
+                del Gui.Selection
+            except AttributeError:
+                pass
+        else:
+            Gui.Selection = old_sel
+        restore()
+
+    App.closeDocument(doc.Name)
+
+
 def register_tests(all_tests):
     all_tests.extend([
         test_selection_parse_plane_plus_sketch,
@@ -287,4 +427,7 @@ def register_tests(all_tests):
         test_create_panel_dado_sketch_warns,
         test_create_panel_multiple_sketches,
         test_create_panel_plane_only_unchanged,
+        test_create_sketch_on_plane_backs_cutout,
+        test_create_sketch_detached_creates_new_plane,
+        test_create_sketch_detached_declined_aborts,
     ])
