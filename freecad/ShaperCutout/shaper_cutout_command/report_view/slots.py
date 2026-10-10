@@ -6,7 +6,7 @@ from typing import List
 from PySide import QtCore, QtGui, QtWidgets
 
 from .model import ReportTableModel, ReportTableWidget
-from shaper_cutout_util import make_expr_template, parent_cutout
+from shaper_cutout_util import ShaperCutoutType, all_objects, make_expr_template, parent_cutout
 
 
 class SlotModel(ReportTableModel):
@@ -83,8 +83,7 @@ class ReportViewSlots(QtGui.QWidget):
         layout.addLayout(button_layout)
 
         # Populate table
-        slots = [obj for obj in self._doc.Objects
-                 if getattr(obj, 'Type', '') == 'ShaperSlot']
+        slots = all_objects().dict[ShaperCutoutType.SLOT]
         self._table.populate(slots)
 
         # Connect signals

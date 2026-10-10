@@ -6,7 +6,7 @@ from typing import List
 from PySide import QtCore, QtGui, QtWidgets
 
 from .model import ReportTableModel, ReportTableWidget
-from shaper_cutout_util import make_expr_template, parent_cutout
+from shaper_cutout_util import ShaperCutoutType, all_objects, make_expr_template, parent_cutout
 
 
 class DadosModel(ReportTableModel):
@@ -95,8 +95,7 @@ class ReportViewDados(QtGui.QWidget):
         button_layout.addLayout(update_data_layout)
 
         # Populate table
-        dados = [obj for obj in self._doc.Objects
-                 if getattr(obj, 'Type', '') == 'ShaperDados']
+        dados = all_objects().dict[ShaperCutoutType.DADOS]
         self._table.populate(dados)
 
         layout.addWidget(self._table)

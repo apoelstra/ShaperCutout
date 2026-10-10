@@ -6,7 +6,7 @@ from PySide import QtCore, QtGui, QtWidgets
 from typing import List
 
 from .model import ReportTableModel, ReportTableWidget
-from shaper_cutout_util import make_expr_template, parent_cutout
+from shaper_cutout_util import ShaperCutoutType, all_objects, make_expr_template, parent_cutout
 
 
 class MiterModel(ReportTableModel):
@@ -70,8 +70,7 @@ class ReportViewMiter(QtGui.QWidget):
         layout.addLayout(button_layout)
 
         # Populate table
-        miters = [obj for obj in self._doc.Objects
-                  if getattr(obj, 'Type', '') == 'ShaperMiter']
+        dados = all_objects().dict[ShaperCutoutType.MITER]
         self._table.populate(miters)
 
         # Connect signals

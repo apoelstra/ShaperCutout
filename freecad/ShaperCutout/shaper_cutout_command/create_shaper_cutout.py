@@ -7,8 +7,8 @@ import FreeCADGui as Gui
 from PySide import QtWidgets
 
 from .task_panel import ShaperTaskPanel
-from shaper_cutout_util import _ICON_ROOT, copy_property, \
-        force_combo_to_value, objects_are_parallel, ShaperCutoutType
+from shaper_cutout_util import _ICON_ROOT, all_objects, copy_property, \
+        force_combo_to_value, objects_are_parallel, Objects, ShaperCutoutType
 
 
 _SUPPORTED_PLANE_TYPES = ['App::Plane', 'Part::Plane', 'Part::DatumPlane', 'PartDesign::Plane']
@@ -59,17 +59,11 @@ def _lcs_parent(obj):
     return None
 
 
-def _dado_parents(obj):
-    """Find all ShaperDados for which this is some sketch."""
-    if obj is None or len(getattr(obj, 'InList', [])) == 0:
-        return []
-
-    result = set()
-    for parent in obj.InList:
-        if getattr(parent, 'Type', '') == 'ShaperDados':
-            result.update(_cutout_parents(parent))
-
-    return sorted(list(result), key=lambda x: x.Label)
+def _has_dado_parent(obj):
+    for parent in getattr(obj, 'InList', []):
+        if ShaperCutoutType.DADOS.is_type_of(parent):
+            return True
+    return False
 
 
 def _cutout_parents(obj):
@@ -115,15 +109,13 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
         super().__init__("Cutout", cutout)
 
         # Collect available planes and sketches
-        self._all_sketches = [o for o in self._doc.Objects
-                              if ShaperCutoutType.SKETCH.is_type_of(o) and not _dado_parents(o)]
+        all_doc_objects = all_objects(self._doc)
+        self._all_sketches = [sk for sk in all_doc_objects.dict[ShaperCutoutType.SKETCH]
+                              if not _has_dado_parent(sk)]
 
         # Plane combo
         self.plane_combo = QtWidgets.QComboBox()
-        for o in self._doc.Objects:
-            if getattr(o, 'TypeId', '') not in _SUPPORTED_PLANE_TYPES:
-                continue
-
+        for o in all_doc_objects.dict[ShaperCutoutType.PLANE]:
             parents = _cutout_parents(o)
             is_current = False
             shared_with = []
@@ -238,8 +230,9 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
                         f"multiple sketches were selected; using '{picked.Label}'"
                         f" as the outline sketch and ignoring '{s.Label}'")
                 continue
-            if any(s in (d.Sketches or []) for d in self._doc.Objects
-                   if getattr(d, 'Type', '') == 'ShaperDados'):
+
+            parent_dados = Objects(s.InList).dict[ShaperCutoutType.DADOS]
+            if any(s in getattr(d, 'Sketches', []) for d in parent_dados):
                 self.preselect_warnings.append(
                     f"sketch '{s.Label}' belongs to a dado set and is not usable"
                     " as an outline sketch")

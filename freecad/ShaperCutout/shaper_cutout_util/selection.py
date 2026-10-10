@@ -4,7 +4,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 
 from enum import Enum
-from typing import List, Iterable, Optional
+from typing import List, Iterable, Optional, Set
 
 
 SUPPORTED_PLANE_TYPES = [
@@ -81,6 +81,13 @@ class Objects:
 
     def get_single(self, ty: ShaperCutoutType) -> App.DocumentObject:
         return self.dict[ty][0]
+
+
+def all_objects(doc: App.Document, exclude: Set[App.DocumentObject] = set()) -> Objects:
+    if len(exclude) == 0:
+        return Objects(doc.Objects)
+    else:
+        return Objects(set(doc.Objects) - exclude)
 
 
 def selection(children_of: Optional[App.DocumentObject] = None) -> Objects:

@@ -7,13 +7,12 @@ import FreeCADGui as Gui
 from PySide import QtCore, QtWidgets
 
 from .task_panel import ShaperTaskPanel
-from shaper_cutout_util import _ICON_ROOT, selection, ShaperCutoutType
+from shaper_cutout_util import _ICON_ROOT, all_objects, selection, ShaperCutoutType
 
 
 def _available_sketches(doc, already_linked):
     """Return sketches in doc not already in the linked set."""
-    linked_set = set(already_linked)
-    return [o for o in doc.Objects if ShaperCutoutType.SKETCH.is_type_of(o) and o not in linked_set]
+    return all_objects(exclude=set(already_linked)).dict[ShaperCutoutType.SKETCH]
 
 
 def open_dados_task_panel(cutout, dados=None, initial_sketches=[], clone_from=None):
