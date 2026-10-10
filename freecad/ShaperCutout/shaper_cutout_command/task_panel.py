@@ -22,15 +22,13 @@ class LinkWidget:
     def __init__(
         self,
         ty: ShaperCutoutType,
-        none_item: Optional[str] = None,
-        all_doc_objects: Objects = None,
-        labelfn: Optional[Callable[[App.DocumentObject], str]] = None,
-        filterfn: Optional[Callable[[App.DocumentObject], bool]] = None,
+        none_item: Optional[str],
+        all_doc_objects: Objects,
+        labelfn: Callable[[App.DocumentObject], Optional[str]],
     ):
         self._ty = ty
         self._none_item = none_item
         self._labelfn = labelfn
-        self._filterfn = filterfn
 
         self._widget = QtWidgets.QComboBox()
         self._refresh(all_doc_objects)
@@ -44,8 +42,8 @@ class LinkWidget:
 
         idx = 1
         for obj in all_doc_objects.dict[self._ty]:
-            if self._filterfn is None or self._filterfn(obj):
-                label = obj.Label if self._labelfn is None else self._labelfn(obj)
+            label = self._labelfn(obj)
+            if label is not None:
                 self._widget.addItem(label, obj)
                 if previous == obj:
                     self._widget.setCurrentIndex(idx)
@@ -135,16 +133,15 @@ class ShaperTaskPanel:
         none_item: Optional[str] = None,
         all_doc_objects: Optional[Objects] = None,
         selected_value: Optional[App.DocumentObject] = None,
-        labelfn: Optional[Callable[[App.DocumentObject], str]] = None,
-        filterfn: Optional[Callable[[App.DocumentObject], bool]] = None,
-    ) -> Tuple[LinkWidget, List[str]]:
+        labelfn: Callable[[App.DocumentObject], Optional[str]] = lambda x: x.Label,
+    ) -> LinkWidget:
         initial_value = None
         if getattr(self._object, prop_name, None) is not None:
             initial_value = getattr(self._object, prop_name)
         else:
             initial_value = selected_value
 
-        widget = LinkWidget(ty, none_item, all_doc_objects, labelfn, filterfn)
+        widget = LinkWidget(ty, none_item, all_doc_objects, labelfn)
         if initial_value is not None:
             force_combo_to_value(widget._widget, initial_value)
             self._on_link_changed(prop_name, widget)

@@ -170,15 +170,18 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
                 self.preselect_warnings.append(
                     f"sketch '{sk.Label}' is not parallel to the center plane")
 
+        def sketch_label(s: App.DocumentObject) -> Optional[str]:
+            if objects_are_parallel(self.plane_combo.currentData(), s) and not _has_dado_parent(s):
+                return s.Label
+            return None
+
         self.sketch_combo = self._link_widget(
             "OutlineSketch",
             ShaperCutoutType.SKETCH,
             "(No outline sketch)",
             all_doc_objects,
             selected_value=sk,
-            labelfn=None,
-            filterfn=lambda obj: objects_are_parallel(self.plane_combo.currentData(), obj)
-            and not _has_dado_parent(obj),
+            labelfn=sketch_label,
         )
 
         # Open transaction and create/reference cutout
