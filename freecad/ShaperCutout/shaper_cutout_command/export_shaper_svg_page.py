@@ -3,10 +3,9 @@
 import os
 
 import FreeCAD as App
-import FreeCADGui as Gui
 from PySide import QtWidgets
 
-from shaper_cutout_util import _ICON_ROOT
+from shaper_cutout_util import _ICON_ROOT, selection, ShaperCutoutType
 
 
 def export(obj):
@@ -37,13 +36,8 @@ class ExportShaperSvgPageCmd:
         }
 
     def IsActive(self):
-        if App.ActiveDocument is None:
-            return False
-        sel = Gui.Selection.getSelection()
-        return (len(sel) >= 1 and
-                all(getattr(o, 'Type', None) == 'ShaperSvgPage' for o in sel))
+        return selection().is_nonempty_exclusive(ShaperCutoutType.SVG_PAGE)
 
     def Activated(self):
-        for obj in Gui.Selection.getSelection():
-            if getattr(obj, 'Type', None) == 'ShaperSvgPage':
-                export(obj)
+        for obj in selection().dict[ShaperCutoutType.SVG_PAGE]:
+            export(obj)

@@ -8,19 +8,8 @@ import Part
 from PySide import QtWidgets
 
 from .task_panel import ShaperTaskPanel
-from shaper_cutout_util import _ICON_ROOT
+from shaper_cutout_util import _ICON_ROOT, selection, ShaperCutoutType
 import ShaperMiter
-
-
-def _selected_cutout():
-    for sel_obj in Gui.Selection.getSelectionEx():
-        obj = sel_obj.Object
-        if getattr(obj, 'Type', None) == 'ShaperCutout':
-            return obj
-        for parent in obj.InList:
-            if getattr(parent, 'Type', None) == 'ShaperCutout':
-                return parent
-    return None
 
 
 def _straight_edges(sketch):
@@ -123,14 +112,7 @@ class CreateShaperMiterCmd:
         }
 
     def IsActive(self):
-        if App.ActiveDocument is None:
-            return False
-        return _selected_cutout() is not None
+        return selection().is_single(ShaperCutoutType.CUTOUT)
 
     def Activated(self):
-        cutout = _selected_cutout()
-        if cutout is None:
-            QtWidgets.QMessageBox.warning(
-                None, "No Selection", "Please select a ShaperCutout first.")
-            return
-        open_miter_task_panel(cutout)
+        open_miter_task_panel(selection().get_single(ShaperCutoutType.CUTOUT))

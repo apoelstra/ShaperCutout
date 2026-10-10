@@ -7,7 +7,7 @@ import FreeCADGui as Gui
 from PySide import QtCore, QtWidgets
 
 from .task_panel import ShaperTaskPanel
-from shaper_cutout_util import _ICON_ROOT, is_single_selected
+from shaper_cutout_util import _ICON_ROOT, selection, ShaperCutoutType
 
 
 def _is_sketch(obj):
@@ -217,12 +217,7 @@ class CreateShaperDadosCmd:
         }
 
     def IsActive(self):
-        if not App.ActiveDocument:
-            return False
-        return is_single_selected('ShaperCutout')
+        return selection().is_single(ShaperCutoutType.CUTOUT)
 
     def Activated(self):
-        sel = Gui.Selection.getSelection()
-        if len(sel) == 0 or getattr(sel[0], 'Type', '') != 'ShaperCutout':
-            return
-        open_dados_task_panel(sel[0])
+        open_dados_task_panel(selection().get_single(ShaperCutoutType.CUTOUT))

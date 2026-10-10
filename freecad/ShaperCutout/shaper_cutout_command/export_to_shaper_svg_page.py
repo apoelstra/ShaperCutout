@@ -5,7 +5,7 @@ import os
 import FreeCAD as App
 import FreeCADGui as Gui
 
-from shaper_cutout_util import _ICON_ROOT, are_exclusively_selected
+from shaper_cutout_util import _ICON_ROOT, selection, ShaperCutoutType
 
 
 def create_page(cutout):
@@ -51,9 +51,7 @@ class ExportToShaperSvgPageCmd:
         }
 
     def IsActive(self):
-        return App.ActiveDocument and are_exclusively_selected('ShaperCutout')
+        return selection().is_single(ShaperCutoutType.CUTOUT)
 
     def Activated(self):
-        for obj in Gui.Selection.getSelection():
-            if getattr(obj, 'Type', None) == 'ShaperCutout':
-                create_page(obj)
+        create_page(selection().get_single(ShaperCutoutType.CUTOUT))

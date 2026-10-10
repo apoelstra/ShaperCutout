@@ -5,8 +5,9 @@ from os.path import abspath, dirname
 
 from shaper_cutout_util.expr_template import _ExprTemplate, make_expr_template  # noqa: F401
 from shaper_cutout_util.faces import cleanFaces  # noqa: F401
-from shaper_cutout_util.misc import are_exclusively_selected, copy_property, is_single_selected, \
+from shaper_cutout_util.misc import copy_property, \
     force_combo_to_value, parent_cutout  # noqa: F401
+from shaper_cutout_util.selection import Objects, ShaperCutoutType, selection  # noqa: F401
 from shaper_cutout_util.sketch import is_sketch, global_normal, objects_are_parallel  # noqa: F401
 
 _ADDON_ROOT = dirname(dirname(dirname(dirname(abspath(__file__)))))

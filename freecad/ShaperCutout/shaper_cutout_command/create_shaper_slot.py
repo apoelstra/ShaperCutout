@@ -7,20 +7,18 @@ import FreeCADGui as Gui
 from PySide import QtWidgets
 
 from .task_panel import ShaperTaskPanel, TaskPanelRejected
-from shaper_cutout_util import _ICON_ROOT, global_normal, objects_are_parallel
+from shaper_cutout_util import _ICON_ROOT, global_normal, objects_are_parallel, selection, \
+    ShaperCutoutType
 import ShaperSlot
-
-
-_SUPPORTED_PLANE_TYPES = ['App::Plane', 'Part::Plane', 'Part::DatumPlane', 'PartDesign::Plane']
 
 
 def _selected_cutouts_and_plane():
     """Return (cutout1, cutout2, interface_plane) or None."""
-    sel = Gui.Selection.getSelection()
-    cutouts = [o for o in sel if getattr(o, 'Type', None) == 'ShaperCutout']
-    planes = [o for o in sel if getattr(o, 'TypeId', '') in _SUPPORTED_PLANE_TYPES]
+    sel = selection()
+    cutouts = sel.dict[ShaperCutoutType.CUTOUT]
+    planes = sel.dict[ShaperCutoutType.PLANE]
 
-    if len(cutouts) != 2 or len(planes) != 1:
+    if sel.total_count != 3 or len(cutouts) != 2 or len(planes) != 1:
         return None
 
     return cutouts[0], cutouts[1], planes[0]
@@ -206,8 +204,6 @@ class CreateShaperSlotCmd:
         }
 
     def IsActive(self):
-        if not App.ActiveDocument:
-            return False
         return _selected_cutouts_and_plane() is not None
 
     def Activated(self):

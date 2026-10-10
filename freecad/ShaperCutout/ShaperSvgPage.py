@@ -11,7 +11,7 @@ from PySide import QtCore, QtGui, QtWidgets, QtSvg
 
 from shaper_cutout_svg import SvgAnchorFrame, SvgAnchorPlacerAction, SvgAnchorPlacerMode, \
         SvgAnchorPlacer
-from shaper_cutout_util import _ICON_ROOT
+from shaper_cutout_util import _ICON_ROOT, selection, ShaperCutoutType
 import ShaperSvgImage
 import ShaperSvgShape
 
@@ -199,6 +199,10 @@ class ShaperSvgPage:
 
         self.addDisplayProperties(obj)
 
+    def _selected_children(self, page_obj: App.DocumentObject) -> List[App.DocumentObject]:
+        sel = selection(children_of=page_obj)
+        return sel.dict[ShaperCutoutType.SVG_IMAGE] + sel.dict[ShaperCutoutType.SVG_SHAPE]
+
     def _svg_to_page_matrix(self, obj: App.DocumentObject, child) -> App.Matrix:
         """The matrix mapping a child's local Svg space into page space."""
         cx, cy = child.Proxy.centerXY(child)
@@ -265,11 +269,7 @@ class ShaperSvgPage:
         shaper:cutType="guide" />
 '''
 
-        if App.GuiUp:
-            selected = [s for s in Gui.Selection.getSelection()
-                        if _is_page_child(s) and s in obj.Group]
-        else:
-            selected = []
+        selected = self._selected_children(obj)
 
         # Render each ShaperSvgImage child
         for child in obj.Group:
@@ -649,8 +649,7 @@ class _PageWidget(QtWidgets.QWidget):
         pos_x_mm = (pos.x() - pad_x) / grid_px * grid_mm
         pos_y_mm = (pos.y() - pad_y) / grid_px * grid_mm
 
-        selected = {s for s in Gui.Selection.getSelection()
-                    if _is_page_child(s) and s in self._page_obj.Group}
+        selected = self._selected_children(self._page_obj)
 
         ordered = list(reversed(self._page_obj.Group))
         swap_idx = 0
@@ -724,8 +723,7 @@ class _PageWidget(QtWidgets.QWidget):
 
                 self._drag_start = event.pos()
                 self._dragging = [(s, s.OffsetX.Value, s.OffsetY.Value)
-                                  for s in Gui.Selection.getSelection()
-                                  if _is_page_child(s) and s in self._page_obj.Group]
+                                  for s in self._selected_children(self._page_obj)]
                 self._page_obj.Proxy._is_dragging = True
                 self._page_obj.Document.openTransaction("Move ShaperSvgImage")
                 self.setCursor(QtCore.Qt.ClosedHandCursor)
@@ -839,8 +837,8 @@ class _PageWidget(QtWidgets.QWidget):
             event.ignore()
             return
 
-        selected = {s for s in Gui.Selection.getSelection()
-                    if _is_page_child(s) and s in self._page_obj.Group}
+        sel = Selection(children_of=self._page_obj)
+        selected = sel.dict[ShaperCutoutType.SVG_IMAGE] + sel.dict[ShaperCutoutType.SVG_SHAPE]
         if child not in selected:
             event.ignore()
             return
