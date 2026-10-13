@@ -10,10 +10,11 @@ import shaper_cutout_util
 from shaper_cutout_util import Objects, ShaperCutoutType, force_combo_to_value
 
 
-class TaskPanelRejected(Exception):
-    """Raised by ShaperTaskPanel when the create flow declines to proceed
-    (e.g. an invalid selection). The subclass has already informed the user
-    why; the open_* helper should swallow this and not show the dialog."""
+# Sentinel returned by ShaperTaskPanel.create_uninitialized_object() when the
+# create flow declines to proceed (e.g. an invalid selection); plain None is
+# also accepted. The subclass has already informed the user why; the panel is
+# marked rejected and the open_* helper discards it without showing a dialog.
+REJECTED = object()
 
 
 class LinkWidget:
@@ -68,6 +69,7 @@ class ShaperTaskPanel:
         self._doc = App.ActiveDocument
         self._edit_mode = doc_object is not None
         self._initialized = False
+        self._rejected = False
 
         action = "Edit" if self._edit_mode else "Create"
         self._doc.openTransaction(f"{action} {name}")
@@ -77,13 +79,17 @@ class ShaperTaskPanel:
             self._object = doc_object
         else:
             obj = self.create_uninitialized_object()
-            if obj is None:
+            if obj is None or obj is REJECTED:
                 # The create flow declined to proceed (e.g. invalid selection);
                 # the subclass has already told the user why. Undo the
                 # transaction we just opened and unwind, instead of crashing
                 # below on self._object.Label with the transaction leaked open.
+                # Subclass constructors must check is_rejected() right after
+                # calling super().__init__ and skip building their UI.
                 self._doc.abortTransaction()
-                raise TaskPanelRejected()
+                self._object = None
+                self._rejected = True
+                return
             self._object = obj
 
         # Build UI
@@ -99,7 +105,17 @@ class ShaperTaskPanel:
         self._main_layout.addRow("Label:", self.label_edit)
 
     def create_uninitialized_object(self) -> Optional[App.DocumentObject]:
+        """Create the (unconfigured) document object for a create panel.
+
+        Return None or REJECTED (after informing the user why) to decline:
+        the transaction is aborted and the open_* helper does not show the
+        dialog. Returning None is deprecated; prefer REJECTED.
+        """
         raise NotImplementedError
+
+    def is_rejected(self) -> bool:
+        """Whether the create flow declined (see create_uninitialized_object)."""
+        return self._rejected
 
     def _on_label_changed(self):
         if not self._edit_mode:

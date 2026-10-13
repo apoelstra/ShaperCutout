@@ -7,7 +7,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtWidgets
 
-from .task_panel import ShaperTaskPanel
+from .task_panel import REJECTED, ShaperTaskPanel
 import shaper_cutout_util
 from shaper_cutout_util import _ICON_ROOT, all_objects, copy_property, \
     get_or_create_attachment_plane, objects_are_parallel, Objects, ShaperCutoutType
@@ -83,6 +83,10 @@ def open_cutout_task_panel(cutout=None):
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
     panel = ShaperCutoutTaskPanel(cutout)
+    if panel.is_rejected():
+        # The create flow declined (e.g. the user declined the attachment
+        # plane); it has already told the user why.
+        return
     Gui.Control.showDialog(panel)
 
     if panel.preselect_warnings:
@@ -102,6 +106,10 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
         else:
             self._sel_center, self._sel_sketch = cutout.CenterPlane, None
         super().__init__("Cutout", cutout)
+        if self.is_rejected():
+            # create_uninitialized_object declined (the user was told why);
+            # the transaction is already aborted and the dialog won't be shown.
+            return
 
         # Collect available planes and sketches
         all_doc_objects = all_objects(self._doc)
@@ -201,11 +209,11 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
         center = self._sel_center
         if center is None:
             if self._sel_sketch is None:
-                return None
+                return REJECTED
 
             center = get_or_create_attachment_plane(self._sel_sketch)
             if center is None:
-                return None
+                return REJECTED
 
         _cutout = create_uninitialized()
         _cutout.CenterPlane = center

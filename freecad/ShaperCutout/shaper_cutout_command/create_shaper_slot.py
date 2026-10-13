@@ -6,7 +6,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtWidgets
 
-from .task_panel import ShaperTaskPanel, TaskPanelRejected
+from .task_panel import REJECTED, ShaperTaskPanel
 from shaper_cutout_util import _ICON_ROOT, global_normal, objects_are_parallel, selection, \
     ShaperCutoutType
 import ShaperSlot
@@ -59,9 +59,8 @@ def _determine_first_cutout(cutout1, cutout2, interface_plane):
 def open_slot_task_panel(slot=None):
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
-    try:
-        panel = ShaperSlotTaskPanel(slot)
-    except TaskPanelRejected:
+    panel = ShaperSlotTaskPanel(slot)
+    if panel.is_rejected():
         # Invalid selection/geometry; the panel already told the user why.
         return
     Gui.Control.showDialog(panel)
@@ -70,6 +69,10 @@ def open_slot_task_panel(slot=None):
 class ShaperSlotTaskPanel(ShaperTaskPanel):
     def __init__(self, slot=None):
         super().__init__("Slot", slot)
+        if self.is_rejected():
+            # create_uninitialized_object declined (the user was told why);
+            # the transaction is already aborted and the dialog won't be shown.
+            return
 
         # Get selection or existing slot data. These variables are alternately set in
         # create_uninitialized_object.
@@ -131,7 +134,7 @@ class ShaperSlotTaskPanel(ShaperTaskPanel):
                 None, "Invalid Selection",
                 "Please select exactly two ShaperCutouts and one interface plane.")
             Gui.Control.closeDialog()
-            return None
+            return REJECTED
 
         cutout_a, cutout_b, interface_plane = selection
 
@@ -141,7 +144,7 @@ class ShaperSlotTaskPanel(ShaperTaskPanel):
                 None, "Invalid Cutout",
                 "Both cutouts must have an outline sketch and front/back faces.")
             Gui.Control.closeDialog()
-            return None
+            return REJECTED
 
         # Planes must be orthogonal. (Otherwise the slot sides would need to be miters, which
         # (a) will require some complicated tooling to manufacture, and (b) would require some
@@ -157,7 +160,7 @@ class ShaperSlotTaskPanel(ShaperTaskPanel):
                 None, "Non-Orthogonal Cutouts",
                 "Cutout planes are not orthogonal; cannot create slot.")
             Gui.Control.closeDialog()
-            return None
+            return REJECTED
 
         # If the interface plane is parallel to a cutout, the slot is ill-defined and there's
         # nothing we can do about it even in principle. (Again, will need to check again during
@@ -168,7 +171,7 @@ class ShaperSlotTaskPanel(ShaperTaskPanel):
                 None, "Parallel Plane",
                 "Interface plane is parallel to a cutout center plane; cannot create slot.")
             Gui.Control.closeDialog()
-            return None
+            return REJECTED
 
         # Determine "first" cutout
         self._cutout1 = _determine_first_cutout(cutout_a, cutout_b, interface_plane)

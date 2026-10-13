@@ -34,6 +34,10 @@ class ShaperDadosTaskPanel(ShaperTaskPanel):
         self._initialized = False
         self._cutout = cutout
         super().__init__("Dado Set", dados)
+        if self.is_rejected():
+            # create_uninitialized_object declined (the user was told why);
+            # the transaction is already aborted and the dialog won't be shown.
+            return
 
         # A dropped dado set clones its settings into the freshly created
         # object; do this before building any widgets so they all pick up the

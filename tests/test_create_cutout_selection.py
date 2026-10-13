@@ -24,7 +24,7 @@ import ShaperCutout  # noqa: F401
 
 from shaper_cutout_command.create_shaper_cutout import (
     CreateShaperCutoutCmd, ShaperCutoutTaskPanel, _selection_center_and_sketch)
-from shaper_cutout_command.task_panel import ShaperTaskPanel, TaskPanelRejected
+from shaper_cutout_command.task_panel import ShaperTaskPanel
 from shaper_cutout_util import Objects
 
 from util import assert_true, make_cutout, make_plane, make_sketch, mm, stub_selection
@@ -77,7 +77,8 @@ class _PanelFixture:
                 pass
         else:
             Gui.Selection = self._sel
-        if self.panel is not None:
+        if self.panel is not None and not self.panel.is_rejected():
+            # A rejected panel aborted its own transaction already.
             self.panel._doc.abortTransaction()
         return False
 
@@ -242,13 +243,9 @@ def test_create_panel_multiple_sketches():
     sketch_b = make_sketch(doc, plane, "SketchB")
     doc.recompute()
 
-    got_rejected = False
-    try:
-        with _PanelFixture([plane, sketch_b, sketch_a]) as _:
-            pass
-    except TaskPanelRejected:
-        got_rejected = True
-    assert_true(got_rejected, "task panel should reject multiple sketches")
+    with _PanelFixture([plane, sketch_b, sketch_a]) as panel:
+        assert_true(panel.is_rejected(),
+                    "task panel should reject multiple sketches")
 
     App.closeDocument(doc.Name)
 
@@ -362,7 +359,7 @@ def test_create_sketch_detached_creates_new_plane():
 
 def test_create_sketch_detached_declined_aborts():
     """Declining the new-plane question cancels the command cleanly: no
-    cutout, no leaked transaction (TaskPanelRejected path)."""
+    cutout, no leaked transaction (REJECTED path)."""
     doc = App.newDocument("sel_sketchonly_decline")
     plane = make_plane(doc, "Plane1")
     sketch = make_sketch(doc, plane, "Sketch1")
@@ -379,12 +376,8 @@ def test_create_sketch_detached_declined_aborts():
         ShaperTaskPanel._quantity_widget = \
             lambda self, prop, minimum=None, maximum=None: QtWidgets.QWidget()
         stub_selection([sketch])
-        raised = False
-        try:
-            ShaperCutoutTaskPanel()
-        except TaskPanelRejected:
-            raised = True
-        assert_true(raised, "declining the question raises TaskPanelRejected")
+        panel = ShaperCutoutTaskPanel()
+        assert_true(panel.is_rejected(), "declining the question rejects the panel")
         assert_true(len(calls) == 1, f"one question expected, got {calls}")
         assert_true([o for o in doc.Objects
                      if getattr(o, 'Type', '') == 'ShaperCutout'] == [],

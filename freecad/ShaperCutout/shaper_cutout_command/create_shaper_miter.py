@@ -33,6 +33,10 @@ class ShaperMiterTaskPanel(ShaperTaskPanel):
         self._initialized = False
         self._cutout = cutout
         super().__init__("Miter", miter)
+        if self.is_rejected():
+            # create_uninitialized_object declined (the user was told why);
+            # the transaction is already aborted and the dialog won't be shown.
+            return
 
         # Edge multi-select
         self.edge_list = QtWidgets.QListWidget()
