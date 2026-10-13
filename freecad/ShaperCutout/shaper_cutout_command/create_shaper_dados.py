@@ -8,13 +8,61 @@ import FreeCADGui as Gui
 from PySide import QtCore, QtWidgets
 
 from .task_panel import ShaperTaskPanel
-from shaper_cutout_util import _ICON_ROOT, all_objects, objects_are_parallel, parent_cutout, \
-        selection, ShaperCutoutType
+from shaper_cutout_util import _ICON_ROOT, all_objects, attachment_target, \
+    objects_are_parallel, parent_cutout, reattach_to_plane, selection, \
+    ShaperCutoutType
 
 
 def _available_sketches(doc, already_linked):
     """Return sketches in doc not already in the linked set."""
     return all_objects(doc, exclude=set(already_linked)).dict[ShaperCutoutType.SKETCH]
+
+
+def _face_attached_sketches(cutout, sketches):
+    """Sketches in `sketches` attached to the cutout itself (one of its faces).
+
+    A sketch attached to a face of the cutout that is then used as a dado
+    sketch makes the document cyclic (sketch -> cutout -> dados -> sketch),
+    so these must be re-attached before they can be used.
+    """
+    result = []
+    for sketch in sketches:
+        target = attachment_target(sketch)
+        if target is not None and target[0] is cutout and target[1]:
+            result.append(sketch)
+    return result
+
+
+def _on_face_attached_sketches(cutout, dados, sketches):
+    """Offer to re-attach `sketches` (attached to faces of `cutout`) to the
+    matching face plane of `dados`.
+
+    Returns True if all sketches are usable (re-attached or were never a
+    problem); False if the user declined, in which case the caller must
+    cancel the operation, leaving everything untouched.
+    """
+    for sketch in sketches:
+        target = attachment_target(sketch)
+        assert target is not None and target[0] is cutout and target[1]
+
+        face = dados.Face
+        answer = QtWidgets.QMessageBox.question(
+            None, "Sketch Attached to Cutout",
+            f"The selected sketch '{sketch.Label}' is attached to a face of "
+            f"the cutout '{cutout.Label}'.\n\n"
+            "To cut these dados, the sketch must become a child of the cutout. Keeping the sketch "
+            "attached to the cutout would then create an illegal dependency cycle.\n\n "
+            f"Re-attach the sketch to the cutout's face plane '{face.Label}'? "
+            "(The geometry will not move.)",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            QtWidgets.QMessageBox.Yes)
+
+        if answer != QtWidgets.QMessageBox.Yes:
+            return False
+
+        reattach_to_plane(sketch, face)
+
+    return True
 
 
 def _cutouts_for_sketch(sketch):
@@ -121,6 +169,11 @@ def open_dados_task_panel(cutout, dados=None, initial_sketches=[], clone_from=No
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
     panel = ShaperDadosTaskPanel(cutout, dados, initial_sketches, clone_from)
+    if panel.is_rejected():
+        # A face-attached initial sketch was left attached (the user was
+        # offered the re-attachment and declined); the operation is cancelled
+        # and the panel's transaction already aborted.
+        return
     Gui.Control.showDialog(panel)
 
 
@@ -225,6 +278,17 @@ class ShaperDadosTaskPanel(ShaperTaskPanel):
         for sk in initial_sketches:
             self.sketch_list.addItem(self._make_item(sk))
 
+        # Sketches dropped in from outside must not stay attached to the
+        # cutout itself (dependency cycle; see _on_face_attached_sketches).
+        # If the user declines the re-attachment, cancel the whole operation.
+        # The face combo's selection must be in the object first, so the
+        # offer can name (and re-attach to) the right face plane.
+        self._sync_face_from_combo()
+        dropped = _face_attached_sketches(cutout, initial_sketches)
+        if dropped and not _on_face_attached_sketches(cutout, self._object, dropped):
+            self.mark_rejected()
+            return
+
         # Connect signals AFTER populating
         self.label_edit.textChanged.connect(self._on_label_changed)
         self.face_combo.currentIndexChanged.connect(self._on_changed)
@@ -270,6 +334,15 @@ class ShaperDadosTaskPanel(ShaperTaskPanel):
         if not ok:
             return
         sketch = available[items.index(chosen)]
+
+        # A sketch attached to the cutout itself cannot be used as-is
+        # (dependency cycle; see _on_face_attached_sketches). On decline,
+        # cancel adding this sketch, leaving it untouched.
+        if _face_attached_sketches(cutout=self._cutout, sketches=[sketch]) \
+                and not _on_face_attached_sketches(
+                    self._cutout, self._object, [sketch]):
+            return
+
         self.sketch_list.addItem(self._make_item(sketch))
         self._on_changed()
 
@@ -278,12 +351,16 @@ class ShaperDadosTaskPanel(ShaperTaskPanel):
             self.sketch_list.takeItem(self.sketch_list.row(item))
         self._on_changed()
 
-    def _on_changed(self):
+    def _sync_face_from_combo(self):
+        """Copy the face combo's current selection into the object."""
         face_data = self.face_combo.currentData()
         if face_data:
             (face, invert) = face_data
             self._object.Face = face
             self._object.Invert = invert
+
+    def _on_changed(self):
+        self._sync_face_from_combo()
         self._object.Sketches = self._current_sketches()
         self.recompute_objects(None)
 

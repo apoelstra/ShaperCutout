@@ -117,6 +117,17 @@ class ShaperTaskPanel:
         """Whether the create flow declined (see create_uninitialized_object)."""
         return self._rejected
 
+    def mark_rejected(self):
+        """Abort the panel's transaction and mark it rejected.
+
+        For panel-internal flows (e.g. a mid-construction question the user
+        declines) that decide after object creation that the whole operation
+        must be cancelled; the open_* helper checks is_rejected() before
+        showing the dialog.
+        """
+        self._doc.abortTransaction()
+        self._rejected = True
+
     def _on_label_changed(self):
         if not self._edit_mode:
             label = self.label_edit.text().strip()

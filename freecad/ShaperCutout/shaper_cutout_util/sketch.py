@@ -24,21 +24,58 @@ def objects_are_parallel(obj1, obj2):
         return False
     return global_normal(obj1).cross(global_normal(obj2)).Length < 1e-6
 
-def _attachment_target(sketch: App.DocumentObject) -> Optional[App.DocumentObject]:
-    """Returns the object that the sketch's attachment points at, if any.
+def attachment_target(sketch: App.DocumentObject):
+    """Returns the (object, subelement) that the sketch's attachment points at.
 
-    Ignores subelements.
+    subelement is '' when the sketch is attached to the whole object (e.g.
+    a datum plane), or e.g. 'Face2' when attached to one of its faces.
+    Returns None when the sketch is not attached (no support links, or
+    MapMode deactivated).
     """
     if getattr(sketch, 'MapMode', 'Deactivated') in ('Deactivated', ''):
         return None
 
     support = getattr(sketch, 'AttachmentSupport', None)
-    if support is None or not isinstance(support, list) or len(support) == 0:
+    if support is None or len(support) == 0:
         return None
     first = support[0]
-    if isinstance(first, tuple) and isinstance(first[0], App.DocumentObject):
-        return first[0]
-    return None
+    if not isinstance(first, (tuple, list)) or len(first) == 0 \
+            or not isinstance(first[0], App.DocumentObject):
+        return None
+
+    subs = first[1] if len(first) > 1 else None
+    if subs is None:
+        sub = ''
+    elif isinstance(subs, str):
+        sub = subs
+    elif len(subs) > 0:
+        sub = subs[0] or ''
+    else:
+        sub = ''
+    return first[0], sub
+
+
+def _attachment_target(sketch: App.DocumentObject) -> Optional[App.DocumentObject]:
+    """Returns the object that the sketch's attachment points at, if any.
+
+    Ignores subelements.
+    """
+    target = attachment_target(sketch)
+    return target[0] if target is not None else None
+
+
+def reattach_to_plane(sketch: App.DocumentObject, plane: App.DocumentObject):
+    """Attach `sketch` to `plane`, preserving its global placement.
+
+    The sketch's current global placement is re-expressed as an
+    AttachmentOffset relative to the new plane, so geometry drawn on the
+    sketch does not move.
+    """
+    placement = App.Placement(sketch.getGlobalPlacement())
+    offset = plane.getGlobalPlacement().inverse().multiply(placement)
+    sketch.AttachmentSupport = [(plane, '')]
+    sketch.MapMode = 'FlatFace'
+    sketch.AttachmentOffset = offset
 
 
 def get_or_create_attachment_plane(sketch: App.DocumentObject) -> Optional[App.DocumentObject]:
