@@ -1,18 +1,113 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import os
+from typing import List, Optional, Tuple
 
 import FreeCAD as App
 import FreeCADGui as Gui
 from PySide import QtCore, QtWidgets
 
 from .task_panel import ShaperTaskPanel
-from shaper_cutout_util import _ICON_ROOT, all_objects, selection, ShaperCutoutType
+from shaper_cutout_util import _ICON_ROOT, all_objects, objects_are_parallel, parent_cutout, \
+        selection, ShaperCutoutType
 
 
 def _available_sketches(doc, already_linked):
     """Return sketches in doc not already in the linked set."""
     return all_objects(doc, exclude=set(already_linked)).dict[ShaperCutoutType.SKETCH]
+
+
+def _cutouts_for_sketch(sketch):
+    """Cutouts a sketch-only "Create Dados" could target.
+
+    A cutout qualifies when it is parallel to the sketch (a dado must cut
+    into one of its sheet faces) and the sketch is not already linked into
+    one of its dados (that would silently double-cut). Empty when the
+    sketch is not parallel to any cutout.
+    """
+    def _dados_parents(sketch):
+        """The ShaperDados objects that link this sketch, oldest first.
+
+        Each is a candidate to be "dado'd into": the sketch already cuts a
+        pocket for it.
+        """
+        return [o for o in getattr(sketch, 'InList', [])
+                if ShaperCutoutType.DADOS.is_type_of(o)]
+
+    def _pick_dado_for_sketch(sketch, cutouts):
+        """A ShaperDados the selected sketch already belongs to, if any.
+
+        `cutouts` is the list of candidate ShaperCutouts; only dados of those
+        cutouts count (a dado sketch may be shared with other cutouts whose
+        dados would not be affected). Returns None when there is no match.
+        """
+        for dados in _dados_parents(sketch):
+            if parent_cutout(dados, 'Dados') in cutouts:
+                return dados
+        return None
+
+    doc = sketch.Document
+    return [o for o in doc.Objects
+            if ShaperCutoutType.CUTOUT.is_type_of(o)
+            and objects_are_parallel(o.CenterPlane, sketch)
+            and _pick_dado_for_sketch(sketch, [o]) is None]
+
+
+def _selected_objects() -> Tuple[Optional[App.DocumentObject], List[App.DocumentObject]]:
+    """Parse the selection for the Create Dados command.
+
+    Returns (cutout, initial_sketches). If there is more than one cutout, or anything other
+    than a cutout and sketches are selected, returns (None, []).
+    """
+    sel = selection()
+    if sel.total_count == 0:
+        return None, []
+
+    cutouts = sel.dict[ShaperCutoutType.CUTOUT]
+    sketches = sel.dict[ShaperCutoutType.SKETCH]
+
+    if len(cutouts) > 1 or sel.total_count != len(cutouts) + len(sketches):
+        return None, []
+
+    return cutouts[0] if cutouts else None, sketches
+
+
+def _choose_cutout_for_sketch(sketch, cutouts):
+    """Ask the user which cutout a sketch-only "Create Dados" should target.
+
+    Returns the chosen ShaperCutout, or None if the user cancelled.
+    """
+    items = [c.Label for c in cutouts]
+    chosen, ok = QtWidgets.QInputDialog.getItem(
+        None, "Create Dados",
+        f"Which cutout should '{sketch.Label}' dado into?",
+        items, 0, False)
+    if not ok:
+        return None
+    return cutouts[items.index(chosen)]
+
+
+def _check_parallel(cutout: Optional[App.DocumentObject], sketches: List[App.DocumentObject]):
+    if cutout:
+        for sketch in sketches:
+            if not objects_are_parallel(cutout.CenterPlane, sketch):
+                QtWidgets.QMessageBox.critical(
+                    None, "Create Dados",
+                    f"The sketch {sketch.Label} is not parallel to the cutout {cutout.Label}. "
+                    "Cannot create a dado set."
+                )
+                return False
+
+    if len(sketches) > 1:
+        for sketch in sketches[1:]:
+            if not objects_are_parallel(sketches[0], sketch):
+                QtWidgets.QMessageBox.critical(
+                    None, "Create Dados",
+                    f"The sketch {sketch.Label} is not parallel to the sketch {sketches[0].Label}. "
+                    "Cannot create a dado set."
+                )
+
+    return True
 
 
 def open_dados_task_panel(cutout, dados=None, initial_sketches=[], clone_from=None):
@@ -206,13 +301,41 @@ class CreateShaperDadosCmd:
         icon_path = os.path.join(_ICON_ROOT, "dados.svg")
         return {
             "MenuText": "Create Dados",
-            "ToolTip": "Create a dado pocket collection on the selected ShaperCutout",
+            "ToolTip": "Create a dado pocket collection on the selected ShaperCutout "
+                       "(or on a cutout chosen from those parallel to the selected "
+                       "sketch)",
             "Pixmap": icon_path,
             "CmdType": "AlterDoc",
         }
 
     def IsActive(self):
-        return selection().is_single(ShaperCutoutType.CUTOUT)
+        cutout, sketches = _selected_objects()
+        return cutout is not None or len(sketches) > 0
 
     def Activated(self):
-        open_dados_task_panel(selection().get_single(ShaperCutoutType.CUTOUT))
+        cutout, sketches = _selected_objects()
+        if not _check_parallel(cutout, sketches):
+            return
+
+        if cutout is None:
+            if not sketches:
+                # Selection changed between the button lighting up and the click
+                return
+
+            cutouts = _cutouts_for_sketch(sketches[0])
+            if not cutouts:
+                QtWidgets.QMessageBox.critical(
+                    None, "Create Dados",
+                    f"The sketch '{sketches[0].Label}' is not parallel to any cutout it "
+                    "could dado into. Create a cutout whose center plane is parallel "
+                    "to the sketch first.")
+                return
+            else:
+                # Pop up the dialog even if there's just one option, so the user understands
+                # that he's connecting the sketch to a cutout, and that he has a choice
+                cutout = _choose_cutout_for_sketch(sketches[0], cutouts)
+
+            if cutout is None:
+                return
+
+        open_dados_task_panel(cutout, initial_sketches=sketches)
