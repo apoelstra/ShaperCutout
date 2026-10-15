@@ -9,13 +9,51 @@ from PySide import QtCore, QtWidgets
 
 from .task_panel import ShaperTaskPanel
 from shaper_cutout_util import _ICON_ROOT, all_objects, attachment_target, \
-    objects_are_parallel, parent_cutout, reattach_to_plane, selection, \
-    ShaperCutoutType
+    global_normal, objects_are_parallel, parent_cutout, reattach_to_plane, \
+    selection, ShaperCutoutType
 
 
 def _available_sketches(doc, already_linked):
     """Return sketches in doc not already in the linked set."""
     return all_objects(doc, exclude=set(already_linked)).dict[ShaperCutoutType.SKETCH]
+
+
+def _face_for_sketch(cutout, sketch, front, back):
+    """Default face (and Invert flag) for dados cut from `sketch`.
+
+    When the sketch does not sit on the center plane, the dado should go
+    into the face on the sketch's side of the sheet -- the user drew the
+    dado where the mating sheet will sit, which is the side it must be
+    cut from. Sketches on (or parallel to) the center plane keep the old
+    front-face default. Returns None when both face planes are missing.
+    """
+    if front is None or back is None:
+        return None
+
+    center = cutout.CenterPlane
+    normal = global_normal(center)
+
+    # A sketch that is not attached to anything has no meaningful
+    # position for this purpose (its placement is whatever the user
+    # typed, with no plane backing it up); treat it as having no opinion.
+    if attachment_target(sketch) is None:
+        return None
+
+    # Signed distance from the sheet's center plane to the sketch plane,
+    # measured along the sheet normal.
+    center_origin = center.getGlobalPlacement().Base
+    sketch_origin = sketch.getGlobalPlacement().Base
+    dist = (sketch_origin - center_origin).dot(normal)
+
+    if abs(dist) > 1e-7:
+        # The sketch sits off the center plane: cut from the side it is on.
+        if dist > 0:
+            return front, True
+        return back, False
+
+    # Directly on the center plane: front-face default (the face combo's
+    # first entry).
+    return front, True
 
 
 def _face_attached_sketches(cutout, sketches):
@@ -217,8 +255,20 @@ class ShaperDadosTaskPanel(ShaperTaskPanel):
                     self.face_combo.setCurrentIndex(i)
                     break
         else:
-            face_data = self.face_combo.currentData()
-            (face, invert) = face_data if face_data else (None, False)
+            # When creating: the first initial sketch with an opinion about
+            # which side of the sheet it sits on picks the default face
+            # (dados cut from the side the sketch is on); otherwise the
+            # combo's first entry (front) stays.
+            face_data = None
+            for sk in initial_sketches:
+                face_data = _face_for_sketch(cutout, sk, front, back)
+                if face_data is not None:
+                    break
+            if face_data is not None:
+                for i in range(self.face_combo.count()):
+                    if self.face_combo.itemData(i) == face_data:
+                        self.face_combo.setCurrentIndex(i)
+                        break
 
         # Depth / Width / Tolerance
         self._main_layout.addRow(

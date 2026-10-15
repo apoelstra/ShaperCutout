@@ -47,6 +47,7 @@ try:
     import test_selection_type_of
     import test_dado_autodrill
     import test_dados_face_attach
+    import test_dados_face_default
     import test_dados_from_sketch
     import test_dados_rollback
     import test_create_cutout_selection
@@ -67,6 +68,7 @@ try:
     test_selection_type_of.register_tests(ALL_TESTS)
     test_dado_autodrill.register_tests(ALL_TESTS)
     test_dados_face_attach.register_tests(ALL_TESTS)
+    test_dados_face_default.register_tests(ALL_TESTS)
     test_dados_from_sketch.register_tests(ALL_TESTS)
     test_dados_rollback.register_tests(ALL_TESTS)
     test_create_cutout_selection.register_tests(ALL_TESTS)
