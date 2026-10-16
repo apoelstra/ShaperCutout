@@ -70,7 +70,7 @@ class ReportViewMiter(QtGui.QWidget):
         layout.addLayout(button_layout)
 
         # Populate table
-        dados = all_objects().dict[ShaperCutoutType.MITER]
+        miters = all_objects(self._doc).dict[ShaperCutoutType.MITER]
         self._table.populate(miters)
 
         # Connect signals

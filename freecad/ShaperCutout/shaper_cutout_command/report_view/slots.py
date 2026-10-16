@@ -83,7 +83,7 @@ class ReportViewSlots(QtGui.QWidget):
         layout.addLayout(button_layout)
 
         # Populate table
-        slots = all_objects().dict[ShaperCutoutType.SLOT]
+        slots = all_objects(self._doc).dict[ShaperCutoutType.SLOT]
         self._table.populate(slots)
 
         # Connect signals

@@ -95,7 +95,7 @@ class ReportViewDados(QtGui.QWidget):
         button_layout.addLayout(update_data_layout)
 
         # Populate table
-        dados = all_objects().dict[ShaperCutoutType.DADOS]
+        dados = all_objects(self._doc).dict[ShaperCutoutType.DADOS]
         self._table.populate(dados)
 
         layout.addWidget(self._table)

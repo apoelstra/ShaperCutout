@@ -93,7 +93,7 @@ class ReportViewCutouts(QtGui.QWidget):
         button_layout.addLayout(update_data_layout)
 
         # Populate table
-        cutouts = all_objects().dict[ShaperCutoutType.CUTOUT]
+        cutouts = all_objects(self._doc).dict[ShaperCutoutType.CUTOUT]
         self._table.populate(cutouts)
 
         layout.addWidget(self._table)

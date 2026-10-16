@@ -649,7 +649,7 @@ class _PageWidget(QtWidgets.QWidget):
         pos_x_mm = (pos.x() - pad_x) / grid_px * grid_mm
         pos_y_mm = (pos.y() - pad_y) / grid_px * grid_mm
 
-        selected = self._selected_children(self._page_obj)
+        selected = self.Proxy._selected_children(self._page_obj)
 
         ordered = list(reversed(self._page_obj.Group))
         swap_idx = 0
