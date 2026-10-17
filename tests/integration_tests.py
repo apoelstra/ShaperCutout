@@ -41,6 +41,7 @@ except Exception as e:
 try:
     import test_cutout_properties
     import test_dados
+    import test_dialog_ok_cancel
     import test_dado_autodrill
     import test_dados_rollback
     import test_create_cutout_selection
@@ -55,6 +56,7 @@ try:
     ALL_TESTS = []
     test_cutout_properties.register_tests(ALL_TESTS)
     test_dados.register_tests(ALL_TESTS)
+    test_dialog_ok_cancel.register_tests(ALL_TESTS)
     test_dado_autodrill.register_tests(ALL_TESTS)
     test_dados_rollback.register_tests(ALL_TESTS)
     test_create_cutout_selection.register_tests(ALL_TESTS)
