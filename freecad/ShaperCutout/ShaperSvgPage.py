@@ -24,6 +24,12 @@ def _is_page_child(obj) -> bool:
     return getattr(obj, 'Type', '') in _PAGE_CHILD_TYPES
 
 
+def _selected_page_children(page_obj) -> List[App.DocumentObject]:
+    """The page's children (images and shapes) currently selected."""
+    sel = selection(children_of=page_obj)
+    return sel.dict[ShaperCutoutType.SVG_IMAGE] + sel.dict[ShaperCutoutType.SVG_SHAPE]
+
+
 def _same_segment(s1, s2, tol: float = 1e-6) -> bool:
     """True if the two (p0, p1) segments have the same endpoints (either direction)."""
     return (((s1[0] - s2[0]).Length < tol and (s1[1] - s2[1]).Length < tol)
@@ -200,8 +206,7 @@ class ShaperSvgPage:
         self.addDisplayProperties(obj)
 
     def _selected_children(self, page_obj: App.DocumentObject) -> List[App.DocumentObject]:
-        sel = selection(children_of=page_obj)
-        return sel.dict[ShaperCutoutType.SVG_IMAGE] + sel.dict[ShaperCutoutType.SVG_SHAPE]
+        return _selected_page_children(page_obj)
 
     def _svg_to_page_matrix(self, obj: App.DocumentObject, child) -> App.Matrix:
         """The matrix mapping a child's local Svg space into page space."""
@@ -649,7 +654,7 @@ class _PageWidget(QtWidgets.QWidget):
         pos_x_mm = (pos.x() - pad_x) / grid_px * grid_mm
         pos_y_mm = (pos.y() - pad_y) / grid_px * grid_mm
 
-        selected = self.Proxy._selected_children(self._page_obj)
+        selected = _selected_page_children(self._page_obj)
 
         ordered = list(reversed(self._page_obj.Group))
         swap_idx = 0
@@ -723,7 +728,7 @@ class _PageWidget(QtWidgets.QWidget):
 
                 self._drag_start = event.pos()
                 self._dragging = [(s, s.OffsetX.Value, s.OffsetY.Value)
-                                  for s in self._selected_children(self._page_obj)]
+                                  for s in _selected_page_children(self._page_obj)]
                 self._page_obj.Proxy._is_dragging = True
                 self._page_obj.Document.openTransaction("Move ShaperSvgImage")
                 self.setCursor(QtCore.Qt.ClosedHandCursor)
@@ -837,7 +842,7 @@ class _PageWidget(QtWidgets.QWidget):
             event.ignore()
             return
 
-        sel = Selection(children_of=self._page_obj)
+        sel = selection(children_of=self._page_obj)
         selected = sel.dict[ShaperCutoutType.SVG_IMAGE] + sel.dict[ShaperCutoutType.SVG_SHAPE]
         if child not in selected:
             event.ignore()
