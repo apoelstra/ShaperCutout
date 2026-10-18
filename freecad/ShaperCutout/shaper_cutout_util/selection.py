@@ -42,6 +42,10 @@ class ShaperCutoutType(Enum):
             return ShaperCutoutType.CUTOUT
         elif ty == 'ShaperDados':
             return ShaperCutoutType.DADOS
+        elif ty == 'ShaperMiter':
+            return ShaperCutoutType.MITER
+        elif ty == 'ShaperSlot':
+            return ShaperCutoutType.SLOT
         elif ty == 'ShaperSvgPage':
             return ShaperCutoutType.SVG_PAGE
         elif ty == 'ShaperSvgImage':

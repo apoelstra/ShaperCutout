@@ -44,6 +44,7 @@ try:
     import test_dialog_ok_cancel
     import test_report_and_page_mouse
     import test_dialog_ok_cancel
+    import test_selection_type_of
     import test_dado_autodrill
     import test_dados_rollback
     import test_create_cutout_selection
@@ -61,6 +62,7 @@ try:
     test_dialog_ok_cancel.register_tests(ALL_TESTS)
     test_report_and_page_mouse.register_tests(ALL_TESTS)
     test_dialog_ok_cancel.register_tests(ALL_TESTS)
+    test_selection_type_of.register_tests(ALL_TESTS)
     test_dado_autodrill.register_tests(ALL_TESTS)
     test_dados_rollback.register_tests(ALL_TESTS)
     test_create_cutout_selection.register_tests(ALL_TESTS)
