@@ -259,7 +259,15 @@ class ShaperSvgPage:
             short_dir
         ).triangle_wire()
 
-    def compute_svg(self, obj):
+    def compute_svg(self, obj, for_export: bool = False):
+        """Build the page SVG.
+
+        for_export=False (the widget) draws the orange Svg_Outline
+        selection highlight for the currently-selected children.
+        for_export=True (the on-disk file) MUST NOT include the
+        highlight -- the orange stroke is a GUI affordance, not a cut
+        path.
+        """
         page_w = obj.Width.Value
         page_h = obj.Height.Value
 
@@ -303,7 +311,7 @@ class ShaperSvgPage:
             g = f'<g transform="translate({tx:.4f},{ty:.4f}) rotate({rot:.4f},{cx:.4f},{cy:.4f})">'
             if hasattr(child, 'Svg_Full'):
                 svg += f'{g}{child.Svg_Full}</g>'
-            if hasattr(child, 'Svg_Outline'):
+            if not for_export and hasattr(child, 'Svg_Outline'):
                 svg += f'{g}{child.Svg_Outline}</g>'
 
         if getattr(obj, 'HasAnchor', False):

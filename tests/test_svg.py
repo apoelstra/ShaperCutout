@@ -5,7 +5,9 @@ import os
 import re
 
 import FreeCAD as App
+import FreeCADGui as Gui
 import Part
+from PySide import QtWidgets
 import ShaperCutout
 import ShaperMiter
 import ShaperSlot
@@ -59,8 +61,7 @@ def make_cutout(doc, plane, name, thickness=mm(0.5)):
     cutout.Label = name
     cutout.CenterPlane = plane
     cutout.Thickness = thickness
-    cutout.Proxy.ensure_front_face(cutout)
-    cutout.Proxy.ensure_back_face(cutout)
+    cutout.Proxy.ensure_face_planes(cutout)
     return cutout
 
 
@@ -854,6 +855,57 @@ def test_svg_image_cutout_deleted():
         App.closeDocument(doc.Name)
 
 
+def test_svg_page_export_excludes_selection_highlight():
+    """Exporting the page SVG must NOT include the orange Svg_Outline
+    highlight even when a page child is selected in the GUI.
+
+    Regression: export() wrote the same string the on-screen widget draws;
+    with a child selected, the thick orange selection outline landed in the
+    file sent to the Shaper Origin."""
+    doc = App.newDocument("svg_page_highlight_export")
+    tmp = os.path.join(OUTPUT_DIR, "test_highlight_export.svg")
+    try:
+        cutout = make_rect_cutout(doc, "HL")
+        page, image = make_svg_page_with_image(doc, cutout, "HL")
+        doc.recompute()
+
+        # Fake a GUI selection of the page child.
+        class _FakeSel:
+            @staticmethod
+            def getSelection():
+                return [image]
+
+        class _StubDialog:
+            @staticmethod
+            def getSaveFileName(*a, **kw):
+                return tmp, "SVG Files (*.svg)"
+
+        real_guiup = App.GuiUp
+        real_sel = getattr(Gui, 'Selection', None)
+        App.GuiUp = 1
+        Gui.Selection = _FakeSel
+        real_qfd = QtWidgets.QFileDialog.getSaveFileName
+        QtWidgets.QFileDialog.getSaveFileName = _StubDialog.getSaveFileName
+        try:
+            from shaper_cutout_command.export_shaper_svg_page import export
+            export(page)
+        finally:
+            App.GuiUp = real_guiup
+            QtWidgets.QFileDialog.getSaveFileName = real_qfd
+            if real_sel is not None:
+                Gui.Selection = real_sel
+            else:
+                del Gui.Selection
+
+        assert_true(os.path.exists(tmp), "export wrote the file")
+        with open(tmp, 'r', encoding='utf-8') as f:
+            content = f.read()
+        assert_true('#FA0' not in content and '#fa0' not in content.lower(),
+                    "exported SVG contains the orange selection outline")
+    finally:
+        App.closeDocument(doc.Name)
+
+
 def register_tests(all_tests):
     # SVG export comparison tests
     all_tests.append(test_svg_export_simple_front)
@@ -877,3 +929,4 @@ def register_tests(all_tests):
     all_tests.append(test_svg_page_min_distance_rotated)
     all_tests.append(test_export_to_svg_page)
     all_tests.append(test_svg_image_cutout_deleted)
+    all_tests.append(test_svg_page_export_excludes_selection_highlight)

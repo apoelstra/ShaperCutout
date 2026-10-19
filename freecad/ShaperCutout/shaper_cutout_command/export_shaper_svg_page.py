@@ -9,6 +9,8 @@ from shaper_cutout_util import _ICON_ROOT, selection, ShaperCutoutType
 
 
 def export(obj):
+    """Write the page SVG to disk. Export MUST NOT include the orange
+    selection highlight -- that is a GUI affordance, not a cut path."""
     path, _ = QtWidgets.QFileDialog.getSaveFileName(
         None,
         "Export SVG Page",
@@ -19,7 +21,7 @@ def export(obj):
         return
 
     with open(path, 'w', encoding='utf-8') as f:
-        f.write(obj.Proxy.compute_svg(obj))
+        f.write(obj.Proxy.compute_svg(obj, for_export=True))
 
     App.Console.PrintMessage(f"export_shaper_svg_page: wrote '{path}'\n")
 
