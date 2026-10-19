@@ -84,10 +84,9 @@ class ShaperCutout:
 
         # When updating the center plane or thickness, re-place computed faces.
         if prop == 'CenterPlane':
-            if obj.BackFace is not None:
-                obj.BackFace.AttachmentSupport = [(obj.CenterPlane)]
-            if obj.FrontFace is not None:
-                obj.FrontFace.AttachmentSupport = [(obj.CenterPlane)]
+            # ensure_face_planes recreates missing faces, repoints existing
+            # ones to the new center plane, and refreshes attachment offsets.
+            self.ensure_face_planes(obj)
 
         # When thickness changes, propagate to all cutouts sharing the same center plane.
         if prop == 'Thickness':

@@ -608,6 +608,7 @@ def register_tests(all_tests):
     all_tests.append(test_cutout_non_rectangular_quadrilateral)
     all_tests.append(test_new_cutout_has_face_planes_immediately)
     all_tests.append(test_cutout_removing_outline_clears_cutout_face)
+    all_tests.append(test_cutout_center_plane_change_recreates_and_replaces_faces)
 
 
 def test_new_cutout_has_face_planes_immediately():
@@ -635,5 +636,45 @@ def test_new_cutout_has_face_planes_immediately():
                     f"FrontFace at +Thickness/2 (got {cutout.FrontFace.AttachmentOffset.Base.z}, expected {half})")
         assert_true(abs(cutout.BackFace.AttachmentOffset.Base.z + half) < 1e-9,
                     f"BackFace at -Thickness/2 (got {cutout.BackFace.AttachmentOffset.Base.z})")
+    finally:
+        App.closeDocument(doc.Name)
+
+
+def test_cutout_center_plane_change_recreates_and_replaces_faces():
+    """Changing the center plane must leave BOTH faces attached to the new
+    plane at symmetric offsets -- even if a face was previously deleted.
+
+    Regression: onChanged(CenterPlane) only rewired AttachmentSupport on
+    faces that existed, so a deleted BackFace never came back and existing
+    faces kept their old attachment offsets if Thickness was unchanged."""
+    doc = App.newDocument("center_plane_change")
+    try:
+        plane_a = _make_plane(doc, "PlaneA")
+        plane_b = _make_plane(doc, "PlaneB",
+                              origin=(0, 0, 50))  # a distinct second plane above the first
+        sketch = _make_rect_sketch(doc, plane_a, "Outline", mm(4), mm(6))
+        cutout = _make_cutout(doc, "Cutout", plane_a, sketch)
+        doc.recompute()
+
+        # Delete the back face, then move the cutout to the other center plane.
+        old_back = cutout.BackFace
+        doc.removeObject(old_back.Name)
+        doc.recompute()
+        assert_true(cutout.BackFace is None, "BackFace disappears after deletion")
+
+        cutout.CenterPlane = plane_b
+        doc.recompute()
+
+        half = cutout.Thickness.Value / 2.0
+        assert_true(cutout.BackFace is not None, "BackFace recreated on center-plane change")
+        assert_true(cutout.FrontFace is not None, "FrontFace still present")
+        assert_true(cutout.FrontFace.AttachmentSupport[0][0] is plane_b,
+                    "front face re-attached to the new center plane")
+        assert_true(cutout.BackFace.AttachmentSupport[0][0] is plane_b,
+                    "back face re-attached to the new center plane")
+        assert_true(abs(cutout.FrontFace.AttachmentOffset.Base.z - half) < 1e-9,
+                    "front face offset = +Thickness/2 on the new center plane")
+        assert_true(abs(cutout.BackFace.AttachmentOffset.Base.z + half) < 1e-9,
+                    "back face offset = -Thickness/2 on the new center plane")
     finally:
         App.closeDocument(doc.Name)
