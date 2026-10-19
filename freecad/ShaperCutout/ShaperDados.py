@@ -187,11 +187,10 @@ def autodrill_holes(wire, min_distance, end_distance, max_holes):
             # If we're drilling one hole, it goes right in the center.
             cylinders.append(edge.valueAt((p0 + p1) * 0.5))
         else:
-            # At this point we know we are drilling at least two holes. We put one each at the ends
-            # (end_distance from the endpoints) and then equally space the remainder.
-            cylinders.append(edge.valueAt(p0 + end_distance * scale))
-            cylinders.append(edge.valueAt(p1 - end_distance * scale))
-
+            # n_holes points equally spaced across the usable length; the
+            # first and last land exactly at the endpoint offsets. (The old
+            # code appended those two separately as well, producing them
+            # twice.)
             dist = len_minus_ends / (n_holes - 1)
             for i in range(n_holes):
                 cylinders.append(edge.valueAt(p0 + (i * dist + end_distance) * scale))

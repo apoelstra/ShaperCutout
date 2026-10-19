@@ -185,9 +185,83 @@ def test_dado_autodrill_combined():
     )
 
 
+def _line_autodrill_centers(doc, line_length, end_dist, min_dist, max_holes):
+    """Create a single-edge open dado sketch and return the centers of the
+    autodrill holes (in wire/face local coordinates along the line)."""
+    from ShaperDados import autodrill_holes
+    from Part import LineSegment
+    wire = Part.Wire(LineSegment(App.Vector(0, 0, 0),
+                                 App.Vector(line_length, 0, 0)).toShape())
+    return [c for c in autodrill_holes(
+        wire,
+        min_distance=min_dist.Value if hasattr(min_dist, 'Value') else min_dist,
+        end_distance=end_dist.Value if hasattr(end_dist, 'Value') else end_dist,
+        max_holes=max_holes,
+    )]
+
+
+def test_dado_autodrill_no_duplicate_hole_centers():
+    """Autodrill hole centers must be unique -- end holes belong to the
+    evenly-spaced set, not appended twice.
+
+    Regression: for max_holes > 1 the code appended the two end holes AND
+    then generated the evenly-spaced interior points, so the end positions
+    appeared twice (also uncovered because the existing tests only asserted
+    a *maximum* hole count)."""
+    line_len = mm(4)          # 101.6 mm
+    end_dist = mm(0.5)         # 12.7 mm from each end
+    usable = line_len - 2 * end_dist  # 76.2 mm
+
+    # n=2: no interior holes; the two endpoints must each appear exactly once.
+    centers = _line_autodrill_centers(None, line_len,
+                                      App.Units.Quantity(f"{end_dist} mm"),
+                                      App.Units.Quantity("10 mm"), 2)
+    xs = sorted(round(c.x, 4) for c in centers)
+    assert_eq("with n=2, hole count", len(centers), 2)
+    assert_true(abs(xs[0] - end_dist) < 1e-6,
+                f"first hole at end_distance from the start, got {xs[0]} vs {end_dist}")
+    assert_true(abs(xs[1] - (end_dist + usable)) < 1e-6,
+                f"second hole at the far end offset, got {xs[1]} vs {end_dist + usable}")
+
+    # n=4 on the same line: positions must be unique and within tolerance of
+    # the analytic spread [end, end + usable/3, end + 2*usable/3, end+usable].
+    centers = _line_autodrill_centers(None, line_len,
+                                      App.Units.Quantity(f"{end_dist} mm"),
+                                      App.Units.Quantity("1 mm"), 4)
+    xs = sorted(round(c.x, 4) for c in centers)
+    assert_eq("with n=4, hole count", len(xs), 4)
+    assert_eq("n=4 hole x positions unique", len(set(xs)), 4)
+    spread = usable / 3.0
+    expected = [end_dist, end_dist + spread, end_dist + 2 * spread, end_dist + usable]
+    for got, want in zip(xs, expected):
+        assert_true(abs(got - want) < 1e-3,
+                    f"hole at x={got} does not match expected {want}")
+    return True
+
+
+def test_dado_autodrill_min_spacing_enforced_between_generated_holes():
+    """Adjacent autodrill holes must never be closer than MinHoleDistance,
+    even when the requested max_holes fits more holes than the minimum
+    spacing would allow (the cap is applied before generation, not by
+    hoping OCC deduplicates the doubled-up end points)."""
+    line_len = mm(4)
+    end_dist = mm(0.25)
+    min_dist = mm(2.0)   # 50.8 mm, so at most 2 holes fit on a 76.2 mm run
+    centers = _line_autodrill_centers(None, line_len,
+                                      App.Units.Quantity(f"{end_dist} mm"),
+                                      App.Units.Quantity(f"{min_dist} mm"), 100)
+    xs = sorted(c.x for c in centers)
+    for a, b in zip(xs[:-1], xs[1:]):
+        assert_true(b - a >= min_dist - 1e-9,
+                    f"adjacent holes ({a}, {b}) violate min spacing {min_dist}")
+    return True
+
+
 def register_tests(all_tests):
     all_tests.append(test_dado_autodrill_hole_counts)
     all_tests.append(test_dado_autodrill_disabled)
     all_tests.append(test_dado_autodrill_edge_distances)
     all_tests.append(test_dado_autodrill_min_spacing)
     all_tests.append(test_dado_autodrill_combined)
+    all_tests.append(test_dado_autodrill_no_duplicate_hole_centers)
+    all_tests.append(test_dado_autodrill_min_spacing_enforced_between_generated_holes)
