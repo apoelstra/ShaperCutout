@@ -78,10 +78,10 @@ class Objects:
             self.total_count += 1
 
     def is_single(self, ty: ShaperCutoutType) -> bool:
-        return self.total_count == 1 and len(self.dict[ty.CUTOUT]) == 1
+        return self.total_count == 1 and len(self.dict[ty]) == 1
 
     def is_nonempty_exclusive(self, ty: ShaperCutoutType) -> bool:
-        return self.total_count > 0 and len(self.dict[ty.CUTOUT]) == self.total_count
+        return self.total_count > 0 and len(self.dict[ty]) == self.total_count
 
     def get_single(self, ty: ShaperCutoutType) -> App.DocumentObject:
         return self.dict[ty][0]

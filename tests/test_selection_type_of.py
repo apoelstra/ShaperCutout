@@ -15,7 +15,7 @@ import ShaperDados  # noqa: F401
 import ShaperMiter  # noqa: F401
 import ShaperSlot  # noqa: F401
 
-from shaper_cutout_util import ShaperCutoutType
+from shaper_cutout_util import Objects, ShaperCutoutType
 from shaper_cutout_command.report_view import ReportViewTaskPanel
 
 from test_dialog_ok_cancel import _slot_fixture, _cutout_fixture
@@ -24,7 +24,7 @@ from test_report_and_page_mouse import _stub_report_gui_services
 from util import assert_true
 
 
-def test_type_of_recognizes_miters_and_slots():
+def test_type_of():
     doc = App.newDocument("sel_type_of")
     try:
         _plane, sketch, cutout = _cutout_fixture(doc)
@@ -116,6 +116,49 @@ def test_report_view_tables_populate():
         App.closeDocument(doc.Name)
 
 
+def test_selection_helpers_respect_their_type_argument():
+    """is_single/is_nonempty_exclusive must filter by the requested type.
+
+    Regression: both were written with `self.dict[ty.CUTOUT]` -- a typo that
+    Python's enum resolves to ShaperCutoutType.CUTOUT regardless of which
+    member it is accessed through. So is_single(SVG_PAGE) was really testing
+    is_single CUTOUT, and any command whose IsActive used the wrong bucket
+    stayed active for the wrong selection (e.g. CreateDados inactive with one
+    dados selected, ExportShaperSvgPage active with one cutout selected)."""
+    doc = App.newDocument("sel_helpers")
+    try:
+        _plane, sketch, cutout = _cutout_fixture(doc)
+        dados = ShaperDados.create_uninitialized(cutout, "Dados_h2")
+        c1, c2, ifp = _slot_fixture(doc)
+        slot = ShaperSlot.create_uninitialized(c1, c2, ifp, "Slot_h2")
+        doc.recompute()
+
+        sel = Objects([dados])
+        assert_true(not sel.is_single(ShaperCutoutType.CUTOUT),
+                    "is_single(CUTOUT) false when only a dado is selected")
+        assert_true(not sel.is_nonempty_exclusive(ShaperCutoutType.CUTOUT),
+                    "is_nonempty_exclusive(CUTOUT) false when only a dado selected")
+        assert_true(sel.is_single(ShaperCutoutType.DADOS),
+                    "is_single(DADOS) true when only a dado is selected")
+        assert_true(sel.is_nonempty_exclusive(ShaperCutoutType.SLOT) is False,
+                    "is_nonempty_exclusive(SLOT) is False when only a dado is selected")
+
+        sel = Objects([slot])
+        assert_true(sel.is_single(ShaperCutoutType.SLOT),
+                    "is_single(SLOT) true for exactly one slot")
+        assert_true(not sel.is_single(ShaperCutoutType.CUTOUT),
+                    "is_single(CUTOUT) false when only a slot is selected")
+
+        sel = Objects([cutout])
+        assert_true(sel.is_single(ShaperCutoutType.CUTOUT),
+                    "is_single(CUTOUT) true for exactly one cutout")
+        assert_true(not sel.is_single(ShaperCutoutType.DADOS),
+                    "is_single(DADOS) false for exactly one cutout")
+    finally:
+        App.closeDocument(doc.Name)
+
+
 def register_tests(all_tests):
-    all_tests.append(test_type_of_recognizes_miters_and_slots)
+    all_tests.append(test_type_of)
+    all_tests.append(test_selection_helpers_respect_their_type_argument)
     all_tests.append(test_report_view_tables_populate)
