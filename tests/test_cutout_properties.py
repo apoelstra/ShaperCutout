@@ -562,6 +562,36 @@ def test_cutout_non_rectangular_quadrilateral():
         App.closeDocument(doc.Name)
 
 
+def test_cutout_removing_outline_clears_cutout_face():
+    """Deleting the outline sketch must clear CutoutFace, not leave it stale.
+
+    Regression: execute() reset Shape but left CutoutFace behind, so the
+    SVG exporter kept emitting the phantom sheet outline forever."""
+    doc = App.newDocument("test_cutout_face_stale")
+    try:
+        plane = _make_plane(doc, "Plane")
+        sketch = _make_rect_sketch(doc, plane, "Outline", mm(4), mm(6))
+        cutout = _make_cutout(doc, "Cutout", plane, sketch)
+        doc.recompute()
+        assert_true(not cutout.CutoutFace.isNull() and cutout.CutoutFace.Area > 0,
+                    "CutoutFace populated before deletion")
+
+        doc.removeObject(sketch.Name)
+        doc.recompute()
+
+        assert_true(cutout.OutlineSketch is None, "OutlineSketch link cleared by delete")
+        assert_true(cutout.Shape.isNull() or not cutout.Shape.Solids,
+                    "Shape cleared when the sketch is gone")
+        area = 0.0 if cutout.CutoutFace.isNull() else cutout.CutoutFace.Area
+        assert_true(area == 0,
+                    f"CutoutFace cleared when the sketch is gone (still has area {area})")
+    except Exception as e:
+        App.Console.PrintError(f"  ERROR: {e}")
+        raise e
+    finally:
+        App.closeDocument(doc.Name)
+
+
 def register_tests(all_tests):
     all_tests.append(test_cutout_thickness_variations)
     all_tests.append(test_cutout_thickness_changes_face_count)
@@ -577,6 +607,7 @@ def register_tests(all_tests):
     all_tests.append(test_cutout_thickness_propagation)
     all_tests.append(test_cutout_non_rectangular_quadrilateral)
     all_tests.append(test_new_cutout_has_face_planes_immediately)
+    all_tests.append(test_cutout_removing_outline_clears_cutout_face)
 
 
 def test_new_cutout_has_face_planes_immediately():

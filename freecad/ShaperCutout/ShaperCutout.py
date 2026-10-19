@@ -115,7 +115,11 @@ class ShaperCutout:
             return
 
         if not obj.OutlineSketch:
+            # Clear the derived 2D face as well as the 3D shape: leaving
+            # CutoutFace populated would keep exporting the phantom sheet
+            # to SVGs long after the outline sketch is gone.
             obj.Shape = Part.Shape()
+            obj.CutoutFace = Part.Shape()
             return
 
         # Compute data
