@@ -576,3 +576,33 @@ def register_tests(all_tests):
     all_tests.append(test_cutout_multiple_shapes_same_plane)
     all_tests.append(test_cutout_thickness_propagation)
     all_tests.append(test_cutout_non_rectangular_quadrilateral)
+    all_tests.append(test_new_cutout_has_face_planes_immediately)
+
+
+def test_new_cutout_has_face_planes_immediately():
+    """Creating a cutout must install FrontFace and BackFace immediately.
+
+    Regression: create_uninitialized returned a cutout with no face planes;
+    they were only created when the Thickness property was first edited in
+    the GUI. Anything driven purely by document scripts (tests, the
+    ExportToShaperSvgPageCmd flow, the slot panel's _validate_cutout, the
+    dados face combo, clone_target_face) saw FrontFace = BackFace = None and
+    either failed validation or produced a page with zero-sized bounds.
+    """
+    import ShaperCutout
+    doc = App.newDocument("fresh_faces")
+    try:
+        cutout = ShaperCutout.create_uninitialized("FreshCut")
+        doc.recompute()
+        assert_true(cutout.FrontFace is not None, "FrontFace set on creation")
+        assert_true(cutout.BackFace is not None, "BackFace set on creation")
+        half = cutout.Thickness.Value / 2.0
+        z_front = (cutout.FrontFace.getGlobalPlacement().Base -
+                   cutout.CenterPlane.getGlobalPlacement().Base).z if cutout.CenterPlane else half
+        # At least verify both planes exist and are attached at symmetric offsets.
+        assert_true(abs(cutout.FrontFace.AttachmentOffset.Base.z - half) < 1e-9,
+                    f"FrontFace at +Thickness/2 (got {cutout.FrontFace.AttachmentOffset.Base.z}, expected {half})")
+        assert_true(abs(cutout.BackFace.AttachmentOffset.Base.z + half) < 1e-9,
+                    f"BackFace at -Thickness/2 (got {cutout.BackFace.AttachmentOffset.Base.z})")
+    finally:
+        App.closeDocument(doc.Name)

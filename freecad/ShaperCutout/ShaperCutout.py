@@ -20,6 +20,13 @@ def create_uninitialized(name=None):
     if App.GuiUp:
         ViewProviderShaperCutout(obj.ViewObject)
 
+    # Install the front/back face datum planes right away so that every
+    # consumer (slot creation, dado face combo, clone_target_face,
+    # ExportToShaperSvgPageCmd) can rely on them without needing the user to
+    # edit Thickness first. Bypasses the onChanged(Thickness) update path:
+    # onChanged only fires on *changes*, and Thickness above is already set.
+    obj.Proxy.ensure_face_planes(obj)
+
     return obj
 
 
@@ -84,8 +91,7 @@ class ShaperCutout:
 
         # When thickness changes, propagate to all cutouts sharing the same center plane.
         if prop == 'Thickness':
-            self.ensure_front_face(obj)
-            self.ensure_back_face(obj)
+            self.ensure_face_planes(obj)
             self._propagate_thickness(obj)
 
     def _propagate_thickness(self, obj):
@@ -269,10 +275,19 @@ class ShaperCutout:
             obj.addExtension("App::GroupExtensionPython")
 
         # Install faces
+        self.ensure_face_planes(obj)
+
+    def ensure_face_planes(self, obj):
+        """Create/update the front and back face datum planes.
+
+        Safe to call any time: existing planes keep their links and only
+        their attachment offsets are refreshed to the current Thickness.
+        """
         self.ensure_front_face(obj)
+        self.ensure_back_face(obj)
 
     def ensure_back_face(self, obj):
-        """Recreate front face if missing or link broken."""
+        """Recreate back face if missing or link broken."""
 
         if obj.BackFace is None:
             obj.BackFace = obj.Document.addObject('Part::DatumPlane', 'Back')

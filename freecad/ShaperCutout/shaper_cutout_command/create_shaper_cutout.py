@@ -100,6 +100,10 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
     def __init__(self, cutout=None):
         self._initialized = False
         self.preselect_warnings = []
+        # Faces created by create_uninitialized_object are stashed here;
+        # _on_plane_changed reuses (or discards when sharing) them.
+        self._front = None
+        self._back = None
         selection = shaper_cutout_util.selection()
         if cutout is None:
             self._sel_center, self._sel_sketch = _selection_center_and_sketch(selection)
@@ -199,8 +203,6 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
         # Connect signals AFTER populating
         self.plane_combo._widget.currentIndexChanged.connect(self._on_plane_changed)
 
-        self._front = None
-        self._back = None
         self._initialized = True
         self._on_plane_changed()
 
@@ -226,6 +228,10 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
                 copy_property(parent, _cutout, 'Thickness')
                 break
 
+        # Faces were installed by create_uninitialized; expose them to
+        # _on_plane_changed so it does not allocate a duplicate pair.
+        self._front = _cutout.FrontFace
+        self._back = _cutout.BackFace
         return _cutout
 
     def recompute_objects(self, updated_prop_name: str):
@@ -263,21 +269,9 @@ class ShaperCutoutTaskPanel(ShaperTaskPanel):
                 self._back = None
             break
 
-        # If not, create new planes if they don't already exist.
-        if not sharing_center:
-            if self._front is None:
-                self._front = self._doc.addObject('Part::DatumPlane', f'{self._object.Name}_Front')
-                self._front.setPropertyStatus('AttachmentSupport', 2)
-                self._front.setPropertyStatus('AttachmentOffset', 2)
-                self._front.setPropertyStatus('MapMode', 2)
-            if self._back is None:
-                self._back = self._doc.addObject('Part::DatumPlane', f'{self._object.Name}_Back')
-                self._back.setPropertyStatus('AttachmentSupport', 2)
-                self._back.setPropertyStatus('AttachmentOffset', 2)
-                self._back.setPropertyStatus('MapMode', 2)
-            self._object.FrontFace = self._front
-            self._object.BackFace = self._back
-
+        # The create flow stashes the faces that create_uninitialized made
+        # into self._front/self._back; the edit flow leaves them None.
+        self._object.Proxy.ensure_face_planes(self._object)
         # Then move the plane(s).
         self._object.Proxy._propagate_thickness(self._object)
 

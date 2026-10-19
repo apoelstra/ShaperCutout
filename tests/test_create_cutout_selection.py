@@ -347,8 +347,9 @@ def test_create_sketch_detached_creates_new_plane():
             doc.recompute()
             assert_true(obj.Thickness > 0, "thickness set")
             assert_true(len(obj.Shape.Solids) == 1, "cutout computed a solid")
-            # Exactly the new plane, the cutout, and its front/back faces
-            # were added.
+            # The new cutout itself, the auto-created center plane, and its
+            # front/back faces are all installed by create_uninitialized now,
+            # so exactly +4 objects.
             assert_true(len(doc.Objects) == n_objects + 4,
                         f"expected {n_objects + 4} objects, got {len(doc.Objects)}")
     finally:
