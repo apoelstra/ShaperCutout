@@ -11,7 +11,7 @@ import Part
 import ShaperSvgPage
 import ShaperSvgShape
 
-from util import assert_true
+from util import assert_true, stub_selection, unstub_selection
 
 
 def _make_page(doc, name):
@@ -363,27 +363,15 @@ def test_svg_shape_selection_highlight():
 
         # With the shape selected: Gui.Selection doesn't exist in
         # FreeCADCmd, so fake the selection state compute_svg consults.
-        real_selection = getattr(Gui, 'Selection', None)
         real_guiup = App.GuiUp
-
-        class _FakeSelection:
-            @staticmethod
-            def getSelection():
-                return [shape]
 
         try:
             App.GuiUp = 1
-            Gui.Selection = _FakeSelection
+            stub_selection([shape])
             svg = page.Proxy.compute_svg(page)
         finally:
             App.GuiUp = real_guiup
-            if real_selection is not None:
-                Gui.Selection = real_selection
-            else:
-                try:
-                    del Gui.Selection
-                except Exception:
-                    pass
+            unstub_selection()
 
         assert_true('#FA0' in svg, "selected shape gets orange highlight")
         assert_true(svg.rindex('#FA0') > svg.rindex('shaper:cutType="outside"'),

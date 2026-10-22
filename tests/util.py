@@ -1,6 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import types
+from typing import List
+
 import FreeCAD as App
+import FreeCADGui as Gui
 import Part
 import Sketcher
 import ShaperCutout
@@ -91,3 +95,34 @@ def make_cutout(doc, plane, name, thickness=mm(0.5)):
     cutout.Thickness = thickness
     cutout.Proxy._propagate_thickness(cutout)
     return cutout
+
+
+class _FakeSelection:
+    def __init__(self, objs: List[App.DocumentObject]):
+        self.sels = objs
+        return
+
+    def getSelection(self):
+        return self.sels
+
+    def getSelectionEx(self):
+        return []
+
+    def addSelection(self, obj: App.DocumentObject):
+        self.sels.append(obj)
+
+    def clearSelection(self):
+        self.sels = []
+
+
+def stub_selection(objects):
+    Gui.Selection = _FakeSelection(objects)
+    return getattr(Gui, 'Selection')
+
+
+def unstub_selection():
+    # FIXME store the pre-stub_selection selection and restore here
+    try:
+        del Gui.Selection
+    except AttributeError:
+        pass

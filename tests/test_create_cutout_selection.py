@@ -27,19 +27,11 @@ from shaper_cutout_command.create_shaper_cutout import (
 from shaper_cutout_command.task_panel import ShaperTaskPanel, TaskPanelRejected
 from shaper_cutout_util import Objects
 
-from util import assert_true, make_cutout, make_plane, make_sketch, mm
+from util import assert_true, make_cutout, make_plane, make_sketch, mm, stub_selection
 
 
 def _qapp():
     return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-
-
-def _stub_selection(objects):
-    """Patch Gui.Selection (absent in headless mode) to return `objects`."""
-    Gui.Selection = types.SimpleNamespace(
-        getSelection=lambda: list(objects),
-        getSelectionEx=lambda: [],
-    )
 
 
 def _make_dado_on(cutout, sketch):
@@ -72,7 +64,7 @@ class _PanelFixture:
         # lacks; stub it out -- we only test selection/outline behavior.
         ShaperTaskPanel._quantity_widget = \
             lambda self, prop, minimum=None, maximum=None: QtWidgets.QWidget()
-        _stub_selection(self.selection)
+        stub_selection(self.selection)
         self.panel = ShaperCutoutTaskPanel()
         return self.panel
 
@@ -146,17 +138,17 @@ def test_create_cmd_isactive():
 
     old_sel = getattr(Gui, 'Selection', None)
     try:
-        _stub_selection([plane])
+        stub_selection([plane])
         assert_true(cmd.IsActive(), "plane alone: command active")
-        _stub_selection([plane, sketch])
+        stub_selection([plane, sketch])
         assert_true(cmd.IsActive(), "plane + sketch: command active (issue #15)")
-        _stub_selection([sketch])
+        stub_selection([sketch])
         assert_true(cmd.IsActive(), "sketch alone: active")
-        _stub_selection([plane, plane2])
+        stub_selection([plane, plane2])
         assert_true(not cmd.IsActive(), "two planes: not active")
-        _stub_selection([plane, cube])
+        stub_selection([plane, cube])
         assert_true(not cmd.IsActive(), "plane + unrelated object: not active")
-        _stub_selection([])
+        stub_selection([])
         assert_true(not cmd.IsActive(), "empty selection: not active")
     finally:
         if old_sel is None:
@@ -386,7 +378,7 @@ def test_create_sketch_detached_declined_aborts():
         _qapp()
         ShaperTaskPanel._quantity_widget = \
             lambda self, prop, minimum=None, maximum=None: QtWidgets.QWidget()
-        _stub_selection([sketch])
+        stub_selection([sketch])
         raised = False
         try:
             ShaperCutoutTaskPanel()

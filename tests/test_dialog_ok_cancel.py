@@ -31,25 +31,12 @@ from shaper_cutout_command.edit_shaper_svg_shape import open_shape_task_panel
 from shaper_cutout_command.task_panel import ShaperTaskPanel
 
 
-from util import assert_true, make_cutout, make_plane, make_sketch, mm
+from util import assert_true, make_cutout, make_plane, make_sketch, mm, stub_selection, \
+        unstub_selection
 
 
 def _qapp():
     return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-
-
-def _stub_selection(objects):
-    Gui.Selection = types.SimpleNamespace(
-        getSelection=lambda: list(objects),
-        getSelectionEx=lambda: [],
-    )
-
-
-def _unstub_selection():
-    try:
-        del Gui.Selection
-    except AttributeError:
-        pass
 
 
 class _StubbedControl:
@@ -238,7 +225,7 @@ def test_cutout_create_okay_and_cancel():
         plane = make_plane(doc, "Plane")
         doc.recompute()
         with _DialogCase() as dlg, _StubbedQuantityWidgets(), _StubbedDialogs():
-            _stub_selection([plane])
+            stub_selection([plane])
             try:
                 panel = dlg.open(open_cutout_task_panel)
                 assert_true(len(_of_type(doc, "ShaperCutout")) == 1,
@@ -258,7 +245,7 @@ def test_cutout_create_okay_and_cancel():
                 assert_true(len(_of_type(doc, "ShaperCutout")) == 1,
                             "okay kept the created cutout")
             finally:
-                _unstub_selection()
+                unstub_selection()
     finally:
         App.closeDocument(doc.Name)
 
@@ -428,7 +415,7 @@ def test_slot_create_okay_and_cancel():
     try:
         c1, c2, ifp = _slot_fixture(doc)
         with _DialogCase() as dlg, _StubbedQuantityWidgets(), _StubbedDialogs():
-            _stub_selection([c1, c2, ifp])
+            stub_selection([c1, c2, ifp])
             try:
                 panel = dlg.open(open_slot_task_panel)
                 assert_true(len(_of_type(doc, "ShaperSlot")) == 1,
@@ -448,7 +435,7 @@ def test_slot_create_okay_and_cancel():
                 assert_true(len(_of_type(doc, "ShaperSlot")) == 1,
                             "okay kept the created slot")
             finally:
-                _unstub_selection()
+                unstub_selection()
     finally:
         App.closeDocument(doc.Name)
 

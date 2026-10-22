@@ -26,19 +26,11 @@ from shaper_cutout_command.create_shaper_slot import (
     ShaperSlotTaskPanel, open_slot_task_panel)
 from shaper_cutout_command.task_panel import ShaperTaskPanel
 
-from util import assert_true, make_cutout, make_plane, make_sketch, mm
+from util import assert_true, make_cutout, make_plane, make_sketch, mm, stub_selection
 
 
 def _qapp():
     return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-
-
-def _stub_selection(objects):
-    Gui.Selection = types.SimpleNamespace(
-        getSelection=lambda: list(objects),
-        getSelectionEx=lambda: [],
-    )
-    return getattr(Gui, 'Selection')
 
 
 class _StubbedWarning:
@@ -100,7 +92,7 @@ def test_slot_panel_rejects_parallel_interface_plane():
         # Parallel to C1's center plane -> rejection branch.
         ifp = make_plane(doc, "IFP", origin=(0, 0, mm(5)), rot=(0, 0, 0))
         doc.recompute()
-        _stub_selection([c1, c2, ifp])
+        stub_selection([c1, c2, ifp])
         control = _StubbedControl()
         Gui.Control = control
 
@@ -129,7 +121,7 @@ def test_slot_panel_rejects_parallel_interface_plane():
         # And a subsequent valid panel must still construct cleanly.
         good_ifp = make_plane(doc, "IFP2", origin=(0, 0, mm(2)), rot=(0, 90, 0))
         doc.recompute()
-        _stub_selection([c1, c2, good_ifp])
+        stub_selection([c1, c2, good_ifp])
         old_widget = ShaperTaskPanel._quantity_widget
         ShaperTaskPanel._quantity_widget = \
             lambda self, prop, minimum=None, maximum=None: QtWidgets.QWidget()
@@ -167,7 +159,7 @@ def test_slot_panel_invert_checkbox_toggles():
         c1, c2 = _slot_pair(doc)
         ifp = make_plane(doc, "IFP", origin=(0, 0, mm(2)), rot=(0, 90, 0))
         doc.recompute()
-        _stub_selection([c1, c2, ifp])
+        stub_selection([c1, c2, ifp])
         old_widget = ShaperTaskPanel._quantity_widget
         ShaperTaskPanel._quantity_widget = \
             lambda self, prop, minimum=None, maximum=None: QtWidgets.QWidget()
