@@ -78,8 +78,10 @@ except Exception as e:
     sys.exit(1)
 
 
-# Somewhat hackily get "the arguments passed to the integration test harness" and use them as
-# name filters for the test.
+# Get "the arguments passed to the integration test harness" (everything
+# after the script itself) and use them as name filters for the tests.
+# FreeCADCmd lays sys.argv out as [binary, script, args...], so slicing at
+# a fixed index silently ignores every filter; locate the script instead.
 def run_test(test):
     print_stdout(f"Running {test.__name__}... ")
     try:
@@ -91,7 +93,12 @@ def run_test(test):
         sys.exit(1)
 
 
-filter = sys.argv[4:]
+try:
+    _idx = next(i for i, a in enumerate(sys.argv)
+                if os.path.basename(a) == os.path.basename(__file__))
+    filter = sys.argv[_idx + 1:]
+except StopIteration:
+    filter = []
 if filter:
     for test in ALL_TESTS:
         for f in filter:
