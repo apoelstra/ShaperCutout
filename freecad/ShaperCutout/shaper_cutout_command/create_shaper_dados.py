@@ -12,7 +12,7 @@ from shaper_cutout_util import _ICON_ROOT, all_objects, selection, ShaperCutoutT
 
 def _available_sketches(doc, already_linked):
     """Return sketches in doc not already in the linked set."""
-    return all_objects(exclude=set(already_linked)).dict[ShaperCutoutType.SKETCH]
+    return all_objects(doc, exclude=set(already_linked)).dict[ShaperCutoutType.SKETCH]
 
 
 def open_dados_task_panel(cutout, dados=None, initial_sketches=[], clone_from=None):
