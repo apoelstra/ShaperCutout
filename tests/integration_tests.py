@@ -17,6 +17,7 @@ import os
 import sys
 import traceback
 
+import FreeCAD as App
 import FreeCADGui as Gui
 
 
@@ -36,14 +37,28 @@ except Exception as e:
     print_stdout("Failed to import ShaperCutout modules. Is the ShaperCutout workbench installed?")
     print_stdout("\n\n")
     print_stdout(f"Exception: {e}")
+    traceback.print_exception(e)
     sys.exit(1)
+
+
+# In the CI environment, UndoMode is set to 0 rather than 1, causing many failing tests of
+# our undo/cancel behavior. Just monkeypatch the newDocument function to override this.
+_original_new_document = App.newDocument
+
+
+def _new_test_document(*args, **kwargs):
+    doc = _original_new_document(*args, **kwargs)
+    doc.UndoMode = 1
+    return doc
+
+
+App.newDocument = _new_test_document
 
 try:
     import test_cutout_properties
     import test_dados
     import test_dialog_ok_cancel
     import test_report_and_page_mouse
-    import test_dialog_ok_cancel
     import test_selection_type_of
     import test_dado_autodrill
     import test_dados_face_attach
@@ -64,7 +79,6 @@ try:
     test_dados.register_tests(ALL_TESTS)
     test_dialog_ok_cancel.register_tests(ALL_TESTS)
     test_report_and_page_mouse.register_tests(ALL_TESTS)
-    test_dialog_ok_cancel.register_tests(ALL_TESTS)
     test_selection_type_of.register_tests(ALL_TESTS)
     test_dado_autodrill.register_tests(ALL_TESTS)
     test_dados_face_attach.register_tests(ALL_TESTS)

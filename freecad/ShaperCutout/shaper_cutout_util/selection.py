@@ -34,7 +34,9 @@ class ShaperCutoutType(Enum):
     OTHER = 99
 
     @staticmethod
-    def type_of(obj: App.DocumentObject) -> ShaperCutoutType:
+    # Note: cannot write `-> ShaperCutoutType' for this function since the version of Python
+    # in CI gets confused by it.
+    def type_of(obj: App.DocumentObject):
         ty = getattr(obj, 'Type', None)
         tyid = getattr(obj, 'TypeId', None)
 
